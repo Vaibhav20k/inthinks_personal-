@@ -1,4 +1,4 @@
-import type { ElementType, ReactNode } from 'react'
+import type { CSSProperties, ElementType, ReactNode } from 'react'
 import { useInView } from '../../lib/motion'
 
 interface RevealProps {
@@ -8,7 +8,7 @@ interface RevealProps {
   className?: string
 }
 
-/** Wraps content in a scroll-triggered rise. Honours reduced-motion via CSS. */
+/** Scroll-triggered rise. Collapses to an instant state under reduced motion. */
 export default function Reveal({
   children,
   delay = 0,
@@ -16,12 +16,11 @@ export default function Reveal({
   className = '',
 }: RevealProps) {
   const { ref, inView } = useInView<HTMLDivElement>()
-
   return (
     <Tag
       ref={ref}
       className={`reveal ${inView ? 'reveal-in' : ''} ${className}`}
-      style={{ '--reveal-delay': `${delay}ms` } as React.CSSProperties}
+      style={{ '--reveal-delay': `${delay}ms` } as CSSProperties}
     >
       {children}
     </Tag>

@@ -44,51 +44,75 @@
    Accent: a single fluorescent-tracer magenta, used at ~3% coverage —
    the highlighter mark on a technical drawing, never a field of colour.
    ───────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────
+   InThinks design system
+
+   Three colours, as specified: white, indigo blue, black.
+
+   Ground is white. Contrast ground is black, used for whole sections that
+   carry commercial weight. Indigo is the single accent, held to roughly 3%
+   of any screen — active states, a qualified match, one mark on a figure —
+   never a field, and never a gradient.
+
+   The greys are not neutral greys: each is pulled a few degrees toward the
+   indigo so the whole system reads as one hue family rather than blue
+   dropped onto grey. Three indigo steps exist because one value cannot
+   serve every ground — `accent` on white, `deep` for hover and dense small
+   text, `light` for text on the black sections. Every value below is at or
+   above 4.5:1 against the ground it is used on.
+
+   Structure comes from hairlines, a document margin column, and mono
+   metadata. Technology IDs are a brand element, not decoration.
+   ───────────────────────────────────────────────────────────── */
 @theme {
   --font-display: "Archivo", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-sans: "Archivo", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --color-paper: #f6f4f3;
-  --color-paper-sunk: #eeeaea;
-  --color-paper-raised: #fbfafa;
+  --color-paper: #ffffff;
+  --color-paper-sunk: #f3f3f8;
+  --color-paper-raised: #ffffff;
 
-  --color-ink: #141216;
-  --color-ink-deep: #0d0c0f;
-  --color-ink-soft: #26232a;
+  --color-graphite: #08080d;
+  --color-graphite-soft: #14141c;
 
-  --color-graphite: #625c68;
-  --color-graphite-light: #918a97;
+  --color-ink: #0a0a0f;
+  /* 8.3:1 on white — body copy and secondary text. */
+  --color-muted: #4a4a58;
+  /* 4.8:1 on white — mono labels are small, so this cannot go lighter. */
+  --color-faint: #6f6f80;
 
-  --color-accent: #e8006f;
-  --color-accent-deep: #a30450;
+  /* 8.1:1 on white — passes AA at every size, not only large. */
+  --color-accent: #4338ca;
+  /* 12:1 on white — hover, and the densest small text. */
+  --color-accent-deep: #312e81;
+  /* 6.7:1 on black — the inverted sections. */
+  --color-accent-light: #8b85f0;
 
-  --tracking-label: 0.16em;
-
+  --tracking-label: 0.15em;
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @layer theme {
   :root {
-    /* hairlines — the drafting-paper structure of the whole page */
-    --rule: color-mix(in oklab, var(--color-ink) 13%, transparent);
-    --rule-strong: color-mix(in oklab, var(--color-ink) 26%, transparent);
-    --rule-invert: color-mix(in oklab, white 15%, transparent);
+    --rule: color-mix(in oklab, var(--color-ink) 14%, transparent);
+    --rule-strong: color-mix(in oklab, var(--color-ink) 28%, transparent);
+    --rule-invert: color-mix(in oklab, white 16%, transparent);
+    --rule-invert-strong: color-mix(in oklab, white 30%, transparent);
 
-    /* 12-column measure */
-    --gutter: clamp(1.25rem, 4vw, 4.5rem);
-    --measure: 1440px;
+    --gutter: clamp(1.25rem, 4vw, 4rem);
+    --measure: 1520px;
   }
 }
 
-/* The page commits to one visual world — paper. Paint it explicitly so it
-   never borrows a host background. */
+/* The site commits to one visual world. Paint it explicitly so it never
+   borrows a host background. */
 html {
   background: var(--color-paper);
+  color-scheme: light;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   scroll-behavior: smooth;
-  color-scheme: light;
 }
 
 body {
@@ -109,8 +133,7 @@ body {
   }
 }
 
-/* Visible, on-brand focus — never removed for aesthetics */
-:where(a, button, input, textarea, summary, [tabindex]):focus-visible {
+:where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 3px;
   border-radius: 1px;
@@ -128,9 +151,8 @@ body {
   padding-inline: var(--gutter);
 }
 
-/* The recurring structural device: a document margin column holding the
-   section number + label, with content set against it. Collapses to a
-   stacked block below lg. */
+/* The recurring structure: a margin column carrying the section number and
+   label, content set against it — a technical document, not a card deck. */
 @utility doc-columns {
   display: grid;
   gap: clamp(1.5rem, 3vw, 2.5rem);
@@ -138,27 +160,37 @@ body {
 }
 @media (width >= 64rem) {
   .doc-columns {
-    grid-template-columns: 10rem minmax(0, 1fr);
-    gap: clamp(2rem, 5vw, 5rem);
+    grid-template-columns: 11rem minmax(0, 1fr);
+    gap: clamp(2rem, 4.5vw, 4.5rem);
   }
 }
 
 @utility label {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
-  line-height: 1.2;
+  line-height: 1.25;
   letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   font-weight: 500;
+}
+
+/* Technology and challenge IDs — INT / MAT / 024. A brand element, so it
+   gets its own treatment rather than reusing the generic label. */
+@utility ident {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
 @utility hero-type {
   font-family: var(--font-display);
   font-weight: 500;
   font-stretch: 112%;
-  font-size: clamp(3.05rem, 7.1vw, 5.75rem);
-  line-height: 0.95;
-  letter-spacing: -0.028em;
+  font-size: clamp(2.9rem, 6.6vw, 6.25rem);
+  line-height: 0.94;
+  letter-spacing: -0.03em;
   text-wrap: balance;
 }
 
@@ -166,9 +198,9 @@ body {
   font-family: var(--font-display);
   font-weight: 500;
   font-stretch: 108%;
-  font-size: clamp(2.15rem, 4.9vw, 4.5rem);
+  font-size: clamp(2.1rem, 4.6vw, 4.25rem);
   line-height: 1.02;
-  letter-spacing: -0.024em;
+  letter-spacing: -0.025em;
   text-wrap: balance;
 }
 
@@ -176,27 +208,26 @@ body {
   font-family: var(--font-display);
   font-weight: 500;
   font-stretch: 105%;
-  font-size: clamp(1.85rem, 3.3vw, 3rem);
+  font-size: clamp(1.8rem, 3.1vw, 2.875rem);
   line-height: 1.06;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.022em;
   text-wrap: balance;
 }
 
 @utility body-type {
   font-size: clamp(1.0625rem, 0.95rem + 0.35vw, 1.25rem);
-  line-height: 1.6;
+  line-height: 1.62;
   letter-spacing: -0.006em;
 }
 
+/* Body copy stays in the 55–75 character band the brief asks for. */
 @utility measure-prose {
-  max-width: 34ch;
+  max-width: 64ch;
 }
 
-/* Scroll-reveal: opacity + a short rise, driven by IntersectionObserver.
-   Reduced-motion collapses it to an instant state change. */
 @utility reveal {
   opacity: 0;
-  transform: translateY(1.15rem);
+  transform: translateY(1.1rem);
   transition:
     opacity 0.8s var(--ease-out-quint),
     transform 0.8s var(--ease-out-quint);
@@ -208,4 +239,43 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .reveal { opacity: 1; transform: none; }
+}
+
+/* Form controls share one skin so the two long submission flows feel like
+   one system. */
+@utility field-input {
+  width: 100%;
+  background: var(--color-paper-raised);
+  border: 1px solid var(--rule-strong);
+  padding: 0.875rem 1rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--color-ink);
+  transition: border-color 0.25s var(--ease-out-quint), background-color 0.25s;
+}
+.field-input::placeholder { color: var(--color-faint); }
+.field-input:hover { border-color: var(--color-muted); }
+.field-input:focus {
+  border-color: var(--color-accent);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 18%, transparent);
+}
+.field-input[aria-invalid="true"] {
+  border-color: var(--color-accent-deep);
+}
+
+/**
+ * Touch targets.
+ *
+ * The filter chips and inline links are comfortably clickable with a mouse at
+ * their natural density, and padding them all to 44px would make the desktop
+ * filter rail twice as tall for no gain. So the floor is applied only where
+ * the pointer is actually coarse.
+ */
+@media (pointer: coarse) {
+  .tap {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
 }

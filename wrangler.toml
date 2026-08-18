@@ -13,12 +13,16 @@ compatibility_date = "2026-08-18"
 # This makes a fresh clone deployable in one command, locally and on
 # Cloudflare's build runner alike.
 #
-# The install is part of the command on purpose. Cloudflare runs the deploy
-# command directly, and some build environments install with NODE_ENV=production
-# (which drops devDependencies, i.e. vite and tsc). `--include=dev` guarantees
-# the build tools exist regardless of how the runner installed.
+# The install is conditional on purpose, and the condition matters twice over.
+# Cloudflare runs the deploy command directly against a fresh clone, and some
+# runners install with NODE_ENV=production, which drops devDependencies and so
+# removes vite and tsc — hence `--include=dev` when the build tools are absent.
+# But `npm ci` deletes node_modules wholesale, which would pull the rug from
+# under a running `wrangler dev` (miniflare lives there too). Checking for the
+# vite binary first means a local machine never reinstalls, and a bare runner
+# always does.
 [build]
-command = "npm ci --include=dev && npm run build"
+command = "test -x node_modules/.bin/vite || npm ci --include=dev && npm run build"
 
 [assets]
 directory = "./dist"

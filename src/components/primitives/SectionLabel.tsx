@@ -1,21 +1,20 @@
-interface SectionLabelProps {
-  index: string
+interface Props {
+  index?: string
   children: string
   invert?: boolean
 }
 
-/**
- * The page's recurring structural device: a numbered marginal label, set in
- * mono against a hairline. The numbering is real — sections are read in order.
- */
-export default function SectionLabel({ index, children, invert = false }: SectionLabelProps) {
+/** Numbered marginal label against a hairline — the page's spine. */
+export default function SectionLabel({ index, children, invert = false }: Props) {
   return (
     <div
       className="label flex items-baseline gap-3 border-t pt-3 lg:flex-col lg:gap-2"
       style={{ borderColor: invert ? 'var(--rule-invert)' : 'var(--rule)' }}
     >
-      <span style={{ color: 'var(--color-accent)' }}>{index}</span>
-      <span className={invert ? 'text-white/55' : 'text-graphite'}>{children}</span>
+      {index && <span style={{ color: 'var(--color-accent)' }}>{index}</span>}
+      <span style={{ color: invert ? 'rgba(255,255,255,0.55)' : 'var(--color-muted)' }}>
+        {children}
+      </span>
     </div>
   )
 }
