@@ -207,6 +207,93 @@ keep the long-form answers in a `payload` JSON column, so the question set can
 change without a migration. `evidence` is the manifest pointing at R2 objects.
 Schema is in `migrations/0001_init.sql`.
 
+## Admin dashboard
+
+`/admin` is the internal surface over submissions. It is code-split, so a
+visitor to the public site never downloads it.
+
+### Access is closed by default
+
+With no authentication configured the admin surface is **unreachable**, not
+open. A dashboard over unpublished IP disclosures and confidential industrial
+problems must never be one missing environment variable away from being public,
+so `authenticate()` refuses before it does anything else.
+
+Two mechanisms, in order of preference:
+
+1. **Cloudflare Access.** Set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` and the
+   Access JWT is verified properly — RS256 against the team's published JWKS,
+   plus audience, issuer and expiry. Identity comes from Cloudflare; no password
+   is ever stored here.
+2. **Password sign-in**, for accounts not fronted by Access. PBKDF2-SHA256 at
+   210k iterations over WebCrypto, and a stateless HMAC-signed session in an
+   HttpOnly, Secure, SameSite=Strict cookie.
+
+Either way a `users` row is required. Access proves *who* someone is; it does
+not decide what they may do here.
+
+### Creating the first account
+
+```bash
+node scripts/create-admin.mjs you@example.com super-admin
+# prints SQL — run it with wrangler d1 execute (local or --remote)
+```
+
+The hash is computed by a local script rather than a bootstrap endpoint on
+purpose: a route that can mint the first super-admin is an attack surface that
+exists forever to solve a problem you have once.
+
+### Roles
+
+| Role | Sees identity | Scores | Moves acquisition stage | Audit | Users |
+|---|---|---|---|---|---|
+| `super-admin` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `admin` | ✓ | ✓ | ✓ | ✓ | — |
+| `business-development` | ✓ | — | ✓ | — | — |
+| `rnd-reviewer` | — | ✓ | — | — | — |
+
+The R&D reviewer row is the one that carries weight. The platform promises
+innovators their identity is private by default, so a reviewer **cannot
+retrieve it** — the fields are absent from the API response, not hidden by the
+frontend. Every admin response is assembled field by field; there is no
+`SELECT *` path to the client anywhere in `worker/admin.ts`.
+
+### Modules
+
+- **Overview** — counts, TRL averages and distributions, all computed from
+  stored rows. No metric is seeded, estimated or projected; an empty pipeline
+  reads as zero.
+- **Innovations** — list with stage filter; detail carries the full submission,
+  the IP disclosure, evidence, the eleven-dimension scoring rubric, acquisition
+  stage, TRL tracking and internal notes.
+- **Challenges** — list with status filter; detail carries the problem,
+  technical environment, business impact, constraints, handling and notes.
+- **Audit log** — reads as well as writes.
+- **Users** — accounts and roles, super-admin only.
+
+### Evidence files
+
+R2 keys never reach the browser as fetchable URLs. A download link is an HMAC
+over the key and a five-minute expiry, and the route checks the signature *and*
+the session. Verified against tampering: forged signature, swapped key with a
+kept signature, extended expiry with a kept signature, and a valid link with no
+session are all refused.
+
+### Audit
+
+Every detail view, list, mutation and download is recorded with actor, role,
+action, target and a truncated IP hash. Reads are logged because opening a
+disclosure is the sensitive action — "who looked at this submission" has to stay
+answerable.
+
+### Not built
+
+The brief also describes an AI match engine and Match Room, an R&D development
+workspace, an industry opportunity pipeline, a commercial deal room and royalty
+management. Those are not in this build. The record shapes they need
+(`MatchRecord` with its non-optional `humanReview`, `InternalDealRecord`,
+`MatchSignals`) are typed in `src/data/models.ts`.
+
 ## Deployment
 
 `wrangler.toml` publishes `dist/` plus the Worker.
@@ -239,10 +326,9 @@ match engine, the Match Room, acquisition pipeline, R&D workspace, industry
 opportunity pipeline, deal room, royalty management and analytics. None of that
 is in this build.
 
-Intake now exists — submissions are stored in D1 with evidence in R2 — but there
-is no authenticated interface over that data. Reading it today means
-`wrangler d1 execute`. The admin surface, roles and the match engine are the
-next pieces.
+Intake and the admin dashboard now exist. What remains from the brief is the
+match engine and the workflow surfaces built on top of it — Match Room,
+R&D workspace, opportunity pipeline, deal room and royalties.
 
 What is here is the architecture for it. `src/data/models.ts` types the
 innovation and challenge records, the fifteen `MatchSignals` dimensions, the

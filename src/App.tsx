@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { BrowserRouter, HashRouter, Route, Routes } from 'react-router-dom'
 import Layout from './components/layout/Layout'
 import Home from './pages/Home'
@@ -12,6 +13,9 @@ import ConfidentialityPage from './pages/Confidentiality'
 import SubmitChallenge from './pages/SubmitChallenge'
 import SubmitInnovation from './pages/SubmitInnovation'
 import NotFound from './pages/NotFound'
+
+// Lazy so the public site never ships the admin bundle to a visitor.
+const AdminApp = lazy(() => import('./admin/AdminApp'))
 
 /**
  * Real paths in production. A hash router is available for builds served from
@@ -39,6 +43,16 @@ export default function App() {
           <Route path="/submit-innovation" element={<SubmitInnovation />} />
           <Route path="*" element={<NotFound />} />
         </Route>
+
+        {/* Outside the public layout: the admin surface has its own chrome. */}
+        <Route
+          path="/admin/*"
+          element={
+            <Suspense fallback={null}>
+              <AdminApp />
+            </Suspense>
+          }
+        />
       </Routes>
     </Router>
   )
