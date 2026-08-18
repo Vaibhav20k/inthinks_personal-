@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import FormShell from '../components/forms/FormShell'
 import type { Step } from '../components/forms/FormShell'
 import Confirmation from '../components/forms/Confirmation'
@@ -6,11 +6,8 @@ import { ChoiceGroup, Consent, SelectField, TextArea, TextField } from '../compo
 import PageHero from '../components/layout/PageHero'
 import Notice from '../components/primitives/Notice'
 import { useDraft } from '../lib/draft'
-import { challengeId } from '../lib/ids'
+import { SubmissionError, submissionStatus, submitChallenge } from '../lib/api'
 import { impactOptions, sectors } from '../data/taxonomy'
-
-/** No submission endpoint exists yet; the UI must not claim otherwise. */
-const SUBMISSIONS_CONNECTED = false
 
 interface ChallengeDraft {
   /** Persisted so a reload returns to the step the user was on. */
@@ -72,9 +69,43 @@ const YES_NO = ['Yes', 'No', 'Not sure'] as const
 const SENSITIVITY = ['Low', 'Moderate', 'High', 'Not sure'] as const
 
 export default function SubmitChallenge() {
-  const { value, update, savedAt } = useDraft<ChallengeDraft>('inthinks.challenge', EMPTY)
+  const { value, update, clear, savedAt } = useDraft<ChallengeDraft>('inthinks.challenge', EMPTY)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [reference, setReference] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [connected, setConnected] = useState<boolean | null>(null)
+
+  // Asked once on mount so the form can say up front whether it can be sent,
+  // rather than failing at the end of six steps.
+  useEffect(() => {
+    let live = true
+    submissionStatus().then((s) => live && setConnected(s.submissions))
+    return () => {
+      live = false
+    }
+  }, [])
+
+  const send = async () => {
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      // `step` is local bookkeeping and never leaves the browser.
+      const { step: _step, ...record } = value
+      const { reference: issued } = await submitChallenge(record)
+      setReference(issued)
+      clear()
+    } catch (cause) {
+      if (cause instanceof SubmissionError) {
+        setSubmitError(cause.message)
+        if (cause.fields) setErrors(cause.fields)
+      } else {
+        setSubmitError('The submission could not be sent. Please check your connection and try again.')
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const err = (k: string) => errors[k]
   const toggle = (key: 'impacts', v: string) =>
@@ -223,7 +254,6 @@ export default function SubmitChallenge() {
           reference={reference}
           referenceLabel="CHALLENGE REFERENCE"
           body="Our team will review the requirement and evaluate relevant technology opportunities."
-          connected={SUBMISSIONS_CONNECTED}
         />
       </section>
     )
@@ -236,9 +266,12 @@ export default function SubmitChallenge() {
         title="Submit an industry challenge."
         lede="Describe the problem in technical terms. It is structured internally, compared against the InThinks portfolio, and reviewed by our technical team before anything is put in front of you."
       >
-        <Notice>
-          Submissions are not connected in this build — nothing is transmitted. Your draft stays in this browser.
-        </Notice>
+        {connected === false && (
+          <Notice>
+            Submissions are not configured on this deployment yet — the form will not send.
+            Your draft stays saved in this browser.
+          </Notice>
+        )}
       </PageHero>
 
       <section className="container-grid pb-28">
@@ -246,11 +279,13 @@ export default function SubmitChallenge() {
           steps={steps}
           index={Math.min(value.step, steps.length - 1)}
           onIndexChange={(i) => update({ step: i })}
-          onSubmit={() => setReference(challengeId(new Date().getFullYear()))}
+          onSubmit={send}
           submitLabel="Submit Challenge"
           errors={errors}
           onErrors={setErrors}
           savedAt={savedAt}
+          submitting={submitting}
+          submitError={submitError}
         />
       </section>
     </>

@@ -1,18 +1,23 @@
 import { useRef, useState } from 'react'
 
-export interface StagedFile {
-  name: string
-  size: number
-  type: string
-}
-
 interface Props {
-  files: StagedFile[]
-  onChange: (files: StagedFile[]) => void
+  files: File[]
+  onChange: (files: File[]) => void
   hint?: string
+  /** False when the deployment has no object storage bound. */
+  enabled?: boolean
 }
 
 const MAX_MB = 25
+const MAX_FILES = 12
+
+/** Mirrors the allow-list the Worker enforces, so rejections happen here first. */
+const ALLOWED = new Set([
+  'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'csv', 'txt', 'md',
+  'png', 'jpg', 'jpeg', 'webp', 'gif', 'tif', 'tiff', 'heic',
+  'mp4', 'mov', 'webm',
+  'dwg', 'dxf', 'step', 'stp', 'iges', 'igs', 'stl', 'zip',
+])
 
 function readable(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
@@ -20,31 +25,46 @@ function readable(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
+const extensionOf = (name: string) => {
+  const dot = name.lastIndexOf('.')
+  return dot === -1 ? '' : name.slice(dot + 1).toLowerCase()
+}
+
 /**
  * Drag-and-drop evidence upload.
  *
- * Files are staged in the browser only — nothing is transmitted, because there
- * is no upload endpoint yet. The list records name, size and type so the rest
- * of the flow behaves correctly; the page states plainly that submission is
- * not connected.
+ * Holds real File objects rather than metadata, because these are uploaded on
+ * submit. That is also why they are not part of the autosaved draft — a File
+ * cannot be serialised into localStorage, so the form says so rather than
+ * quietly losing attachments on reload.
  */
-export default function FileUpload({ files, onChange, hint }: Props) {
+export default function FileUpload({ files, onChange, hint, enabled = true }: Props) {
   const [over, setOver] = useState(false)
   const [rejected, setRejected] = useState<string[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
 
   const accept = (list: FileList | null) => {
     if (!list) return
-    const next: StagedFile[] = []
+    const next: File[] = []
     const bad: string[] = []
+
     for (const file of Array.from(list)) {
+      if (files.length + next.length >= MAX_FILES) {
+        bad.push(`${file.name} — limit is ${MAX_FILES} files`)
+        continue
+      }
       if (file.size > MAX_MB * 1024 * 1024) {
         bad.push(`${file.name} — over ${MAX_MB} MB`)
         continue
       }
+      if (!ALLOWED.has(extensionOf(file.name))) {
+        bad.push(`${file.name} — file type not accepted`)
+        continue
+      }
       if (files.some((f) => f.name === file.name && f.size === file.size)) continue
-      next.push({ name: file.name, size: file.size, type: file.type || 'unknown' })
+      next.push(file)
     }
+
     setRejected(bad)
     if (next.length) onChange([...files, ...next])
   }
@@ -53,11 +73,13 @@ export default function FileUpload({ files, onChange, hint }: Props) {
     <div>
       <div
         onDragOver={(e) => {
+          if (!enabled) return
           e.preventDefault()
           setOver(true)
         }}
         onDragLeave={() => setOver(false)}
         onDrop={(e) => {
+          if (!enabled) return
           e.preventDefault()
           setOver(false)
           accept(e.dataTransfer.files)
@@ -66,16 +88,22 @@ export default function FileUpload({ files, onChange, hint }: Props) {
         style={{
           border: `1px dashed ${over ? 'var(--color-accent)' : 'var(--rule-strong)'}`,
           background: over ? 'color-mix(in oklab, var(--color-accent) 5%, transparent)' : 'transparent',
+          opacity: enabled ? 1 : 0.55,
         }}
       >
-        <p className="text-[0.9375rem] font-medium">Drag files here</p>
+        <p className="text-[0.9375rem] font-medium">
+          {enabled ? 'Drag files here' : 'File upload unavailable'}
+        </p>
         <p className="mt-1.5 text-[0.8125rem]" style={{ color: 'var(--color-muted)' }}>
-          {hint ?? `Photographs, reports, test results, papers, drawings, CAD, video. Up to ${MAX_MB} MB each.`}
+          {enabled
+            ? (hint ?? `Photographs, reports, test results, papers, drawings, CAD, video. Up to ${MAX_MB} MB each, ${MAX_FILES} files.`)
+            : 'This deployment has no file storage configured. You can still submit the written record.'}
         </p>
         <button
           type="button"
+          disabled={!enabled}
           onClick={() => inputRef.current?.click()}
-          className="label mt-5 px-4 py-2.5 transition-colors duration-250 hover:border-accent"
+          className="tap label mt-5 px-4 py-2.5 transition-colors duration-250 disabled:cursor-not-allowed"
           style={{ border: '1px solid var(--rule-strong)' }}
         >
           CHOOSE FILES
@@ -104,7 +132,7 @@ export default function FileUpload({ files, onChange, hint }: Props) {
         <ul className="mt-5">
           {files.map((file) => (
             <li
-              key={`${file.name}-${file.size}`}
+              key={`${file.name}-${file.size}-${file.lastModified}`}
               className="flex items-center justify-between gap-4 py-3"
               style={{ borderTop: '1px solid var(--rule)' }}
             >
@@ -115,7 +143,7 @@ export default function FileUpload({ files, onChange, hint }: Props) {
               <button
                 type="button"
                 onClick={() => onChange(files.filter((f) => f !== file))}
-                className="label shrink-0 transition-colors duration-250 hover:text-accent"
+                className="tap label shrink-0 transition-colors duration-250 hover:text-accent"
                 style={{ color: 'var(--color-muted)' }}
               >
                 REMOVE

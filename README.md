@@ -21,14 +21,15 @@ npm run deploy     # wrangler deploy (builds first)
 All tokens live in `src/styles.css`; components read them and never hard-code a
 colour.
 
-**Colour — white, indigo, black.** White ground, black contrast sections, and a
-single indigo accent held to roughly 3% of any screen: active states, a
-qualified match, one mark on a figure. Never a field, never a gradient. The
-greys are pulled a few degrees toward the indigo so the system reads as one hue
-family. Three indigo steps exist because one value cannot serve every ground —
-`--color-accent` on white (8.1:1), `--color-accent-deep` for hover and dense
-small text (12:1), `--color-accent-light` for text on the black sections
-(6.7:1). Every value is at or above 4.5:1 against the ground it sits on.
+**Colour — white, indigo blue, black.** White ground, black contrast sections,
+and a single indigo blue accent (`#1560bd`) held to roughly 3% of any screen:
+active states, a qualified match, one mark on a figure. Never a field, never a
+gradient. The greys are pulled toward the accent so the system reads as one hue
+family. Three steps exist because one value cannot serve every ground —
+`--color-accent` `#1560bd` on white (6.1:1), `--color-accent-deep` `#0e4281` for
+hover and dense small text (9.9:1), `--color-accent-light` `#72aaef` for text on
+the black sections (8.3:1). The two derived steps move lightness only, so all
+three sit on the same hue. Every value clears AA on the ground it sits on.
 
 **Mark.** The company logo — a gear inside a bulb — is redrawn as vector in
 `src/components/primitives/Logo.tsx`, so it stays crisp at any size, themes with
@@ -112,9 +113,10 @@ The brief's legal and trust rules are enforced in the UI, not just intended:
   `src/data/technologies.ts` is a labelled placeholder, surfaced as such on the
   cards, the explorer and every brief. No patents, results, partners or clients
   are asserted.
-- **No claimed receipt.** There is no submission endpoint, so the flows say so
-  and the confirmation reads "Draft complete", with the reference marked as
-  locally generated.
+- **No claimed receipt.** Submissions are stored and the reference is
+  issued by the server, so the confirmation is only reached once the record
+  exists. Where the bindings are absent, the form says so up front rather than
+  claiming receipt.
 - **AI stays understated.** The site says a challenge is structured across
   technical dimensions and that a human qualifies every result. No match
   percentages, no algorithm, no "AI-powered" framing.
@@ -127,9 +129,78 @@ heading on navigation, the scroll-driven journey duplicated as an ordered list
 for screen readers, `aria-hidden` on decorative figures, and a 44px touch-target
 floor applied under `pointer: coarse` so desktop density is preserved.
 
+## Submission API
+
+The same Worker that serves the site handles `/api/*`. `run_worker_first`
+matters here: without it the SPA fallback would answer `/api/*` with
+`index.html` before the Worker ever saw the request.
+
+| Route | Method | Purpose |
+|---|---|---|
+| `/api/status` | GET | Whether this deployment can accept submissions and files |
+| `/api/challenges` | POST | Industry challenge, JSON |
+| `/api/innovations` | POST | Innovation, JSON or multipart with evidence files |
+
+Records go to **D1**, evidence files to **R2**. Both are optional bindings: with
+neither, the site still deploys and runs, `/api/status` reports `false`, and the
+forms say submissions are not configured instead of pretending to accept them.
+
+### One-time setup
+
+```bash
+npx wrangler login
+
+npm run db:create          # wrangler d1 create inthinks-submissions
+# paste the returned database_id into wrangler.toml
+npm run db:migrate         # applies migrations/ to the remote database
+
+npm run r2:create          # wrangler r2 bucket create inthinks-evidence
+
+# Salts the IP hashes used for throttling. Any long random string.
+npx wrangler secret put IP_SALT
+
+# Optional: a URL that receives a one-line arrival notice.
+npx wrangler secret put NOTIFY_WEBHOOK
+
+npx wrangler deploy
+```
+
+Locally, `npm run db:migrate:local` then `npm run cf:dev` gives you a simulated
+D1 and R2 with no account resources touched.
+
+### What the endpoint enforces
+
+- **Server-side validation is authoritative.** `worker/validation.ts` declares
+  every field with a length cap; unknown keys are dropped rather than stored, so
+  the `payload` column can never accumulate arbitrary content. The client
+  validates too, but only for the submitter's benefit.
+- **Declarations are a gate.** An innovation is refused unless all seven are
+  confirmed, checked server-side.
+- **Uploads are allow-listed**, capped at 25 MB per file, 12 files, 60 MB total.
+  Submitted filenames never become storage keys — objects are stored under
+  `{reference}/{uuid}.{ext}` so a crafted name cannot traverse the bucket.
+- **Throttling is two-tier.** A loose ceiling on requests (60 per 10 minutes)
+  that only abuse reaches, and a tight one on *accepted* submissions (6),
+  charged only after a record is stored. A single counter would lock someone out
+  of an eight-step form for mistyping their email three times. IPs are stored
+  only as salted SHA-256 hashes.
+- **References are allocated atomically** — an upsert-and-return against a
+  counter row per stream and year, so two simultaneous submissions cannot
+  collide on `CH-2026-0001`.
+- **Confidential content stays put.** The optional notification webhook receives
+  the reference, company and sector only — never the problem statement or any
+  technical answer. Errors log their shape, never the submission.
+
+### Where the data lands
+
+`challenges` and `innovations` promote the triage fields to real columns and
+keep the long-form answers in a `payload` JSON column, so the question set can
+change without a migration. `evidence` is the manifest pointing at R2 objects.
+Schema is in `migrations/0001_init.sql`.
+
 ## Deployment
 
-`wrangler.toml` publishes `dist/` as a static-assets-only Worker.
+`wrangler.toml` publishes `dist/` plus the Worker.
 
 ```bash
 npx wrangler login
@@ -157,8 +228,12 @@ The brief describes a private operating platform behind the public site:
 authentication and roles, the admin innovation and challenge databases, the AI
 match engine, the Match Room, acquisition pipeline, R&D workspace, industry
 opportunity pipeline, deal room, royalty management and analytics. None of that
-is in this build — it needs auth, a database and inference infrastructure that a
-static site cannot host.
+is in this build.
+
+Intake now exists — submissions are stored in D1 with evidence in R2 — but there
+is no authenticated interface over that data. Reading it today means
+`wrangler d1 execute`. The admin surface, roles and the match engine are the
+next pieces.
 
 What is here is the architecture for it. `src/data/models.ts` types the
 innovation and challenge records, the fifteen `MatchSignals` dimensions, the

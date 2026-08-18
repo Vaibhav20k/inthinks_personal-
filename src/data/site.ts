@@ -8,12 +8,12 @@ export const site = {
 } as const
 
 export const nav = [
+  { label: 'About', to: '/about' },
   { label: 'Technologies', to: '/technologies' },
   { label: 'For Industry', to: '/for-industry' },
   { label: 'For Innovators', to: '/for-innovators' },
   { label: 'How It Works', to: '/how-it-works' },
   { label: 'Technology Transfer', to: '/technology-transfer' },
-  { label: 'About', to: '/about' },
 ] as const
 
 export const footerGroups = [

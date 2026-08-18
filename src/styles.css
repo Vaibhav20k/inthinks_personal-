@@ -82,12 +82,13 @@
   /* 4.8:1 on white — mono labels are small, so this cannot go lighter. */
   --color-faint: #6f6f80;
 
-  /* 8.1:1 on white — passes AA at every size, not only large. */
-  --color-accent: #4338ca;
-  /* 12:1 on white — hover, and the densest small text. */
-  --color-accent-deep: #312e81;
-  /* 6.7:1 on black — the inverted sections. */
-  --color-accent-light: #8b85f0;
+  /* Indigo blue, the brand value. 6.1:1 on white, so it passes
+     AA at every text size rather than only at large sizes. */
+  --color-accent: #1560bd;
+  /* 10:1 on white — hover, and the densest small text. */
+  --color-accent-deep: #0e4281;
+  /* 8.3:1 on black — the inverted sections. */
+  --color-accent-light: #72aaef;
 
   --tracking-label: 0.15em;
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);

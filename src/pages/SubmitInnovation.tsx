@@ -1,19 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import FormShell from '../components/forms/FormShell'
 import type { Step } from '../components/forms/FormShell'
 import Confirmation from '../components/forms/Confirmation'
 import FileUpload from '../components/forms/FileUpload'
-import type { StagedFile } from '../components/forms/FileUpload'
 import TrlSelector from '../components/forms/TrlSelector'
 import { ChoiceGroup, Consent, SelectField, TextArea, TextField } from '../components/forms/Fields'
 import PageHero from '../components/layout/PageHero'
 import Notice from '../components/primitives/Notice'
 import { useDraft } from '../lib/draft'
-import { innovationId } from '../lib/ids'
+import { SubmissionError, submissionStatus, submitInnovation } from '../lib/api'
 import { domains, sectors } from '../data/taxonomy'
 import type { TRL } from '../data/models'
-
-const SUBMISSIONS_CONNECTED = false
 
 const INSTITUTION_TYPES = [
   'IIT', 'NIT', 'IISc', 'IISER', 'NISER',
@@ -52,7 +49,6 @@ interface InnovationDraft {
   limitations: string
   applications: string
   trl: TRL | null
-  files: StagedFile[]
   isInventor: string
   coInventors: string
   owner: string
@@ -89,7 +85,7 @@ const EMPTY: InnovationDraft = {
   step: 0,
   title: '', summary: '', category: '', technical: '', problem: '', whoHasIt: '',
   industries: [], solvedToday: '', different: '', principle: '', components: '',
-  process: '', advantages: '', limitations: '', applications: '', trl: null, files: [],
+  process: '', advantages: '', limitations: '', applications: '', trl: null,
   isInventor: '', coInventors: '', owner: '', universityProject: '', usedInfrastructure: '',
   universityFunding: '', externalFunding: '', facultyInvolved: '', duringEmployment: '',
   patentFiled: '', patentNumber: '', patentOwner: '', paperPublished: '',
@@ -100,9 +96,46 @@ const EMPTY: InnovationDraft = {
 }
 
 export default function SubmitInnovation() {
-  const { value, update, savedAt } = useDraft<InnovationDraft>('inthinks.innovation', EMPTY)
+  const { value, update, clear, savedAt } = useDraft<InnovationDraft>('inthinks.innovation', EMPTY)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [reference, setReference] = useState<string | null>(null)
+  const [sentFiles, setSentFiles] = useState(0)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [status, setStatus] = useState<{ submissions: boolean; uploads: boolean } | null>(null)
+  // Real File objects, so they live in component state rather than the draft —
+  // localStorage cannot hold them.
+  const [files, setFiles] = useState<File[]>([])
+
+  useEffect(() => {
+    let live = true
+    submissionStatus().then((s) => live && setStatus(s))
+    return () => {
+      live = false
+    }
+  }, [])
+
+  const send = async () => {
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      const { step: _step, ...record } = value
+      const { reference: issued } = await submitInnovation(record, files)
+      setSentFiles(files.length)
+      setReference(issued)
+      setFiles([])
+      clear()
+    } catch (cause) {
+      if (cause instanceof SubmissionError) {
+        setSubmitError(cause.message)
+        if (cause.fields) setErrors(cause.fields)
+      } else {
+        setSubmitError('The submission could not be sent. Please check your connection and try again.')
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const err = (k: string) => errors[k]
   const toggleList = (key: 'industries' | 'declarations', v: string) =>
@@ -180,9 +213,10 @@ export default function SubmitInnovation() {
             Photographs, technical reports, test results, papers, patent documents,
             video, drawings, CAD or presentations. Anything that shows the work is real.
           </p>
-          <FileUpload files={value.files} onChange={(files) => update({ files })} />
+          <FileUpload files={files} onChange={setFiles} enabled={status?.uploads !== false} />
           <Notice>
-            File handling is not connected in this build — files are listed here but never leave your device.
+            Attachments are held in this tab only and are sent when you submit. Unlike your
+            written answers, they are not part of the saved draft — reloading clears them.
           </Notice>
         </>
       ),
@@ -303,7 +337,7 @@ export default function SubmitInnovation() {
           reference={reference}
           referenceLabel="INNOVATION REFERENCE"
           body="Selected technologies may progress into deeper technical evaluation and the InThinks development pipeline."
-          connected={SUBMISSIONS_CONNECTED}
+          fileCount={sentFiles}
         />
       </section>
     )
@@ -316,9 +350,12 @@ export default function SubmitInnovation() {
         title="Built something worth taking further?"
         lede="Submit your technology for evaluation and potential inclusion in the InThinks development portfolio. Early-stage work at TRL 1–3 is where most of the portfolio enters."
       >
-        <Notice>
-          Submissions are not connected in this build — nothing is transmitted. Your draft stays in this browser.
-        </Notice>
+        {status?.submissions === false && (
+          <Notice>
+            Submissions are not configured on this deployment yet — the form will not send.
+            Your draft stays saved in this browser.
+          </Notice>
+        )}
       </PageHero>
 
       <section className="container-grid pb-28">
@@ -326,11 +363,13 @@ export default function SubmitInnovation() {
           steps={steps}
           index={Math.min(value.step, steps.length - 1)}
           onIndexChange={(i) => update({ step: i })}
-          onSubmit={() => setReference(innovationId(new Date().getFullYear()))}
+          onSubmit={send}
           submitLabel="Submit Innovation"
           errors={errors}
           onErrors={setErrors}
           savedAt={savedAt}
+          submitting={submitting}
+          submitError={submitError}
         />
       </section>
     </>
