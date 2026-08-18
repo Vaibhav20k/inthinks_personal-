@@ -147,26 +147,35 @@ forms say submissions are not configured instead of pretending to accept them.
 
 ### One-time setup
 
+`wrangler.toml` ships with the storage bindings **commented out**, so the site
+deploys on a bare Cloudflare account. A binding naming a resource that does not
+exist fails the entire deploy, so they stay off until you create the resources.
+
 ```bash
 npx wrangler login
 
-npm run db:create          # wrangler d1 create inthinks-submissions
-# paste the returned database_id into wrangler.toml
-npm run db:migrate         # applies migrations/ to the remote database
+# 1. Records
+npm run db:create                   # wrangler d1 create inthinks-submissions
+#    paste the returned database_id into wrangler.toml and uncomment the
+#    [[d1_databases]] block, then:
+npm run db:migrate                  # applies migrations/ to the remote database
 
-npm run r2:create          # wrangler r2 bucket create inthinks-evidence
+# 2. Evidence files (optional — the written record works without it)
+#    Enable R2 once in the Cloudflare dashboard → R2 → Enable (free tier), then:
+npm run r2:create                   # wrangler r2 bucket create inthinks-evidence
+#    and uncomment the [[r2_buckets]] block in wrangler.toml.
 
-# Salts the IP hashes used for throttling. Any long random string.
-npx wrangler secret put IP_SALT
-
-# Optional: a URL that receives a one-line arrival notice.
-npx wrangler secret put NOTIFY_WEBHOOK
+# 3. Secrets
+npx wrangler secret put IP_SALT         # any long random string
+npx wrangler secret put SESSION_SECRET  # required for admin sign-in and signed downloads
+npx wrangler secret put NOTIFY_WEBHOOK  # optional arrival notice
 
 npx wrangler deploy
 ```
 
-Locally, `npm run db:migrate:local` then `npm run cf:dev` gives you a simulated
-D1 and R2 with no account resources touched.
+Locally, `npm run dev:db` then `npm run dev:worker` uses `wrangler.local.toml`,
+which points the same bindings at wrangler's simulated D1 and R2 — no account
+resources are touched.
 
 ### What the endpoint enforces
 
