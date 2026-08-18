@@ -1,0 +1,37 @@
+# LOCAL DEVELOPMENT ONLY — never deploy with this config.
+#
+# wrangler.toml ships with the storage bindings commented out, so a bare
+# Cloudflare account can deploy the site without first creating resources.
+# This file turns them on against wrangler's *simulated* D1 and R2, so the
+# submission and admin flows can be developed offline. The database_id is a
+# placeholder because local simulation never contacts the API.
+#
+#   npm run dev:db      # apply migrations to the local database
+#   npm run dev:worker  # serve the site and API locally
+name = "inthinks-local"
+compatibility_date = "2026-08-18"
+main = "worker/index.ts"
+
+[build]
+command = "test -x node_modules/.bin/vite || npm ci --include=dev && npm run build"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "inthinks-submissions"
+database_id = "local-development-only"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "EVIDENCE"
+bucket_name = "inthinks-evidence"
+
+[vars]
+# Local-only secrets. Real deployments set these with `wrangler secret put`.
+SESSION_SECRET = "local-development-session-secret-not-for-production"
+IP_SALT = "local-development-ip-salt"

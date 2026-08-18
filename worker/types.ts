@@ -7,6 +7,17 @@ export interface Env {
   IP_SALT?: string
   /** Optional webhook that receives a minimal arrival notice, never the content. */
   NOTIFY_WEBHOOK?: string
+
+  /* Admin authentication. With none of these set the admin surface is
+     unreachable rather than open — see worker/auth.ts. */
+
+  /** Cloudflare Access team domain, e.g. inthinks.cloudflareaccess.com. */
+  ACCESS_TEAM_DOMAIN?: string
+  /** Application Audience tag for the Access application. */
+  ACCESS_AUD?: string
+  /** HMAC secret for password-login sessions. */
+  SESSION_SECRET?: string
+
   ASSETS: Fetcher
 }
 

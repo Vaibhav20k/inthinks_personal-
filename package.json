@@ -13,7 +13,9 @@
     "db:create": "wrangler d1 create inthinks-submissions",
     "db:migrate": "wrangler d1 migrations apply inthinks-submissions --remote",
     "db:migrate:local": "wrangler d1 migrations apply inthinks-submissions --local",
-    "r2:create": "wrangler r2 bucket create inthinks-evidence"
+    "r2:create": "wrangler r2 bucket create inthinks-evidence",
+    "dev:worker": "wrangler dev -c wrangler.local.toml",
+    "dev:db": "wrangler d1 migrations apply inthinks-submissions --local -c wrangler.local.toml"
   },
   "dependencies": {
     "react": "^19.2.8",
