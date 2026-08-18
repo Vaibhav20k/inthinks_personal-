@@ -1,0 +1,12 @@
+# Cloudflare Workers (static assets) — deploy with `npx wrangler deploy`.
+#
+# There is no Worker script: `[assets]` with no `main` entry publishes dist/
+# straight to Cloudflare's edge as a static-assets-only Worker.
+name = "inthinks"
+compatibility_date = "2026-08-18"
+
+[assets]
+directory = "./dist"
+# The site is one page; serve index.html for any unmatched path rather than
+# a 404, so anchors and future client routes both resolve.
+not_found_handling = "single-page-application"

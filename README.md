@@ -1,57 +1,119 @@
-# inthinks
+# InThinks
 
-Landing page template for **inthinks.com** — a single-page marketing site built
-with React 19, Vite and Tailwind CSS v4.
+Homepage for **inthinks.com** — an independent ideation and innovation studio
+that turns early-stage thinking into technologies, products and intellectual
+property available for licensing, transfer and co-development.
 
-## Getting started
+Built with React 19, TypeScript, Vite and Tailwind CSS v4. Deploys to
+Cloudflare Workers.
 
 ```bash
 npm install
-npm run dev      # dev server at http://localhost:5173
-npm run build    # production build to dist/
-npm run preview  # serve the production build
+npm run dev        # http://localhost:5173
+npm run build      # typecheck + production build to dist/
+npm run preview    # serve the production build locally
+npm run deploy     # build, then wrangler deploy
 ```
 
-## Project layout
+## Design system
 
+Everything is defined as theme tokens in `src/styles.css`; components read the
+tokens and never hard-code a colour or size.
+
+**Palette.** A warm paper ground (`--color-paper` `#f6f4f3`) with near-black
+ink carrying a faint violet bias (`--color-ink` `#141216`) and graphite
+secondary text. One accent — a fluorescent-tracer magenta (`--color-accent`
+`#e8006f`) — held to roughly 3% of the page: section numbers, active states,
+one mark per figure. `--color-accent-deep` is the AA-contrast variant for small
+text. Section 07 inverts to an ink ground; it is the only dark passage, and it
+marks the commercial turn.
+
+**Type.** Archivo (variable weight *and* width) for everything readable, IBM
+Plex Mono for labels, metadata, measurements and specifications. The hero runs
+at `clamp(3.05rem, 7.1vw, 5.75rem)` with the width axis pushed to 112%; body
+copy sits at 17–20px; mono labels at 11px with `0.16em` tracking.
+
+**Grid.** `.container-grid` caps content at 1440px with a fluid gutter.
+`.doc-columns` is the recurring structure: a 10rem margin column holding the
+section number and label, with content set against it — a technical document's
+marginalia. It collapses to a stacked block below `lg`.
+
+**Structure.** Hairlines (`--rule`) do the dividing work instead of cards and
+shadows. Numbering appears only where order is real: the seven journey stages,
+the engagement sequence, the section index.
+
+## Motion
+
+No animation library. Reveals use `IntersectionObserver` plus a CSS transition;
+the scroll-linked journey uses one rAF-throttled scroll listener; the hero and
+lab surfaces read pointer position directly. `src/lib/motion.ts` holds all of
+it: `useInView`, `useScrollProgress`, `usePointerField`, `useMediaQuery`,
+`usePrefersReducedMotion`.
+
+`prefers-reduced-motion: reduce` is handled at both levels — globally in CSS,
+and in JS where the hero canvas skips its animation loop and renders the
+resolved lattice, and the journey falls back to a static vertical timeline.
+
+## Homepage sections
+
+| # | Component | What it does |
+|---|-----------|--------------|
+| — | `Header` | Integrated at rest, compacts on scroll, full-screen menu below `xl` |
+| 01 | `Hero` + `HeroThoughtSystem` | Canvas field: points drift, the pointer draws relationships between them, scrolling resolves them into a lattice |
+| 02 | `EditorialStatement` | Positioning statement, revealed line by line out of individual clips |
+| 03 | `InnovationJourney` + `JourneyFigure` | Sticky scroll-driven sequence: one SVG that accumulates from a dot → hypotheses → relationships → measurement → figure → structure → three exits |
+| 04 | `SelectedInnovations` | Editorial project modules, alternating sides; development stage shown as a full scale rather than a badge |
+| 05 | `DomainIndex` | Typographic index of nine domains; the hovered row draws its figure in the facing column |
+| 06 | `OperatingModel` | Idea → technology spine, branching into four terminals |
+| 07 | `TechnologyTransfer` | The inverted section: four pathways plus the engagement sequence |
+| 08 | `Principles` | Four operating principles |
+| 09 | `ExperimentCanvas` | Worksheet on drafting-grid paper — figures, measurements, an iteration log including the versions that failed |
+| 10 | `InsightsIndex` | Publication index, not blog cards |
+| 11 | `PartnerCTA` | Closing ask over a pointer-reactive field |
+| — | `Footer` | Link groups plus the lifecycle as a compact graphic |
+
+All visuals are generated geometry (`TechFigure`, `JourneyFigure`) — no stock
+imagery, no photography.
+
+## Content status
+
+`src/data/` holds every string and record on the page.
+
+The innovation records in `src/data/innovations.ts` and the entries in
+`insights` are **clearly-labelled placeholders**, surfaced as such in the UI.
+No project names, patents, results, clients or partners are asserted anywhere
+on the page. Replace those records with real data before launch; the layouts
+take them unchanged.
+
+## Deployment
+
+`wrangler.toml` publishes `dist/` as a static-assets-only Worker — no Worker
+script, no build step on Cloudflare's side beyond `npm run build`.
+
+```bash
+npx wrangler login
+npm run deploy        # npm run build && wrangler deploy
 ```
-index.html              page shell, <title> and meta description
-src/
-  main.jsx              React entrypoint
-  App.jsx               composes the page sections in order
-  index.css             Tailwind import + design tokens (@theme)
-  content.js            ALL page copy lives here
-  components/
-    Nav.jsx             sticky header, scroll state, mobile menu
-    Hero.jsx            headline, CTAs, mock app preview, stats
-    Features.jsx        six-card feature grid
-    HowItWorks.jsx      three numbered steps
-    Testimonial.jsx     pull quote
-    Pricing.jsx         three-tier pricing table
-    Faq.jsx             accordion
-    Cta.jsx             email capture band
-    Footer.jsx          link columns + colophon
-    Section.jsx         shared section wrapper + heading
-    Icon.jsx            inline SVG icon set
-    Logo.jsx            wordmark
-```
 
-## Customising
+`not_found_handling = "single-page-application"` serves `index.html` for any
+unmatched path. `public/_headers` sets a strict CSP (Google Fonts is the only
+external origin allowed), immutable caching for the fingerprinted assets in
+`/assets/*`, and no-cache on `index.html`.
 
-**Copy** — every headline, feature, price and FAQ entry is a string in
-`src/content.js`. Edit that one file to re-skin the page; no component changes
-needed.
+To deploy from CI instead, set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`
+and run the same command.
 
-**Colours and type** — defined as Tailwind theme tokens in the `@theme` block of
-`src/index.css`. The `ink-*` scale drives surfaces and text, `brand-*` drives
-accents. Change the hex values there and the whole page follows.
+## Accessibility
 
-**Sections** — add, remove or reorder by editing the JSX in `src/App.jsx`.
+Semantic landmarks and heading order, a skip link, visible accent focus rings
+on every interactive element, the journey duplicated as an ordered list for
+screen readers, `aria-hidden` on all decorative figures, and reduced-motion
+paths throughout. Body copy meets AA on the paper ground; the accent is used
+for small text only in its `--color-accent-deep` variant.
 
-## Notes
+## Not built yet
 
-- The page is dark-first. Sections are composed from theme tokens, so a light
-  variant is a token swap rather than a rewrite.
-- Responsive from 320px up, including a slide-down mobile nav.
-- The email form in `Cta.jsx` is a stub — wire `onSubmit` to your own signup
-  endpoint.
+The homepage is complete. The spec also describes standalone pages —
+innovation detail pages, What We Do, How We Think, Technology Transfer and
+About. Those need a router and are not in this build; the data models and
+section components they would reuse are already in place.
