@@ -19,6 +19,8 @@ interface Props {
   onErrors: (e: Record<string, string>) => void
   savedAt: number | null
   submitting?: boolean
+  /** A failure from the server rather than from a field. */
+  submitError?: string | null
 }
 
 /**
@@ -40,6 +42,7 @@ export default function FormShell({
   onErrors,
   savedAt,
   submitting = false,
+  submitError = null,
 }: Props) {
   const headingRef = useRef<HTMLHeadingElement>(null)
   const mounted = useRef(false)
@@ -133,6 +136,16 @@ export default function FormShell({
             style={{ border: '1px solid var(--color-accent-deep)', color: 'var(--color-accent-deep)' }}
           >
             {Object.keys(errors).length} FIELD{Object.keys(errors).length === 1 ? '' : 'S'} NEED ATTENTION BELOW
+          </p>
+        )}
+
+        {submitError && (
+          <p
+            role="alert"
+            className="mt-6 px-4 py-3 text-[0.9375rem] leading-relaxed"
+            style={{ border: '1px solid var(--color-accent-deep)', color: 'var(--color-accent-deep)' }}
+          >
+            {submitError}
           </p>
         )}
 

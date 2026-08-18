@@ -1,17 +1,16 @@
-# Cloudflare Workers — static assets.
-#
-# There is no Worker script: `[assets]` with no `main` entry publishes dist/
-# straight to Cloudflare's edge. Deploy with:
+# Cloudflare Worker — static site plus the submission API.
 #
 #   npx wrangler login
 #   npx wrangler deploy
 #
+# Submissions need two resources on your account. Until they exist the site
+# deploys and runs, and the forms say plainly that submissions are not
+# configured rather than pretending to accept them. Setup is in README.md.
 name = "inthinks"
 compatibility_date = "2026-08-18"
+main = "worker/index.ts"
 
 # dist/ is generated and git-ignored, so `wrangler deploy` builds it first.
-# This makes a fresh clone deployable in one command, locally and on
-# Cloudflare's build runner alike.
 #
 # The install is conditional on purpose, and the condition matters twice over.
 # Cloudflare runs the deploy command directly against a fresh clone, and some
@@ -26,9 +25,29 @@ command = "test -x node_modules/.bin/vite || npm ci --include=dev && npm run bui
 
 [assets]
 directory = "./dist"
-# The site is one page; serve index.html for any unmatched path rather than a
-# 404, so anchors and any future client routes both resolve.
+binding = "ASSETS"
+# The site is a client-routed SPA; serve index.html for any unmatched path so
+# deep links and refreshes resolve.
 not_found_handling = "single-page-application"
+# Without this, the SPA fallback would answer /api/* with index.html before the
+# Worker ever saw the request.
+run_worker_first = ["/api/*"]
+
+# Submission records. Create with:
+#   npx wrangler d1 create inthinks-submissions
+# then paste the returned database_id below and run:
+#   npx wrangler d1 migrations apply inthinks-submissions --remote
+[[d1_databases]]
+binding = "DB"
+database_name = "inthinks-submissions"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+# Innovation evidence files. Create with:
+#   npx wrangler r2 bucket create inthinks-evidence
+[[r2_buckets]]
+binding = "EVIDENCE"
+bucket_name = "inthinks-evidence"
 
 # Custom domain — uncomment once inthinks.com is a zone on this Cloudflare
 # account. Deploying with a route the account doesn't own will fail, so it
