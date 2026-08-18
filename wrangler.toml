@@ -10,10 +10,15 @@ name = "inthinks"
 compatibility_date = "2026-08-18"
 
 # dist/ is generated and git-ignored, so `wrangler deploy` builds it first.
-# This makes a fresh clone deployable in one command, and is also the command
-# Cloudflare runs when the repo is connected through the dashboard.
+# This makes a fresh clone deployable in one command, locally and on
+# Cloudflare's build runner alike.
+#
+# The install is part of the command on purpose. Cloudflare runs the deploy
+# command directly, and some build environments install with NODE_ENV=production
+# (which drops devDependencies, i.e. vite and tsc). `--include=dev` guarantees
+# the build tools exist regardless of how the runner installed.
 [build]
-command = "npm run build"
+command = "npm ci --include=dev && npm run build"
 
 [assets]
 directory = "./dist"
