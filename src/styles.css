@@ -280,3 +280,60 @@ body {
     align-items: center;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Admin surface.
+
+   The public site is a document; this is an instrument panel. Same palette
+   and typefaces, but denser: tabular rows, mono metadata, state encoded in
+   form as well as text so what needs attention reads at a glance.
+   ───────────────────────────────────────────────────────────── */
+@utility admin-shell {
+  min-height: 100svh;
+  background: var(--color-paper-sunk);
+}
+
+@utility panel {
+  background: var(--color-paper);
+  border: 1px solid var(--rule);
+}
+
+@utility data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.data-table th {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--color-faint);
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+.data-table tbody tr:hover { background: var(--color-paper-sunk); }
+.data-table .num { font-variant-numeric: tabular-nums; }
+
+@utility chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--rule-strong);
+  color: var(--color-muted);
+  white-space: nowrap;
+}

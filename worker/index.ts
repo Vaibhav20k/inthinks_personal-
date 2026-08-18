@@ -9,6 +9,7 @@ import {
 import type { Clean } from './validation'
 import { insertChallenge, insertInnovation, nextReference, notify, recordEvidence } from './storage'
 import { SUBMISSION_CEILING, chargeSubmission, checkRequest, submissionsUsed } from './ratelimit'
+import { handleAdmin } from './admin'
 
 const MAX_JSON_BYTES = 256 * 1024
 const MAX_TOTAL_UPLOAD = 60 * 1024 * 1024
@@ -220,6 +221,17 @@ export default {
     // say so up front instead of failing at the end of an eight-step form.
     if (url.pathname === '/api/status' && request.method === 'GET') {
       return json({ submissions: Boolean(env.DB), uploads: Boolean(env.EVIDENCE) })
+    }
+
+    const ip = request.headers.get('cf-connecting-ip') ?? '0.0.0.0'
+
+    if (url.pathname.startsWith('/api/admin')) {
+      try {
+        return await handleAdmin(request, env, url, ip)
+      } catch (cause) {
+        console.error('admin request failed', cause instanceof Error ? cause.message : 'unknown')
+        return json({ error: 'Something went wrong. Please try again.' }, 500)
+      }
     }
 
     if (request.method !== 'POST') {
