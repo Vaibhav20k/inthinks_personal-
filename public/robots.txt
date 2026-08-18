@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://inthinks.com/sitemap.xml
