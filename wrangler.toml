@@ -1,12 +1,29 @@
-# Cloudflare Workers (static assets) — deploy with `npx wrangler deploy`.
+# Cloudflare Workers — static assets.
 #
 # There is no Worker script: `[assets]` with no `main` entry publishes dist/
-# straight to Cloudflare's edge as a static-assets-only Worker.
+# straight to Cloudflare's edge. Deploy with:
+#
+#   npx wrangler login
+#   npx wrangler deploy
+#
 name = "inthinks"
 compatibility_date = "2026-08-18"
 
+# dist/ is generated and git-ignored, so `wrangler deploy` builds it first.
+# This makes a fresh clone deployable in one command, and is also the command
+# Cloudflare runs when the repo is connected through the dashboard.
+[build]
+command = "npm run build"
+
 [assets]
 directory = "./dist"
-# The site is one page; serve index.html for any unmatched path rather than
-# a 404, so anchors and future client routes both resolve.
+# The site is one page; serve index.html for any unmatched path rather than a
+# 404, so anchors and any future client routes both resolve.
 not_found_handling = "single-page-application"
+
+# Custom domain — uncomment once inthinks.com is a zone on this Cloudflare
+# account. Deploying with a route the account doesn't own will fail, so it
+# stays off until the zone exists.
+# [[routes]]
+# pattern = "inthinks.com"
+# custom_domain = true

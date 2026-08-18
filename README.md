@@ -33,6 +33,13 @@ Plex Mono for labels, metadata, measurements and specifications. The hero runs
 at `clamp(3.05rem, 7.1vw, 5.75rem)` with the width axis pushed to 112%; body
 copy sits at 17–20px; mono labels at 11px with `0.16em` tracking.
 
+Both faces are **self-hosted** from `public/fonts/` (latin subset, woff2) rather
+than loaded from Google. That removes a render-blocking third-party request,
+lets the CSP forbid external origins outright, keeps visitors' browsers from
+connecting to Google, and — most importantly — means the typographic identity
+cannot silently fall back to Helvetica if an external host is slow or blocked.
+The display face is preloaded in `index.html` because the hero paints first.
+
 **Grid.** `.container-grid` caps content at 1440px with a fluid gutter.
 `.doc-columns` is the recurring structure: a 10rem margin column holding the
 section number and label, with content set against it — a technical document's
@@ -87,21 +94,34 @@ take them unchanged.
 
 ## Deployment
 
-`wrangler.toml` publishes `dist/` as a static-assets-only Worker — no Worker
-script, no build step on Cloudflare's side beyond `npm run build`.
+`wrangler.toml` publishes `dist/` as a static-assets-only Worker — there is no
+Worker script, just `[assets]` pointing at the build output.
 
 ```bash
 npx wrangler login
-npm run deploy        # npm run build && wrangler deploy
+npx wrangler deploy
 ```
 
-`not_found_handling = "single-page-application"` serves `index.html` for any
-unmatched path. `public/_headers` sets a strict CSP (Google Fonts is the only
-external origin allowed), immutable caching for the fingerprinted assets in
-`/assets/*`, and no-cache on `index.html`.
+That single command is enough from a clean clone: `dist/` is git-ignored, so
+`[build] command = "npm run build"` in `wrangler.toml` builds it first. The
+same config is what Cloudflare runs if you connect the repo through the
+dashboard instead.
 
-To deploy from CI instead, set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`
-and run the same command.
+`not_found_handling = "single-page-application"` serves `index.html` for any
+unmatched path. `public/_headers` sets a CSP with **no external origins at all**
+(everything is same-origin now that fonts are self-hosted), immutable caching
+for `/assets/*` and `/fonts/*`, and no-cache on `index.html`.
+
+**Custom domain.** `wrangler.toml` has a commented `[[routes]]` block for
+`inthinks.com`. Uncomment it once the domain is a zone on the same Cloudflare
+account — deploying with a route the account doesn't own fails.
+
+To deploy from CI, set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` and
+run the same command.
+
+Verified locally against the real Workers runtime (`npx wrangler dev`): headers
+applied, SPA fallback returns 200, fonts served as `font/woff2` with immutable
+caching, and the page renders under the production CSP with no violations.
 
 ## Accessibility
 

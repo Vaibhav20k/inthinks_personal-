@@ -56,8 +56,11 @@ export default function DomainIndex() {
                           {domain.name}
                         </span>
                       </span>
+                      {/* Only shown where there is no facing figure column to
+                          carry it — otherwise the note would appear twice and
+                          squeeze the longest domain names into a wrap. */}
                       <span
-                        className="label hidden shrink-0 text-graphite transition-opacity duration-300 md:block"
+                        className="label hidden shrink-0 text-graphite transition-opacity duration-300 md:block lg:hidden"
                         style={{ opacity: isActive ? 1 : 0.4 }}
                       >
                         {domain.note}
