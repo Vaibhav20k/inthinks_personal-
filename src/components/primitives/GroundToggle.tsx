@@ -58,14 +58,28 @@ export default function GroundToggle({ className = '' }: { className?: string })
       onClick={() => {
         apply(next)
         setGround(next)
-        try { localStorage.setItem(KEY, next) } catch { /* storage blocked; the clock still decides next visit */ }
+        try { localStorage.setItem(KEY, next) } catch { /* storage blocked; the sun still decides next visit */ }
       }}
-      className={`tap label transition-colors duration-250 hover:text-accent ${className}`}
-      style={{ color: 'var(--color-faint)' }}
+      className={`tap inline-flex items-center justify-center transition-colors duration-250 hover:text-accent ${className}`}
+      style={{ color: 'var(--color-faint)', width: '1.75rem', height: '1.75rem' }}
       aria-label={`Switch to the ${next} ground`}
       title={`Switch to the ${next} ground`}
     >
-      <span aria-hidden="true">{ground === 'light' ? 'DARK' : 'LIGHT'}</span>
+      {/* The icon names the destination, not the current state — the label
+          says "switch to", and an icon contradicting it would be worse than
+          no icon. A word here read as a developer control; a moon is the
+          same instruction without the shouting. */}
+      <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor"
+           strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+        {next === 'dark' ? (
+          <path d="M16.5 11.4A6.6 6.6 0 0 1 8.6 3.5a6.8 6.8 0 1 0 7.9 7.9Z" />
+        ) : (
+          <>
+            <circle cx="10" cy="10" r="3.4" />
+            <path d="M10 2v1.8M10 16.2V18M2 10h1.8M16.2 10H18M4.3 4.3l1.3 1.3M14.4 14.4l1.3 1.3M15.7 4.3l-1.3 1.3M5.6 14.4l-1.3 1.3" />
+          </>
+        )}
+      </svg>
     </button>
   )
 }
