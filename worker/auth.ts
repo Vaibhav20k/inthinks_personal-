@@ -34,6 +34,11 @@ export interface Actor {
  * assesses the technology, not the person, and the platform promises
  * innovators that their identity is private by default — so the reviewer role
  * genuinely cannot retrieve it, rather than merely not being shown it.
+ *
+ * `viewCommercialTerms` is the mirror of it. The deal room is private to the
+ * commercial roles: a reviewer cannot read consideration, royalty rates or
+ * negotiation state, because what a technology is worth has no bearing on
+ * whether it works, and a review that knows the number is not independent.
  */
 export interface Capabilities {
   viewSubmissions: boolean
@@ -43,6 +48,7 @@ export interface Capabilities {
   moveAcquisitionStage: boolean
   editReviewState: boolean
   downloadEvidence: boolean
+  viewCommercialTerms: boolean
   manageUsers: boolean
   viewAudit: boolean
 }
@@ -57,6 +63,7 @@ export function capabilities(role: Role): Capabilities {
     moveAcquisitionStage: admin || role === 'business-development',
     editReviewState: admin || role === 'rnd-reviewer',
     downloadEvidence: true,
+    viewCommercialTerms: admin || role === 'business-development',
     manageUsers: role === 'super-admin',
     viewAudit: admin,
   }

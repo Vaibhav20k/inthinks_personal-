@@ -15,6 +15,7 @@ export interface Capabilities {
   moveAcquisitionStage: boolean
   editReviewState: boolean
   downloadEvidence: boolean
+  viewCommercialTerms: boolean
   manageUsers: boolean
   viewAudit: boolean
 }
@@ -82,6 +83,17 @@ export interface Meta {
   readinessStatuses: string[]
   pipelineStages: string[]
   opportunityStages: string[]
+  dealTypes: string[]
+  exclusivity: string[]
+  royaltyBases: string[]
+  rightsPositions: string[]
+  agreementStatuses: string[]
+  closingStatuses: string[]
+  milestoneStatuses: string[]
+  paymentStatuses: string[]
+  documentKinds: string[]
+  documentStatuses: string[]
+  dealEligibleStages: string[]
   roles: Role[]
 }
 export const meta = () => call<Meta>('/meta')
@@ -463,6 +475,8 @@ export interface OpportunityDetail {
   }
   readiness: { dimension: string; status: string; note: string | null }[]
   notes: Note[]
+  deal: { reference: string; closingStatus: string } | null
+  dealEligible: boolean
 }
 
 export const opportunities = (params: Record<string, string> = {}) => {
@@ -476,3 +490,154 @@ export const opportunity = (reference: string) => call<OpportunityDetail>(`/oppo
 
 export const patchOpportunity = (reference: string, patch: Record<string, unknown>) =>
   call<{ ok: true }>(`/opportunities/${reference}`, { method: 'PATCH', body: JSON.stringify(patch) })
+
+/* --------------------------------------------------------------- deal room */
+
+export interface DealSummary {
+  reference: string
+  createdAt: string
+  updatedAt: string
+  opportunityRef: string
+  dealType: string
+  industry: string | null
+  currency: string
+  upfrontMinor: number | null
+  royaltyBp: number | null
+  royaltyBasis: string | null
+  exclusivity: string
+  agreementStatus: string
+  closingStatus: string
+  owner: string | null
+  challengeRef: string
+  challengeTitle: string | null
+  company: string | null
+  technologyRef: string
+  technologyTitle: string | null
+}
+
+export interface DealMilestone {
+  id: number
+  label: string
+  due: string | null
+  status: string
+  note: string | null
+}
+
+export interface DealPayment {
+  id: number
+  label: string
+  due: string | null
+  amount_minor: number
+  status: string
+  note: string | null
+}
+
+export interface DealDocument {
+  id: number
+  kind: string
+  title: string | null
+  status: string
+  dated: string | null
+  note: string | null
+}
+
+export interface DealDetail {
+  reference: string
+  createdAt: string
+  updatedAt: string
+  opportunityRef: string
+  opportunityStage: string | null
+  dealType: string
+  industry: string | null
+  currency: string
+  upfrontMinor: number | null
+  royaltyBp: number | null
+  royaltyBasis: string | null
+  territory: string | null
+  fieldOfUse: string | null
+  exclusivity: string
+  termMonths: number | null
+  termStart: string | null
+  termNote: string | null
+  pilotConditions: string | null
+  ipRights: string
+  ipRightsNote: string | null
+  manufacturingRights: string
+  technicalSupport: string | null
+  agreementStatus: string
+  closingStatus: string
+  closedAt: string | null
+  closedReason: string | null
+  owner: string | null
+  challenge: {
+    reference: string
+    title: string | null
+    sector: string | null
+    confidentiality: string | null
+    company: string | null
+    contactName: string | null
+    contactEmail: string | null
+  }
+  contactsWithheld: boolean
+  technology: {
+    reference: string
+    title: string | null
+    category: string | null
+    currentTrl: number | null
+    developmentStage: string | null
+  }
+  milestones: DealMilestone[]
+  payments: DealPayment[]
+  documents: DealDocument[]
+  notes: Note[]
+}
+
+export const deals = (params: Record<string, string> = {}) => {
+  const q = new URLSearchParams(params).toString()
+  return call<{
+    byAgreement: { k: string; n: number }[]
+    byClosing: { k: string; n: number }[]
+    items: DealSummary[]
+  }>(`/deals${q ? `?${q}` : ''}`)
+}
+
+export const deal = (reference: string) => call<DealDetail>(`/deals/${reference}`)
+
+export const openDeal = (opportunity: string) =>
+  call<{ ok: true; deal: string; created: boolean }>('/deals', {
+    method: 'POST',
+    body: JSON.stringify({ opportunity }),
+  })
+
+export const patchDeal = (reference: string, patch: Record<string, unknown>) =>
+  call<{ ok: true; opportunityAdvanced: string | null }>(`/deals/${reference}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+
+type DealRowKind = 'milestones' | 'payments' | 'documents'
+
+export const addDealRow = (reference: string, kind: DealRowKind, row: Record<string, unknown>) =>
+  call<{ ok: true }>(`/deals/${reference}/${kind}`, { method: 'POST', body: JSON.stringify(row) })
+
+export const setDealRowStatus = (reference: string, kind: DealRowKind, id: number, status: string) =>
+  call<{ ok: true }>(`/deals/${reference}/${kind}/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  })
+
+/**
+ * Money in, money out.
+ *
+ * Amounts cross the wire as integer minor units and are only ever turned into
+ * a decimal for display, so no rounding happens on the way to the database.
+ */
+export const money = (minor: number | null | undefined, currency: string) =>
+  minor === null || minor === undefined
+    ? '—'
+    : new Intl.NumberFormat('en-GB', { style: 'currency', currency, maximumFractionDigits: 2 })
+        .format(minor / 100)
+
+/** Basis points back to a readable percentage: 525 → "5.25%". */
+export const rate = (bp: number | null | undefined) =>
+  bp === null || bp === undefined ? '—' : `${(bp / 100).toFixed(2).replace(/\.00$/, '')}%`

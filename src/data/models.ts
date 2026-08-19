@@ -222,16 +222,37 @@ export type DealStructure =
  * Internal commercial record. Deliberately separate from every public type so
  * that no consideration, margin or negotiation field can reach the client
  * through a shared shape.
+ *
+ * Money is an integer count of the currency's minor unit and a rate is basis
+ * points, never a float: a licence dispute over a rounded paisa is a real
+ * thing, and `1024.09 * 100` is not `102409` in this language.
+ *
+ * The deal room in `worker/deals.ts` is the live implementation of this shape.
  */
 export interface InternalDealRecord {
   dealId: string
+  opportunityId: string
   technologyId: string
-  challengeId?: string
-  counterparty: string
+  challengeId: string
   structure: DealStructure
-  milestones: { label: string; due?: string; met: boolean }[]
-  royalty?: { basis: string; ratePercent: number; termYears: number; floor?: number }
-  stage: 'Qualification' | 'Term Sheet' | 'Diligence' | 'Agreement' | 'Executed' | 'Closed'
+  currency: string
+  /** Minor units. 1,024.09 is 102409. */
+  upfrontMinor?: number
+  /** Basis points. 5.25% is 525. */
+  royaltyBp?: number
+  royaltyBasis?: string
+  territory?: string
+  fieldOfUse?: string
+  exclusivity: string
+  termMonths?: number
+  milestones: { label: string; due?: string; status: string }[]
+  payments: { label: string; due?: string; amountMinor: number; status: string }[]
+  documents: { kind: string; title?: string; status: string }[]
+  ipRights: string
+  manufacturingRights: string
+  /** How far the paperwork has travelled — separate from whether it closed. */
+  agreementStatus: string
+  closingStatus: 'Open' | 'Executed' | 'Withdrawn' | 'Lapsed'
   internalNotes?: string
 }
 

@@ -13,6 +13,12 @@ import {
   READINESS_DIMENSIONS, READINESS_KEYS, READINESS_STATUSES,
 } from './development'
 import { CLOSED_STAGE, OPPORTUNITY_STAGES, PIPELINE_STAGES, derivedFunnel } from './opportunities'
+import {
+  AGREEMENT_STATUSES, CLOSING_STATUSES, DEAL_ELIGIBLE_STAGES, DEAL_TYPES,
+  DOCUMENT_KINDS, DOCUMENT_STATUSES, EXCLUSIVITY, MILESTONE_STATUSES,
+  PAYMENT_STATUSES, RIGHTS_POSITIONS, ROYALTY_BASES, TRANSFER_STAGE,
+  isCurrency, openFromOpportunity, parseAmountMinor, parseRateBp,
+} from './deals'
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
@@ -213,6 +219,17 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
       readinessStatuses: READINESS_STATUSES,
       pipelineStages: PIPELINE_STAGES,
       opportunityStages: [...OPPORTUNITY_STAGES, CLOSED_STAGE],
+      dealTypes: DEAL_TYPES,
+      exclusivity: EXCLUSIVITY,
+      royaltyBases: ROYALTY_BASES,
+      rightsPositions: RIGHTS_POSITIONS,
+      agreementStatuses: AGREEMENT_STATUSES,
+      closingStatuses: CLOSING_STATUSES,
+      milestoneStatuses: MILESTONE_STATUSES,
+      paymentStatuses: PAYMENT_STATUSES,
+      documentKinds: DOCUMENT_KINDS,
+      documentStatuses: DOCUMENT_STATUSES,
+      dealEligibleStages: DEAL_ELIGIBLE_STAGES,
       innovationStatuses: INNOVATION_STATUSES,
       roles: ROLES,
     })
@@ -870,11 +887,16 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
       .first<Record<string, unknown>>()
     if (!row) return json({ error: 'Not found' }, 404)
 
-    const [notes, readiness] = await Promise.all([
+    const [notes, readiness, deal] = await Promise.all([
       db.prepare('SELECT id, body, author, created_at FROM notes WHERE reference = ? ORDER BY created_at DESC')
         .bind(reference).all(),
       db.prepare('SELECT dimension, status, note FROM readiness WHERE reference = ?')
         .bind(String(row.technology_ref)).all(),
+      // The deal reference only — terms stay behind the deal room's own gate.
+      can.viewCommercialTerms
+        ? db.prepare('SELECT reference, closing_status FROM deals WHERE opportunity_ref = ?')
+            .bind(reference).first<{ reference: string; closing_status: string }>()
+        : Promise.resolve(null),
     ])
 
     await audit(db, actor, 'opportunity.view', reference, undefined, ip)
@@ -913,6 +935,8 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
       },
       readiness: readiness.results,
       notes: notes.results,
+      deal: deal ? { reference: deal.reference, closingStatus: deal.closing_status } : null,
+      dealEligible: (DEAL_ELIGIBLE_STAGES as readonly string[]).includes(String(row.stage)),
     })
   }
 
@@ -951,6 +975,337 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
     binds.push(reference)
     await db.prepare(`UPDATE opportunities SET ${sets.join(', ')} WHERE reference = ?`).bind(...binds).run()
     await audit(db, actor, 'opportunity.update', reference, body, ip)
+    return json({ ok: true })
+  }
+
+  /* ------------------------------------------------------------ deal room */
+
+  // The deal room is private to the commercial roles. Every route below refuses
+  // first and answers second, so an R&D reviewer cannot reach terms by URL.
+  if (path === '/deals' || path.startsWith('/deals/')) {
+    if (!can.viewCommercialTerms) {
+      return json({ error: 'The deal room is limited to admins and business development.' }, 403)
+    }
+  }
+
+  if (path === '/deals' && request.method === 'GET') {
+    const status = url.searchParams.get('status')
+    const rows = await db
+      .prepare(
+        `SELECT d.reference, d.created_at, d.updated_at, d.opportunity_ref, d.deal_type,
+                d.industry, d.currency, d.upfront_minor, d.royalty_bp, d.royalty_basis,
+                d.exclusivity, d.agreement_status, d.closing_status, d.owner,
+                d.challenge_ref, d.technology_ref,
+                c.title AS challenge_title, c.company AS company,
+                i.title AS technology_title, i.internal_title AS technology_internal_title
+         FROM deals d
+         LEFT JOIN challenges c ON c.reference = d.challenge_ref
+         LEFT JOIN innovations i ON i.reference = d.technology_ref
+         ${status ? 'WHERE d.closing_status = ?' : ''}
+         ORDER BY d.updated_at DESC LIMIT 200`,
+      )
+      .bind(...(status ? [status] : []))
+      .all<Record<string, unknown>>()
+
+    const byAgreement = await db
+      .prepare('SELECT agreement_status AS k, COUNT(*) AS n FROM deals GROUP BY k')
+      .all<{ k: string; n: number }>()
+    const byClosing = await db
+      .prepare('SELECT closing_status AS k, COUNT(*) AS n FROM deals GROUP BY k')
+      .all<{ k: string; n: number }>()
+
+    return json({
+      byAgreement: byAgreement.results,
+      byClosing: byClosing.results,
+      items: rows.results.map((r) => ({
+        reference: r.reference,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+        opportunityRef: r.opportunity_ref,
+        dealType: r.deal_type,
+        industry: r.industry,
+        currency: r.currency,
+        upfrontMinor: r.upfront_minor,
+        royaltyBp: r.royalty_bp,
+        royaltyBasis: r.royalty_basis,
+        exclusivity: r.exclusivity,
+        agreementStatus: r.agreement_status,
+        closingStatus: r.closing_status,
+        owner: r.owner,
+        challengeRef: r.challenge_ref,
+        challengeTitle: r.challenge_title,
+        // The same identity rule as every other list.
+        company: can.viewChallengeContacts ? r.company : null,
+        technologyRef: r.technology_ref,
+        technologyTitle: r.technology_internal_title || r.technology_title,
+      })),
+    })
+  }
+
+  if (path === '/deals' && request.method === 'POST') {
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+    const opportunityRef = clip(body.opportunity, 32)
+    if (!opportunityRef) return json({ error: 'An opportunity reference is required' }, 422)
+    const outcome = await openFromOpportunity(ctx, opportunityRef, ip)
+    if (!outcome.ok) return json({ error: outcome.error }, outcome.status)
+    return json({ ok: true, deal: outcome.reference, created: outcome.created })
+  }
+
+  const dealMatch = path.match(/^\/deals\/([A-Za-z0-9-]{1,32})$/)
+  if (dealMatch && request.method === 'GET') {
+    const reference = dealMatch[1]
+    const row = await db
+      .prepare(
+        `SELECT d.*, c.title AS challenge_title, c.sector AS challenge_sector,
+                c.company AS company, c.contact_name AS contact_name, c.email AS contact_email,
+                c.confidentiality AS confidentiality,
+                i.title AS technology_title, i.internal_title AS technology_internal_title,
+                i.category AS technology_category, i.current_trl, i.development_stage,
+                o.stage AS opportunity_stage
+         FROM deals d
+         LEFT JOIN challenges c ON c.reference = d.challenge_ref
+         LEFT JOIN innovations i ON i.reference = d.technology_ref
+         LEFT JOIN opportunities o ON o.reference = d.opportunity_ref
+         WHERE d.reference = ?`,
+      )
+      .bind(reference)
+      .first<Record<string, unknown>>()
+    if (!row) return json({ error: 'Not found' }, 404)
+
+    const [milestones, payments, documents, notes] = await Promise.all([
+      db.prepare('SELECT id, label, due, status, note FROM deal_milestones WHERE deal_ref = ? ORDER BY COALESCE(due, \'9999\'), id')
+        .bind(reference).all(),
+      db.prepare('SELECT id, label, due, amount_minor, status, note FROM deal_payments WHERE deal_ref = ? ORDER BY COALESCE(due, \'9999\'), id')
+        .bind(reference).all(),
+      db.prepare('SELECT id, kind, title, status, dated, note FROM deal_documents WHERE deal_ref = ? ORDER BY id')
+        .bind(reference).all(),
+      db.prepare('SELECT id, body, author, created_at FROM notes WHERE reference = ? ORDER BY created_at DESC')
+        .bind(reference).all(),
+    ])
+
+    // Opening a deal room is a sensitive read; it is logged like every other.
+    await audit(db, actor, 'deal.view', reference, undefined, ip)
+
+    return json({
+      reference: row.reference,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      opportunityRef: row.opportunity_ref,
+      opportunityStage: row.opportunity_stage,
+      dealType: row.deal_type,
+      industry: row.industry,
+      currency: row.currency,
+      upfrontMinor: row.upfront_minor,
+      royaltyBp: row.royalty_bp,
+      royaltyBasis: row.royalty_basis,
+      territory: row.territory,
+      fieldOfUse: row.field_of_use,
+      exclusivity: row.exclusivity,
+      termMonths: row.term_months,
+      termStart: row.term_start,
+      termNote: row.term_note,
+      pilotConditions: row.pilot_conditions,
+      ipRights: row.ip_rights,
+      ipRightsNote: row.ip_rights_note,
+      manufacturingRights: row.manufacturing_rights,
+      technicalSupport: row.technical_support,
+      agreementStatus: row.agreement_status,
+      closingStatus: row.closing_status,
+      closedAt: row.closed_at,
+      closedReason: row.closed_reason,
+      owner: row.owner,
+      challenge: {
+        reference: row.challenge_ref,
+        title: row.challenge_title,
+        sector: row.challenge_sector,
+        confidentiality: row.confidentiality,
+        company: can.viewChallengeContacts ? row.company : null,
+        contactName: can.viewChallengeContacts ? row.contact_name : null,
+        contactEmail: can.viewChallengeContacts ? row.contact_email : null,
+      },
+      contactsWithheld: !can.viewChallengeContacts,
+      technology: {
+        reference: row.technology_ref,
+        title: row.technology_internal_title || row.technology_title,
+        category: row.technology_category,
+        currentTrl: row.current_trl,
+        developmentStage: row.development_stage,
+      },
+      milestones: milestones.results,
+      payments: payments.results,
+      documents: documents.results,
+      notes: notes.results,
+    })
+  }
+
+  if (dealMatch && request.method === 'PATCH') {
+    const reference = dealMatch[1]
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+    const sets: string[] = []
+    const binds: unknown[] = []
+
+    for (const [field, column, list] of [
+      ['dealType', 'deal_type', DEAL_TYPES],
+      ['exclusivity', 'exclusivity', EXCLUSIVITY],
+      ['royaltyBasis', 'royalty_basis', ROYALTY_BASES],
+      ['ipRights', 'ip_rights', RIGHTS_POSITIONS],
+      ['manufacturingRights', 'manufacturing_rights', RIGHTS_POSITIONS],
+      ['agreementStatus', 'agreement_status', AGREEMENT_STATUSES],
+      ['closingStatus', 'closing_status', CLOSING_STATUSES],
+    ] as const) {
+      if (body[field] === undefined) continue
+      if (!oneOf(list, body[field])) return json({ error: `Unknown ${field}` }, 422)
+      sets.push(`${column} = ?`); binds.push(body[field])
+    }
+
+    if (body.currency !== undefined) {
+      if (!isCurrency(body.currency)) return json({ error: 'A currency is a three-letter ISO 4217 code' }, 422)
+      sets.push('currency = ?'); binds.push(body.currency)
+    }
+    if (body.upfront !== undefined) {
+      const minor = parseAmountMinor(body.upfront)
+      if (minor === 'invalid') return json({ error: 'An upfront amount must be a positive number' }, 422)
+      sets.push('upfront_minor = ?'); binds.push(minor)
+    }
+    if (body.royaltyPercent !== undefined) {
+      const bp = parseRateBp(body.royaltyPercent)
+      if (bp === 'invalid') return json({ error: 'A royalty rate must be between 0 and 100 per cent' }, 422)
+      sets.push('royalty_bp = ?'); binds.push(bp)
+    }
+    if (body.termMonths !== undefined) {
+      const months = Number(body.termMonths)
+      if (body.termMonths !== null && body.termMonths !== '' && (!Number.isInteger(months) || months < 0 || months > 1200)) {
+        return json({ error: 'A term is a whole number of months' }, 422)
+      }
+      sets.push('term_months = ?')
+      binds.push(body.termMonths === null || body.termMonths === '' ? null : months)
+    }
+
+    for (const [field, column, max] of [
+      ['industry', 'industry', 120],
+      ['territory', 'territory', 500],
+      ['fieldOfUse', 'field_of_use', 1000],
+      ['termStart', 'term_start', 20],
+      ['termNote', 'term_note', 1000],
+      ['pilotConditions', 'pilot_conditions', 3000],
+      ['ipRightsNote', 'ip_rights_note', 2000],
+      ['technicalSupport', 'technical_support', 3000],
+      ['closedReason', 'closed_reason', 500],
+      ['owner', 'owner', 200],
+    ] as const) {
+      if (typeof body[field] === 'string') {
+        sets.push(`${column} = ?`); binds.push(clip(body[field], max))
+      }
+    }
+
+    if (sets.length === 0) return json({ error: 'Nothing to update' }, 400)
+
+    // Reopening clears the closing date rather than leaving a stale one behind.
+    const closing = body.closingStatus
+    if (closing !== undefined) {
+      sets.push('closed_at = ?')
+      binds.push(closing === 'Open' ? null : new Date().toISOString())
+    }
+
+    sets.push('updated_at = ?'); binds.push(new Date().toISOString())
+    binds.push(reference)
+    const result = await db
+      .prepare(`UPDATE deals SET ${sets.join(', ')} WHERE reference = ?`)
+      .bind(...binds)
+      .run()
+    if (!result.meta.changes) return json({ error: 'Not found' }, 404)
+
+    // An executed deal is the moment the opportunity is genuinely in transfer.
+    // Advancing it here keeps the pipeline from reporting a negotiation that
+    // has in fact been signed.
+    let opportunityAdvanced: string | null = null
+    if (closing === 'Executed') {
+      const deal = await db
+        .prepare('SELECT opportunity_ref FROM deals WHERE reference = ?')
+        .bind(reference)
+        .first<{ opportunity_ref: string }>()
+      if (deal) {
+        const moved = await db
+          .prepare(
+            `UPDATE opportunities SET stage = ?, updated_at = ?
+             WHERE reference = ? AND stage = 'Commercial Negotiation'`,
+          )
+          .bind(TRANSFER_STAGE, new Date().toISOString(), deal.opportunity_ref)
+          .run()
+        if (moved.meta.changes) opportunityAdvanced = deal.opportunity_ref
+      }
+    }
+
+    await audit(db, actor, 'deal.update', reference, body, ip)
+    return json({ ok: true, opportunityAdvanced })
+  }
+
+  /* --------------------------------------------- deal rows: the repeating parts */
+
+  const dealRowMatch = path.match(/^\/deals\/([A-Za-z0-9-]{1,32})\/(milestones|payments|documents)$/)
+  if (dealRowMatch && request.method === 'POST') {
+    const [, reference, kind] = dealRowMatch
+    const exists = await db.prepare('SELECT 1 FROM deals WHERE reference = ?').bind(reference).first()
+    if (!exists) return json({ error: 'Not found' }, 404)
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+    const now = new Date().toISOString()
+
+    if (kind === 'milestones') {
+      const label = clip(body.label, 300)
+      if (!label) return json({ error: 'A milestone needs a description' }, 422)
+      if (body.status !== undefined && !oneOf(MILESTONE_STATUSES, body.status)) {
+        return json({ error: 'Unknown milestone status' }, 422)
+      }
+      await db
+        .prepare('INSERT INTO deal_milestones (deal_ref, created_at, label, due, status, note) VALUES (?, ?, ?, ?, ?, ?)')
+        .bind(reference, now, label, clip(body.due, 20) || null, body.status ?? 'Pending', clip(body.note, 1000) || null)
+        .run()
+    } else if (kind === 'payments') {
+      const label = clip(body.label, 300)
+      if (!label) return json({ error: 'A payment needs a description' }, 422)
+      const minor = parseAmountMinor(body.amount)
+      if (minor === 'invalid') return json({ error: 'A payment amount must be a positive number' }, 422)
+      if (body.status !== undefined && !oneOf(PAYMENT_STATUSES, body.status)) {
+        return json({ error: 'Unknown payment status' }, 422)
+      }
+      await db
+        .prepare('INSERT INTO deal_payments (deal_ref, created_at, label, due, amount_minor, status, note) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .bind(reference, now, label, clip(body.due, 20) || null, minor ?? 0, body.status ?? 'Scheduled', clip(body.note, 1000) || null)
+        .run()
+    } else {
+      if (!oneOf(DOCUMENT_KINDS, body.kind)) return json({ error: 'Unknown document kind' }, 422)
+      if (body.status !== undefined && !oneOf(DOCUMENT_STATUSES, body.status)) {
+        return json({ error: 'Unknown document status' }, 422)
+      }
+      await db
+        .prepare('INSERT INTO deal_documents (deal_ref, created_at, kind, title, status, dated, note) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .bind(reference, now, body.kind, clip(body.title, 300) || null, body.status ?? 'Required', clip(body.dated, 20) || null, clip(body.note, 1000) || null)
+        .run()
+    }
+
+    await db.prepare('UPDATE deals SET updated_at = ? WHERE reference = ?').bind(now, reference).run()
+    await audit(db, actor, `deal.${kind}.add`, reference, body, ip)
+    return json({ ok: true })
+  }
+
+  const dealRowIdMatch = path.match(/^\/deals\/([A-Za-z0-9-]{1,32})\/(milestones|payments|documents)\/(\d{1,12})$/)
+  if (dealRowIdMatch && request.method === 'PATCH') {
+    const [, reference, kind, id] = dealRowIdMatch
+    const statuses =
+      kind === 'milestones' ? MILESTONE_STATUSES : kind === 'payments' ? PAYMENT_STATUSES : DOCUMENT_STATUSES
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+    if (!oneOf(statuses, body.status)) return json({ error: 'Unknown status' }, 422)
+
+    const table = kind === 'milestones' ? 'deal_milestones' : kind === 'payments' ? 'deal_payments' : 'deal_documents'
+    const result = await db
+      .prepare(`UPDATE ${table} SET status = ? WHERE id = ? AND deal_ref = ?`)
+      .bind(body.status, Number(id), reference)
+      .run()
+    if (!result.meta.changes) return json({ error: 'Not found' }, 404)
+
+    await db.prepare('UPDATE deals SET updated_at = ? WHERE reference = ?')
+      .bind(new Date().toISOString(), reference).run()
+    await audit(db, actor, `deal.${kind}.update`, reference, { id, status: body.status }, ip)
     return json({ ok: true })
   }
 

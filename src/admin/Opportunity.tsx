@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import * as api from './api'
 import { Chip, Empty, Field, Panel, Withheld, shortDateTime } from './ui'
 import type { Me } from './api'
@@ -24,6 +24,7 @@ export default function Opportunity({ me }: { me: Me }) {
   const [note, setNote] = useState('')
   const [closing, setClosing] = useState(false)
   const [closeReason, setCloseReason] = useState('')
+  const navigate = useNavigate()
 
   const load = useCallback(() => {
     api.opportunity(reference).then(setData).catch((e) => setError(e.message))
@@ -253,6 +254,48 @@ export default function Opportunity({ me }: { me: Me }) {
             </div>
             {error && <p role="alert" className="label mt-4" style={{ color: 'var(--color-accent-deep)' }}>{error}</p>}
           </Panel>
+
+          {me.can.viewCommercialTerms && (
+            <Panel title="Commercial deal">
+              {data.deal ? (
+                <>
+                  <p className="ident" style={{ color: 'var(--color-accent)' }}>{data.deal.reference}</p>
+                  <p className="mt-3 text-[0.9375rem]" style={{ color: 'var(--color-muted)' }}>
+                    {data.deal.closingStatus}
+                  </p>
+                  <Link to={`/admin/deals/${data.deal.reference}`} className="label mt-4 inline-block" style={{ color: 'var(--color-accent)' }}>
+                    OPEN DEAL ROOM →
+                  </Link>
+                </>
+              ) : !data.dealEligible ? (
+                <p className="text-[0.9375rem] leading-relaxed" style={{ color: 'var(--color-muted)' }}>
+                  A deal room opens at Commercial Negotiation. Before terms exist there
+                  is nothing to record, so opening one earlier would show a deal that
+                  is not being negotiated.
+                </p>
+              ) : (
+                <>
+                  <p className="text-[0.9375rem] leading-relaxed" style={{ color: 'var(--color-muted)' }}>
+                    No deal room yet for this opportunity.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const result = await api.openDeal(reference)
+                        navigate(`/admin/deals/${result.deal}`)
+                      } catch (cause) {
+                        setError(cause instanceof api.AdminError ? cause.message : 'Could not open a deal room')
+                      }
+                    }}
+                    className="mt-4 bg-graphite px-4 py-2.5 text-[0.875rem] font-medium text-paper transition-colors duration-300 hover:bg-accent"
+                  >
+                    Open deal room
+                  </button>
+                </>
+              )}
+            </Panel>
+          )}
 
           <Panel title="Industry challenge">
             <dl>
