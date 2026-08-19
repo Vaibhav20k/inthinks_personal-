@@ -64,7 +64,7 @@ export default function Footer() {
             <li key={step} className="flex items-center gap-3">
               <span
                 className="label"
-                style={{ color: i === lifecycle.length - 1 ? 'var(--color-accent)' : 'rgba(255,255,255,0.42)' }}
+                style={{ color: i === lifecycle.length - 1 ? 'var(--color-accent-light)' : 'rgba(255,255,255,0.42)' }}
               >
                 {step.toUpperCase()}
               </span>

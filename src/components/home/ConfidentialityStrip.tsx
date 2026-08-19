@@ -6,7 +6,7 @@ import { confidentiality } from '../../data/pipeline'
 /** Section 11 — controlled disclosure, stated per audience. */
 export default function ConfidentialityStrip() {
   return (
-    <section id="confidentiality" className="py-24 sm:py-32" style={{ background: 'var(--color-paper-sunk)' }}>
+    <section id="confidentiality" className="py-24 sm:py-32 sunk">
       <div className="container-grid">
         <div className="doc-columns">
           <SectionLabel index="11">Confidentiality</SectionLabel>

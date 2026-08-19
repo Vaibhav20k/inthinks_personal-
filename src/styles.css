@@ -47,7 +47,7 @@
 /* ─────────────────────────────────────────────────────────────
    InThinks design system
 
-   Three colours, as specified: white, indigo blue, black.
+   Three colours, as specified: white, the brand blue, black.
 
    Ground is white. Contrast ground is black, used for whole sections that
    carry commercial weight. Indigo is the single accent, held to roughly 3%
@@ -55,11 +55,15 @@
    never a field, and never a gradient.
 
    The greys are not neutral greys: each is pulled a few degrees toward the
-   indigo so the whole system reads as one hue family rather than blue
-   dropped onto grey. Three indigo steps exist because one value cannot
-   serve every ground — `accent` on white, `deep` for hover and dense small
-   text, `light` for text on the black sections. Every value below is at or
-   above 4.5:1 against the ground it is used on.
+   blue so the whole system reads as one hue family rather than blue dropped
+   onto grey. Three steps of the brand hue exist because one value cannot
+   serve every ground — `accent` on white, `deep` for hover, dense small text
+   and anything on the sunk ground, `light` for text on the black sections.
+
+   The accent is the logo's own blue, unmodified. That is a real constraint
+   rather than a free choice: at 4.5:1 on white it is only just legible as
+   small text and does not clear AA on the sunk ground at all, which is why
+   `deep` exists on the same hue and why small type reaches for it.
 
    Structure comes from hairlines, a document margin column, and mono
    metadata. Technology IDs are a brand element, not decoration.
@@ -79,16 +83,19 @@
   --color-ink: #0a0a0f;
   /* 8.3:1 on white — body copy and secondary text. */
   --color-muted: #4a4a58;
-  /* 4.8:1 on white — mono labels are small, so this cannot go lighter. */
-  --color-faint: #6f6f80;
+  /* 5.2:1 on white and 4.7:1 on the sunk ground — mono labels are 11px, so
+     this has to clear AA on the tinted ground too, not only on white. */
+  --color-faint: #6b6b7c;
 
-  /* Indigo blue, the brand value. 6.1:1 on white, so it passes
-     AA at every text size rather than only at large sizes. */
-  --color-accent: #1560bd;
-  /* 10:1 on white — hover, and the densest small text. */
-  --color-accent-deep: #0e4281;
-  /* 8.3:1 on black — the inverted sections. */
-  --color-accent-light: #72aaef;
+  /* The brand blue, taken exactly from the logo file (public/InThinks.png).
+     4.5:1 on white — it clears AA for text by a hair, and does not clear it
+     against the sunk ground, so small text uses `deep` rather than this. */
+  --color-accent: #3b7baf;
+  /* Same hue, darker. 7.4:1 on white and 6.7:1 on the sunk ground — this is
+     what carries dense small text and hover. */
+  --color-accent-deep: #2a597e;
+  /* Same hue, lighter. 8.8:1 on black — the inverted sections. */
+  --color-accent-light: #7cb2de;
 
   --tracking-label: 0.15em;
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
@@ -146,6 +153,22 @@ body {
 ::selection {
   background: var(--color-accent);
   color: #fff;
+}
+
+/**
+ * A section painted on the sunk ground.
+ *
+ * It also steps the accent down to `deep` for everything inside it. The brand
+ * blue is the logo's own value and clears AA against white but not against
+ * this tint, so a label that would pass on the page fails inside a sunk band.
+ * Redefining the token here fixes that once, for every descendant, instead of
+ * every component having to remember which ground it happens to be sitting on.
+ *
+ * `deep` is the same hue, so the section still reads as one colour family.
+ */
+@utility sunk {
+  background: var(--color-paper-sunk);
+  --color-accent: var(--color-accent-deep);
 }
 
 @utility container-grid {
