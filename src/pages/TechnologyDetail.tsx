@@ -4,7 +4,8 @@ import Button from '../components/primitives/Button'
 import MetaList from '../components/primitives/MetaList'
 import Reveal from '../components/primitives/Reveal'
 import TrlScale from '../components/primitives/TrlScale'
-import { fetchTechnology } from '../data/portfolio'
+import { fetchTechnology, findExampleTechnology } from '../data/portfolio'
+import { exampleMatches, exampleProblems } from '../data/examples'
 import type { TechnologyDetail as Detail } from '../data/portfolio'
 
 /** A published log entry, dated to the month. Days are working detail. */
@@ -44,7 +45,15 @@ export default function TechnologyDetail() {
     setState('loading')
     fetchTechnology(slug)
       .then((result) => { if (live) { setData(result); setState('ready') } })
-      .catch(() => { if (live) setState('missing') })
+      .catch(() => {
+        // Not published — but it may be one of the illustrative examples the
+        // explorer is showing, and a card that links to a dead page is worse
+        // than no card.
+        const example = findExampleTechnology(slug)
+        if (!live) return
+        if (example) { setData({ technology: example, timeline: [] }); setState('ready') }
+        else setState('missing')
+      })
     return () => { live = false }
   }, [slug])
 
@@ -202,6 +211,28 @@ export default function TechnologyDetail() {
                 ))}
               </ul>
             </section>
+
+            {exampleMatches.filter((m) => m.technologySlug === tech.slug).length > 0 && (
+              <section className="py-9" style={{ borderTop: '1px solid var(--rule)' }}>
+                <h2 className="label" style={{ color: 'var(--color-faint)' }}>INDUSTRIAL PROBLEMS IT IS BEING CONSIDERED FOR</h2>
+                <ul className="mt-5 space-y-6">
+                  {exampleMatches.filter((m) => m.technologySlug === tech.slug).map((m) => {
+                    const problem = exampleProblems.find((p) => p.slug === m.problemSlug)
+                    if (!problem) return null
+                    return (
+                      <li key={m.problemSlug}>
+                        <Link to={`/problems/${problem.slug}`} className="ident" style={{ color: 'var(--color-accent)' }}>
+                          {problem.id}
+                        </Link>
+                        <p className="mt-1.5 font-display text-[1.0625rem] font-medium tracking-[-0.02em]">{problem.title}</p>
+                        <p className="body-type mt-2" style={{ color: 'var(--color-muted)' }}>{m.rationale}</p>
+                        <p className="label mt-3" style={{ color: 'var(--color-accent-deep)' }}>{m.stage.toUpperCase()}</p>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            )}
 
             <section className="py-9" style={{ borderTop: '1px solid var(--rule)', borderBottom: '1px solid var(--rule)' }}>
               <h2 className="label" style={{ color: 'var(--color-faint)' }}>NEXT DEVELOPMENT MILESTONES</h2>

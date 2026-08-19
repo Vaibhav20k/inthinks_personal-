@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import PageHero from '../components/layout/PageHero'
 import Notice from '../components/primitives/Notice'
 import TechnologyRow from '../components/tech/TechnologyRow'
-import { fetchTechnologies } from '../data/portfolio'
+import { loadPortfolio } from '../data/portfolio'
 import { TRANSFER_STATUSES } from '../data/models'
 import type { Technology, TransferStatus } from '../data/models'
 import { domains, outcomes, sectors } from '../data/taxonomy'
@@ -127,10 +127,12 @@ export default function Technologies() {
   // technical register first and a set of cards second.
   const [view, setView] = useState<ViewMode>('index')
 
+  const [examples, setExamples] = useState(false)
+
   useEffect(() => {
     let live = true
-    fetchTechnologies()
-      .then((items) => { if (live) setTechnologies(items) })
+    loadPortfolio()
+      .then((r) => { if (live) { setTechnologies(r.technologies); setExamples(r.usingExamples) } })
       .catch(() => { if (live) { setTechnologies([]); setError('The portfolio could not be loaded just now.') } })
     return () => { live = false }
   }, [])
@@ -168,6 +170,9 @@ export default function Technologies() {
         lede="Technologies in the InThinks development portfolio, shown as industrial opportunities. Every profile is anonymised — the technology is public, the innovator is not."
       >
         {error && <Notice>{error}</Notice>}
+        {examples && (
+          <Notice>Illustrative examples — the live portfolio appears here once published</Notice>
+        )}
       </PageHero>
 
       <section className="container-grid pb-28">
