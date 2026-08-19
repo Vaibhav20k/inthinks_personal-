@@ -204,6 +204,50 @@ export const exampleTechnologies: Technology[] = [
     stage: 'Development', ipStatus: 'To Be Confirmed', transferStatus: 'Under Development',
     nextMilestones: ['Reaction rate on a real residue', 'Product acceptance against a construction specification'],
   }),
+  tech({
+    id: 'INT / MAT / 009',
+    slug: 'corrosion-resistant-surface-treatment',
+    name: 'Corrosion-Resistant Surface Treatment',
+    domain: 'Advanced Materials',
+    domainCode: 'MAT',
+    thesis: 'A surface treatment that holds up where the corrosion is chemical and hot, not just wet.',
+    problem:
+      'Equipment in hot process streams degrades from the surface inward. Bulk alloys that resist it are expensive and often cannot be formed into the part that is needed, so the usual answer is to accept the replacement interval.',
+    principle:
+      'A treated surface layer chemically bound to the substrate rather than deposited on it, so it resists spalling under the thermal cycling that defeats a conventional coating.',
+    whyItMatters:
+      'It separates the corrosion problem from the alloy choice. A component can be made from the material that suits the duty and treated for the environment, instead of being made from whatever survives it.',
+    validation: 'Illustrative. Resistance is specific to the corrodent and the temperature; a real profile would name both.',
+    applications: ['Heat exchanger internals', 'Flue and duct components', 'Process vessel surfaces'],
+    sectors: ['Energy', 'Chemicals', 'Manufacturing'],
+    potentialIndustries: ['Power', 'Chemicals', 'Process industry'],
+    outcomes: ['life', 'durability', 'opex'],
+    entryTrl: 3, currentTrl: 5, targetTrl: 8,
+    stage: 'Validation', ipStatus: 'To Be Confirmed', transferStatus: 'Industry Evaluation',
+    nextMilestones: ['Long-duration exposure at temperature', 'Behaviour at welds and edges'],
+  }),
+  tech({
+    id: 'INT / MFG / 010',
+    slug: 'low-energy-drying',
+    name: 'Low-Energy Drying Technology',
+    domain: 'Industrial Processes',
+    domainCode: 'MFG',
+    thesis: 'Removing water from a product without paying the full latent heat of evaporation for all of it.',
+    problem:
+      'Thermal drying is one of the largest energy loads in any plant that makes something wet and ships it dry. Most of the energy goes into a phase change, and conventional dryers recover very little of it.',
+    principle:
+      'Displacing part of the thermal duty with a non-evaporative separation stage, so the dryer only has to evaporate what is left rather than everything.',
+    whyItMatters:
+      'Drying energy is a line most plants have written off as fixed. A process that moves part of the load off the burner changes a fixed cost into a variable one.',
+    validation: 'Illustrative. Savings depend heavily on the feed and the moisture target; a real profile would state both.',
+    applications: ['Food and ingredient drying', 'Mineral concentrate drying', 'Sludge and residue drying'],
+    sectors: ['Manufacturing', 'Agriculture', 'Chemicals'],
+    potentialIndustries: ['Food processing', 'Minerals', 'Chemicals'],
+    outcomes: ['energy', 'opex', 'emissions'],
+    entryTrl: 2, currentTrl: 4, targetTrl: 7,
+    stage: 'Development', ipStatus: 'Under Evaluation', transferStatus: 'Under Development',
+    nextMilestones: ['Energy balance on a real feed at throughput', 'Product quality against the existing dryer'],
+  }),
 ]
 
 const problem = (p: Omit<IndustrialProblem, 'demo'>): IndustrialProblem => ({ ...p, demo: true })
@@ -439,6 +483,68 @@ export const exampleProblems: IndustrialProblem[] = [
     minimumTrl: 4,
     status: 'Candidate technologies identified',
   }),
+  problem({
+    id: 'CH / PWR / 009',
+    slug: 'high-temperature-corrosion',
+    title: 'Corrosion of high-temperature process equipment',
+    sector: 'Energy',
+    priorityArea: 'Asset life',
+    target: '2\u00d7 service life, no redesign',
+    summary: 'Components in hot, chemically aggressive streams degrade well before the plant they sit in.',
+    problem:
+      'Surfaces exposed to hot process gas thin and pit faster than the maintenance interval assumes. Replacement is planned around the failure rather than the duty, and an unplanned one takes the unit with it.',
+    currentApproach:
+      'Higher-grade alloys where the geometry allows, and scheduled replacement where it does not. Both are priced in rather than solved.',
+    targetOutcome:
+      'A meaningful extension of component life in the same environment, achieved without changing the equipment design or the process.',
+    constraints: [
+      'Survives continuous high-temperature exposure',
+      'Applicable to existing component geometry',
+      'No change to process chemistry',
+      'Must not shed material into the stream',
+    ],
+    environment: [
+      { term: 'Process', value: 'Hot process gas' },
+      { term: 'Operating temperature', value: 'Sustained high temperature' },
+      { term: 'Environment', value: 'Chemically aggressive' },
+      { term: 'Access', value: 'Planned outage only' },
+    ],
+    impact: ['High cost', 'Downtime'],
+    outcomes: ['life', 'durability', 'opex'],
+    minimumTrl: 4,
+    status: 'Technology search',
+  }),
+  problem({
+    id: 'CH / FNB / 010',
+    slug: 'drying-energy-consumption',
+    title: 'High energy consumption in drying operations',
+    sector: 'Manufacturing',
+    priorityArea: 'Energy',
+    target: '\u2265 20% reduction in drying energy',
+    summary: 'Thermal drying dominates site energy, and the load has been treated as fixed.',
+    problem:
+      'Product arrives wet and has to leave dry, and the dryer pays the full latent heat for every kilogram of water. It is the largest single energy line on the site and has not moved in years.',
+    currentApproach:
+      'Heat recovery on the exhaust and tighter control of the setpoint. Both trim the load; neither changes what the dryer is being asked to do.',
+    targetOutcome:
+      'A material reduction in energy per kilogram of water removed, with no change to product quality or to throughput.',
+    constraints: [
+      'No reduction in throughput',
+      'Product quality specification unchanged',
+      'Retrofit within existing plant footprint',
+      'Food-contact compatible where applicable',
+    ],
+    environment: [
+      { term: 'Process', value: 'Continuous thermal drying' },
+      { term: 'Duty', value: 'Continuous, production-linked' },
+      { term: 'Constraint', value: 'Fixed throughput and quality spec' },
+      { term: 'Access', value: 'Scheduled maintenance window' },
+    ],
+    impact: ['Energy consumption', 'High cost', 'Emissions'],
+    outcomes: ['energy', 'opex', 'emissions'],
+    minimumTrl: 4,
+    status: 'Candidate technologies identified',
+  }),
 ]
 
 const match = (m: Omit<PublicMatch, 'demo'>): PublicMatch => ({ ...m, demo: true })
@@ -589,7 +695,64 @@ export const exampleMatches: PublicMatch[] = [
       'Adhesion to the existing roof substrate',
     ],
   }),
+  match({
+    id: 'MATCH / 007',
+    problemSlug: 'high-temperature-corrosion',
+    technologySlug: 'corrosion-resistant-surface-treatment',
+    matchClass: 'Promising match',
+    status: 'Technical review',
+    rationale:
+      'Both sides are about a surface failing in a hot, aggressive stream rather than a component being the wrong shape. A treatment bound to the substrate is the right class of answer here, because a deposited coating is what thermal cycling usually takes off first.',
+    fit: [
+      { dimension: 'Mechanism', rating: 'Strong' },
+      { dimension: 'Application', rating: 'Promising' },
+      { dimension: 'TRL', rating: 'Promising' },
+      { dimension: 'Implementation', rating: 'Moderate' },
+    ],
+    developmentRequired: 'Medium',
+    nextStep: 'Long-duration exposure testing against the real corrodent and temperature.',
+    openQuestions: [
+      'Which corrodent actually drives the loss, and at what temperature',
+      'Behaviour at welds and edges, where these treatments usually fail first',
+      'Whether existing components can be treated in place or must come out',
+    ],
+  }),
+  match({
+    id: 'MATCH / 008',
+    problemSlug: 'drying-energy-consumption',
+    technologySlug: 'low-energy-drying',
+    matchClass: 'Strong candidate',
+    status: 'Industry evaluation',
+    rationale:
+      'The problem is that a dryer pays latent heat for all of the water, and the technology exists to make it pay for less of it. That is a direct read on mechanism; what is unresolved is whether it holds on this feed at this throughput.',
+    fit: [
+      { dimension: 'Mechanism', rating: 'Strong' },
+      { dimension: 'Application', rating: 'Strong' },
+      { dimension: 'TRL', rating: 'Moderate' },
+      { dimension: 'Implementation', rating: 'Promising' },
+    ],
+    developmentRequired: 'High',
+    nextStep: 'Pilot against real throughput and the actual moisture target.',
+    openQuestions: [
+      'Energy per kilogram of water removed on this feed, not a reference one',
+      'Whether product quality holds against the existing dryer',
+      'Whether it retrofits inside the current footprint',
+    ],
+  }),
 ]
+
+/**
+ * A match's URL, derived from its reference rather than stored beside it.
+ *
+ * `MATCH / 001` becomes `match-001`. One definition, because a slug that is
+ * computed in the link and parsed in the route will disagree the first time
+ * either is edited, and the failure is a 404 on a record that exists.
+ */
+export const matchSlug = (m: PublicMatch) =>
+  m.id.toLowerCase().replace(/\s*\/\s*/g, '-')
+
+export const findExampleMatch = (slug: string) =>
+  exampleMatches.find((m) => matchSlug(m) === slug)
 
 /** How many published matches involve a given record. Derived, never stored. */
 export const matchesForTechnology = (slug: string) =>
