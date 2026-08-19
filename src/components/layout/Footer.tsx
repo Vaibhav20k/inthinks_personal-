@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { footerGroups, site } from '../../data/site'
+import { footerGroups, officeLines, officeMapUrl, site } from '../../data/site'
 import Logo from '../primitives/Logo'
 
 /** The pipeline, stated once at the end as a compact graphic. */
@@ -20,6 +20,36 @@ export default function Footer() {
             <p className="label mt-4" style={{ color: 'rgba(255,255,255,0.45)' }}>
               {site.line}
             </p>
+
+            {/* A real <address> element, not a styled paragraph: it is the one
+                tag that means "this is how you reach the thing this page is
+                about", and it is what a screen reader and a crawler look for.
+                Sits under the wordmark rather than in the link columns —
+                "New Delhi — 110030, India" does not fit a 2-of-12 column, and
+                who we are and where we are belong together. */}
+            <div className="mt-8">
+              <h2 className="label" style={{ color: 'rgba(255,255,255,0.45)' }}>OFFICE</h2>
+              <address className="mt-3 not-italic text-[0.9375rem] leading-relaxed" style={{ color: 'rgba(255,255,255,0.72)' }}>
+                {officeLines.map((line) => (
+                  <span key={line} className="block">{line}</span>
+                ))}
+              </address>
+              <a
+                href={officeMapUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="tap group mt-2 inline-flex min-h-11 items-center gap-2 text-[0.8125rem] transition-colors duration-300 hover:text-white"
+                style={{ color: 'rgba(255,255,255,0.55)' }}
+              >
+                <span className="border-b border-transparent pb-0.5 transition-colors duration-300 group-hover:border-current">
+                  View on map
+                </span>
+                <span aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-0.5" style={{ color: 'var(--color-accent-light)' }}>
+                  ↗
+                </span>
+                <span className="sr-only">(opens in a new tab)</span>
+              </a>
+            </div>
           </div>
 
           {footerGroups.map((group) => (
