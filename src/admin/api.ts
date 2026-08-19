@@ -767,3 +767,56 @@ export const regenerateRoyaltySchedule = (reference: string) =>
   call<{ ok: true; added: number; mode: 'add' | 'replace' }>(
     `/royalties/${reference}/schedule`, { method: 'POST' },
   )
+
+/* -------------------------------------------------------- public profiles */
+
+export interface ProfileFields {
+  slug: string
+  name: string
+  thesis: string
+  problem: string
+  principle: string
+  whyItMatters: string
+  validation: string
+  applications: string[]
+  sectors: string[]
+  outcomes: string[]
+  nextMilestones: string[]
+  ipStatus: string
+  transferStatus: string
+  published: boolean
+  publishedAt: string | null
+  publishedBy: string | null
+}
+
+export interface ProfileState {
+  reference: string
+  exists: boolean
+  suggestedSlug: string
+  publishable: boolean
+  acquisitionStage: string
+  profile: ProfileFields | null
+  /** Comes from the internal record — shown, never typed. */
+  derived: {
+    domain: string
+    domainCode: string
+    entryTrl: number
+    currentTrl: number
+    targetTrl: number
+    stage: string
+  }
+}
+
+export const profile = (reference: string) => call<ProfileState>(`/profiles/${reference}`)
+
+export const saveProfile = (reference: string, fields: Record<string, unknown>) =>
+  call<{ ok: true; slug: string }>(`/profiles/${reference}`, {
+    method: 'PUT',
+    body: JSON.stringify(fields),
+  })
+
+export const publishProfile = (reference: string, published: boolean) =>
+  call<{ ok: true; published: boolean }>(`/profiles/${reference}/publish`, {
+    method: 'POST',
+    body: JSON.stringify({ published }),
+  })

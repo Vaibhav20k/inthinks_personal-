@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Reveal from '../primitives/Reveal'
 import SectionLabel from '../primitives/SectionLabel'
 import { outcomes, sectors } from '../../data/taxonomy'
-import { technologies } from '../../data/technologies'
+import { fetchTechnologies } from '../../data/portfolio'
+import type { Technology } from '../../data/models'
 
 /**
  * Section 06 — the problem-first entry.
@@ -16,6 +17,15 @@ import { technologies } from '../../data/technologies'
 export default function ProblemExplorer() {
   const [picked, setPicked] = useState<string[]>([])
   const [sector, setSector] = useState<string | null>(null)
+  const [technologies, setTechnologies] = useState<Technology[]>([])
+
+  useEffect(() => {
+    let live = true
+    fetchTechnologies()
+      .then((items) => { if (live) setTechnologies(items) })
+      .catch(() => undefined)
+    return () => { live = false }
+  }, [])
 
   const toggle = (id: string) =>
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))
@@ -27,7 +37,7 @@ export default function ProblemExplorer() {
       const sectorHit = !sector || tech.sectors.includes(sector)
       return outcomeHit && sectorHit
     })
-  }, [picked, sector])
+  }, [picked, sector, technologies])
 
   const engaged = picked.length > 0 || sector
 

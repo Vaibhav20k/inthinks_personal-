@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import PublicProfile from './PublicProfile'
 import { Link, useParams } from 'react-router-dom'
 import * as api from './api'
 import { Chip, Empty, Panel, readableSize, shortDateTime } from './ui'
@@ -392,6 +393,8 @@ export default function Workspace({ me }: { me: Me }) {
               </form>
             )}
           </Panel>
+
+          <PublicProfile reference={reference} me={me} />
 
           <Panel title="Public timeline">
             {data.log.filter((l) => l.published).length === 0 ? (
