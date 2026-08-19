@@ -2,6 +2,7 @@ import { runMatchEngine } from './match-engine'
 import type { ChallengeRecord, TechnologyRecord } from './match-rules'
 import type { AuthContext } from './auth'
 import { audit } from './audit'
+import { openFromMatch } from './opportunities'
 import type { Env } from './types'
 
 /**
@@ -209,6 +210,14 @@ export async function decide(
     .bind(decision, ctx.actor.email, new Date().toISOString(), note, reference)
     .run()
 
+  // Approval is the moment an opportunity exists: a named technology and a
+  // conversation to manage. Opening it here means the pipeline can never be
+  // out of step with what was actually approved.
+  let opportunity: string | null = null
+  if (decision === RELEASING_DECISION) {
+    opportunity = await openFromMatch(ctx, reference, ip)
+  }
+
   // Releasing a match to an industry counterparty is the consequential action
   // in the whole system, so it is recorded distinctly from an ordinary update.
   await audit(
@@ -219,4 +228,6 @@ export async function decide(
     { decision },
     ip,
   )
+
+  return { opportunity }
 }

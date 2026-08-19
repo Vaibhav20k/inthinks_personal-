@@ -80,6 +80,8 @@ export interface Meta {
   logKinds: string[]
   readinessDimensions: { key: string; label: string }[]
   readinessStatuses: string[]
+  pipelineStages: string[]
+  opportunityStages: string[]
   roles: Role[]
 }
 export const meta = () => call<Meta>('/meta')
@@ -405,3 +407,72 @@ export const setReadiness = (reference: string, dimension: string, status: strin
     method: 'POST',
     body: JSON.stringify({ dimension, status, note }),
   })
+
+/* ------------------------------------------------------------ opportunities */
+
+export interface OpportunitySummary {
+  reference: string
+  createdAt: string
+  updatedAt: string
+  stage: string
+  challengeRef: string
+  challengeTitle: string | null
+  challengeSector: string | null
+  company: string | null
+  confidentiality: string | null
+  technologyRef: string
+  technologyTitle: string | null
+  currentTrl: number | null
+  developmentStage: string | null
+  owner: string | null
+  nextAction: string | null
+  nextActionDue: string | null
+}
+
+export interface OpportunityDetail {
+  reference: string
+  createdAt: string
+  updatedAt: string
+  stage: string
+  owner: string | null
+  nextAction: string | null
+  nextActionDue: string | null
+  note: string | null
+  closedReason: string | null
+  matchRef: string | null
+  challenge: {
+    reference: string
+    title: string | null
+    sector: string | null
+    status: string | null
+    confidentiality: string | null
+    company: string | null
+    contactName: string | null
+    contactEmail: string | null
+  }
+  contactsWithheld: boolean
+  technology: {
+    reference: string
+    title: string | null
+    category: string | null
+    entryTrl: number | null
+    currentTrl: number | null
+    targetTrl: number | null
+    developmentStage: string | null
+    acquisitionStage: string | null
+  }
+  readiness: { dimension: string; status: string; note: string | null }[]
+  notes: Note[]
+}
+
+export const opportunities = (params: Record<string, string> = {}) => {
+  const q = new URLSearchParams(params).toString()
+  return call<{ stages: string[]; funnel: Record<string, number>; items: OpportunitySummary[] }>(
+    `/opportunities${q ? `?${q}` : ''}`,
+  )
+}
+
+export const opportunity = (reference: string) => call<OpportunityDetail>(`/opportunities/${reference}`)
+
+export const patchOpportunity = (reference: string, patch: Record<string, unknown>) =>
+  call<{ ok: true }>(`/opportunities/${reference}`, { method: 'PATCH', body: JSON.stringify(patch) })
