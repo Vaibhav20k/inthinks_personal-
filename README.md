@@ -655,13 +655,12 @@ fails the deploy.
 
 `wrangler.toml` publishes `dist/` plus the Worker.
 
-> **The storage bindings and the custom domain are on, and `database_id` is a
-> placeholder.** This config does not deploy until a D1 database, an R2 bucket
-> and the `inthinks.com` zone all exist on the account and the real id is
-> pasted in — a binding naming a resource that is not there, or a route the
-> account does not own, fails the whole deploy. Do the steps below first, or
-> comment the blocks out to get a deploy that works on a bare account with
-> submissions switched off and a `workers.dev` address.
+> **Submissions are switched off in `wrangler.toml`, deliberately.** A binding
+> naming a resource that does not exist fails the whole deploy — and a failing
+> deploy freezes the live site on whatever shipped last, taking every unrelated
+> change with it, which is exactly what happened here. The site deploys; the
+> forms say submissions are not configured rather than pretending to accept
+> them. One command below switches storage on once the resources exist.
 
 ```bash
 npx wrangler login
