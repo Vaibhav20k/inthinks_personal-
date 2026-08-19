@@ -109,6 +109,12 @@ export default function SignalField() {
 
   const from = left[pair.demand]
   const to = right[pair.technology]
+  // One definition: the stroke and the pulse must trace the same curve, and
+  // two copies of this string would drift the first time one is edited.
+  const path =
+    from && to
+      ? `M ${from.x} ${from.y} C ${(from.x + to.x) / 2} ${from.y}, ${(from.x + to.x) / 2} ${to.y}, ${to.x} ${to.y}`
+      : ''
 
   const metadataFor = (): { signal: Signal; side: 'demand' | 'technology' } | null => {
     if (!held) return null
@@ -186,15 +192,42 @@ export default function SignalField() {
           {/* The qualified connection. */}
           {from && to && (
             <>
+              {/* The qualified path. Heavier than a candidate line and fully
+                  saturated, so the field reads as grey = possibility, accent =
+                  meaning, without anything else having to glow. */}
               <path
-                d={`M ${from.x} ${from.y} C ${(from.x + to.x) / 2} ${from.y}, ${(from.x + to.x) / 2} ${to.y}, ${to.x} ${to.y}`}
+                id={`qualified-${active}`}
+                d={path}
                 fill="none"
                 stroke="var(--color-accent)"
-                strokeWidth="1.5"
+                strokeWidth={locked ? 2.25 : 1.75}
+                strokeLinecap="round"
                 pathLength={1}
                 strokeDasharray="1"
                 strokeDashoffset={1 - draw}
+                style={{ transition: 'stroke-width 500ms var(--ease-instrument)' }}
               />
+
+              {/* One pulse, once, after the path completes — the moment of
+                  qualification rather than a loop. Continuous motion here would
+                  read as a loading state that never finishes. */}
+              {locked && !reduced && (
+                <circle r="3.5" fill="var(--color-accent)">
+                  <animateMotion
+                    key={`pulse-${active}`}
+                    dur="1.1s"
+                    begin="0s"
+                    fill="freeze"
+                    path={path}
+                    keyPoints="0;1"
+                    keyTimes="0;1"
+                    calcMode="spline"
+                    keySplines="0.33 0 0.15 1"
+                  />
+                  <animate attributeName="opacity" values="0;1;1;0" dur="1.1s" fill="freeze" />
+                </circle>
+              )}
+
               <circle cx={from.x} cy={from.y} r="3" fill="var(--color-accent)" opacity={draw} />
               <circle cx={to.x} cy={to.y} r="3" fill="var(--color-accent)" opacity={draw > 0.9 ? 1 : 0} />
             </>
@@ -226,7 +259,10 @@ export default function SignalField() {
             {pair.id}
           </p>
 
-          {/* Metadata for the held node — revealed, not chased. */}
+          {/* Metadata. A held node wins — that is the visitor inspecting
+              something deliberately. With nothing held, the qualified
+              technology's own record fades in once the connection locks, so
+              the match resolves into a fact rather than into a coloured line. */}
           <div className="mt-6 min-h-[6.5rem] w-full max-w-[16rem]">
             {metadata ? (
               <dl
@@ -244,11 +280,32 @@ export default function SignalField() {
                 ))}
               </dl>
             ) : (
-              isDesktop && (
-                <p className="label" style={{ color: 'var(--color-faint)' }}>
-                  HOVER A SIGNAL FOR DETAIL
-                </p>
-              )
+              <>
+                <dl
+                  className="px-3 py-3 text-left"
+                  style={{
+                    border: '1px solid var(--rule-strong)',
+                    background: 'var(--color-paper)',
+                    opacity: locked ? 1 : 0,
+                    transition: reduced ? 'none' : 'opacity 700ms var(--ease-instrument)',
+                  }}
+                >
+                  <p className="label" style={{ color: 'var(--color-accent)' }}>
+                    {technologySignals[pair.technology].label.toUpperCase()}
+                  </p>
+                  {technologySignals[pair.technology].meta.map(([k, v]) => (
+                    <div key={k} className="label mt-1.5 flex justify-between gap-3">
+                      <dt style={{ color: 'var(--color-faint)' }}>{k}</dt>
+                      <dd style={{ color: 'var(--color-muted)' }}>{v}</dd>
+                    </div>
+                  ))}
+                </dl>
+                {isDesktop && (
+                  <p className="label mt-3" style={{ color: 'var(--color-faint)' }}>
+                    HOVER A SIGNAL FOR DETAIL
+                  </p>
+                )}
+              </>
             )}
           </div>
         </div>
