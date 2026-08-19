@@ -21,21 +21,44 @@ npm run deploy     # wrangler deploy (builds first)
 All tokens live in `src/styles.css`; components read them and never hard-code a
 colour.
 
-**Colour — white, indigo blue, black.** White ground, black contrast sections,
-and a single indigo blue accent (`#1560bd`) held to roughly 3% of any screen:
-active states, a qualified match, one mark on a figure. Never a field, never a
+**Colour — white, the brand blue, black.** White ground, black contrast
+sections, and a single blue accent held to roughly 3% of any screen: active
+states, a qualified match, one mark on a figure. Never a field, never a
 gradient. The greys are pulled toward the accent so the system reads as one hue
-family. Three steps exist because one value cannot serve every ground —
-`--color-accent` `#1560bd` on white (6.1:1), `--color-accent-deep` `#0e4281` for
-hover and dense small text (9.9:1), `--color-accent-light` `#72aaef` for text on
-the black sections (8.3:1). The two derived steps move lightness only, so all
-three sit on the same hue. Every value clears AA on the ground it sits on.
+family.
 
-**Mark.** The company logo — a gear inside a bulb — is redrawn as vector in
-`src/components/primitives/Logo.tsx`, so it stays crisp at any size, themes with
-the palette and costs no request. It appears in the header, footer, closing CTA
-and as the browser favicon (`public/favicon.svg`). A `tone` prop switches to the
-light indigo step on black grounds.
+The accent is `#3b7baf`, taken **exactly from the logo file** rather than
+chosen. That is a constraint, not a free hand: it measures 4.5:1 on white — it
+clears AA for text by a hair — and only 4.1:1 against the sunk ground, so it
+cannot carry small type there. Two derived steps on the same hue (207°) do the
+work it cannot: `--color-accent-deep` `#2a597e` (7.4:1 on white, 6.7:1 on sunk)
+for dense small text, hover, and anything inside a sunk band;
+`--color-accent-light` `#7cb2de` (8.8:1 on black) for the inverted sections.
+
+A `sunk` utility paints the tinted ground *and* redefines `--color-accent` to
+the deep step for everything inside it, so a label that passes on the page
+cannot quietly fail inside a band. Fixing it at the ground rather than at each
+component is what stops the next one regressing.
+
+**Verified, not asserted.** `scripts/` has no linter for this; it was measured
+by walking the rendered DOM of every public route and every admin route,
+computing each text node's effective foreground against the first opaque
+background actually painted behind it, and checking it against AA at that
+node's real font size and weight. Result: **0 below AA** on both surfaces. The
+same audit on the previous palette found 14 failures, all accent text at 11px
+on the black footer — so this palette is stricter than the one it replaced,
+not merely different.
+
+**Mark.** The company logo — an eight-tooth gear inside a bulb — is traced from
+`public/InThinks.png` as vector in `src/components/primitives/Logo.tsx`, so it
+stays crisp at any size, themes with the palette and costs no request. The PNG
+itself is 8-bit RGB with no alpha channel, so it can only ever be drawn on an
+opaque background; the vector has none, which is what lets the tab show the mark
+rather than a white tile. The identical gear path is in `public/favicon.svg`,
+so the tab and the page cannot drift. The gear is filled rather than stroked
+because thin radiating strokes collapse into a smudge at 16px. A `tone` prop
+switches to the light step on black grounds, and the favicon's base lightens
+under `prefers-color-scheme: dark` so it does not vanish into a dark tab strip.
 
 **Type.** Archivo (variable weight *and* width — the hero pushes the width axis
 to 112%) with IBM Plex Mono for technology IDs, TRL, status and technical

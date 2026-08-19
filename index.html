@@ -31,8 +31,12 @@
       crossorigin
     />
 
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="mask-icon" href="/favicon.svg" color="#1560bd" />
+    <!-- ?v= is a cache buster. Browsers cache favicons far more stubbornly
+         than ordinary assets — Chrome keeps them in a separate store that a
+         normal reload does not touch — so an edited icon can keep showing the
+         old one for days. Bump the number whenever favicon.svg changes. -->
+    <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml" />
+    <link rel="mask-icon" href="/favicon.svg?v=2" color="#3b7baf" />
   </head>
   <body>
     <div id="root"></div>

@@ -8,7 +8,7 @@ import { pipeline } from '../../data/pipeline'
  */
 export default function Engine() {
   return (
-    <section id="engine" className="py-24 sm:py-32" style={{ background: 'var(--color-paper-sunk)' }}>
+    <section id="engine" className="py-24 sm:py-32 sunk">
       <div className="container-grid">
         <div className="doc-columns">
           <SectionLabel index="03">The InThinks Engine</SectionLabel>
@@ -19,7 +19,7 @@ export default function Engine() {
 
             <ol className="mt-14 grid gap-px sm:grid-cols-2 lg:grid-cols-4" style={{ background: 'var(--rule)' }}>
               {pipeline.map((stage, i) => (
-                <li key={stage.key} style={{ background: 'var(--color-paper-sunk)' }}>
+                <li key={stage.key} className="sunk">
                   <Reveal delay={i * 60}>
                     <div className="flex h-full flex-col gap-5 p-6">
                       <div className="flex items-baseline justify-between">
@@ -40,7 +40,7 @@ export default function Engine() {
                   </Reveal>
                 </li>
               ))}
-              <li style={{ background: 'var(--color-paper-sunk)' }}>
+              <li className="sunk">
                 <Reveal delay={pipeline.length * 60}>
                   <div className="flex h-full flex-col justify-between gap-5 p-6">
                     <span className="label" style={{ color: 'var(--color-faint)' }}>OUTCOME</span>

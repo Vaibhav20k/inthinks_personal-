@@ -78,7 +78,7 @@ export default function About() {
         </div>
       </section>
 
-      <section className="py-20 sm:py-28" style={{ background: 'var(--color-paper-sunk)' }}>
+      <section className="py-20 sm:py-28 sunk">
         <div className="container-grid">
           <div className="doc-columns">
             <SectionLabel index="02">Selectivity</SectionLabel>
