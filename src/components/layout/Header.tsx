@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import GroundToggle from '../primitives/GroundToggle'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { nav, site } from '../../data/site'
 import Logo from '../primitives/Logo'
@@ -71,6 +72,7 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-4">
+          <GroundToggle className="hidden sm:inline-block" />
           <Link
             to="/submit-innovation"
             className="hidden text-[0.8125rem] font-medium transition-colors duration-300 lg:inline-block"
@@ -80,7 +82,7 @@ export default function Header() {
           </Link>
           <Link
             to="/submit-challenge"
-            className="hidden bg-graphite px-5 py-2.5 text-[0.8125rem] font-medium text-paper transition-colors duration-300 hover:bg-accent sm:inline-block"
+            className="hidden bg-[var(--color-cta)] px-5 py-2.5 text-[0.8125rem] font-medium text-[var(--color-cta-text)] transition-colors duration-300 hover:bg-accent sm:inline-block"
           >
             Submit a Challenge
           </Link>
@@ -116,7 +118,7 @@ export default function Header() {
             ))}
           </ul>
           <div className="mt-6 flex flex-col gap-3">
-            <Link to="/submit-challenge" className="bg-graphite px-6 py-4 text-center text-[0.9375rem] font-medium text-paper">
+            <Link to="/submit-challenge" className="bg-[var(--color-cta)] px-6 py-4 text-center text-[0.9375rem] font-medium text-[var(--color-cta-text)]">
               Submit a Challenge
             </Link>
             <Link

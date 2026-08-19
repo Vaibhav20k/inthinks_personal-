@@ -30,7 +30,7 @@ export default function ValueAddition() {
                     className="flex h-full flex-col p-7"
                     style={
                       isMiddle
-                        ? { background: 'var(--color-graphite)', color: 'var(--color-paper)' }
+                        ? { background: 'var(--color-graphite)', color: 'var(--color-on-graphite)' }
                         : { background: 'var(--color-paper)' }
                     }
                   >
@@ -50,7 +50,7 @@ export default function ValueAddition() {
 
                     <h3
                       className="mt-5 font-display text-[1.5rem] font-medium leading-tight tracking-[-0.025em]"
-                      style={{ color: isMiddle ? 'var(--color-paper)' : 'var(--color-ink)' }}
+                      style={{ color: isMiddle ? 'var(--color-on-graphite)' : 'var(--color-ink)' }}
                     >
                       {col.title}
                     </h3>

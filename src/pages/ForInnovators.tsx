@@ -84,7 +84,7 @@ export default function ForInnovators() {
         </div>
       </section>
 
-      <section className="py-20 sm:py-28" style={{ background: 'var(--color-graphite)', color: 'var(--color-paper)' }}>
+      <section className="py-20 sm:py-28" style={{ background: 'var(--color-graphite)', color: 'var(--color-on-graphite)' }}>
         <div className="container-grid">
           <div className="doc-columns">
             <SectionLabel index="03" invert>IP &amp; Ownership</SectionLabel>

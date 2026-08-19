@@ -14,7 +14,7 @@ export default function ArrowLink({ to, children, invert = false, className = ''
     <Link
       to={to}
       className={`tap group inline-flex items-baseline gap-2.5 text-[0.9375rem] font-medium ${
-        invert ? 'text-paper' : 'text-ink'
+        invert ? 'text-[var(--color-on-graphite)]' : 'text-ink'
       } ${className}`}
     >
       <span className="border-b border-current pb-0.5">{children}</span>

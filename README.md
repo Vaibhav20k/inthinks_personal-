@@ -49,6 +49,32 @@ same audit on the previous palette found 14 failures, all accent text at 11px
 on the black footer — so this palette is stricter than the one it replaced,
 not merely different.
 
+**Ground — light by day, dark by night.** The site picks its ground from the
+visitor's own clock: light from 06:00, dark from 18:00. Three rules, in order.
+A choice made on the site wins and persists. Otherwise a system set to dark
+wins — that is an explicit signal from a person, and a clock should not
+overrule it at 2pm. Otherwise the hour decides, which is the common case
+because most people never move the system default off light.
+
+The selection is an inline script in `<head>`, synchronous and before first
+paint. Anything later paints one ground and flips to the other, which is worse
+than either. That collides with `script-src 'self'`, so `scripts/csp-hash.mjs`
+runs after the build, hashes the script that actually shipped and names it in
+the CSP — `'unsafe-inline'` would open the directive for every script on the
+page to license one seven-line function, and a hash pasted in by hand goes
+stale the first time the script is edited.
+
+A toggle in the header switches ground and remembers. It is not decoration: the
+site has made a decision on the visitor's behalf, and that is only acceptable
+if they can undo it.
+
+Both grounds are the same system with the value of each token moved, never a
+second design. Two tokens exist purely because the light ground let separate
+ideas share a value: `--color-cta` (a black button and a black section only
+look alike on white) and `--color-on-graphite` (text on the inverted block is
+not the ground colour, it only matches it on white). Both grounds measure **0
+below AA** across every public and admin route.
+
 **Mark.** The company logo — an eight-tooth gear inside a bulb — is traced from
 `public/InThinks.png` as vector in `src/components/primitives/Logo.tsx`, so it
 stays crisp at any size, themes with the palette and costs no request. The PNG
