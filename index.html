@@ -35,6 +35,18 @@
     />
 
     <!--
+      One canonical address.
+
+      The site answers on both inthinks.com and www.inthinks.com, because a
+      Custom Domain matches one exact hostname and www needs its own. Identical
+      content on two hostnames is two sites as far as a search engine is
+      concerned, so this names the apex as the real one. Set from the current
+      path rather than hardcoded, and kept in step on navigation, so a deep
+      link canonicalises to itself and not to the homepage.
+    -->
+    <link rel="canonical" href="https://inthinks.com/" />
+
+    <!--
       Ground selection, before first paint.
 
       Inline and synchronous on purpose: if this ran after hydration the page
@@ -102,6 +114,9 @@
           if (ground === 'dark') document.documentElement.setAttribute('data-ground', 'dark')
           var bar = document.querySelector('meta[name="theme-color"]')
           if (bar) bar.setAttribute('content', ground === 'dark' ? '#050505' : '#ffffff')
+
+          var canonical = document.querySelector('link[rel="canonical"]')
+          if (canonical) canonical.setAttribute('href', 'https://inthinks.com' + location.pathname)
         } catch (e) {
           /* Storage blocked or clock unreadable: fall through to the light
              ground, which is what the stylesheet gives with no attribute. */
