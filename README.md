@@ -582,13 +582,38 @@ fails the deploy.
 
 `wrangler.toml` publishes `dist/` plus the Worker.
 
+> **The storage bindings are on, and `database_id` is a placeholder.** This
+> config does not deploy until a D1 database and an R2 bucket exist on the
+> account and the real id is pasted in — a binding naming a resource that is
+> not there fails the whole deploy. Do the three steps below first, or comment
+> both blocks out to get a deploy that works on a bare account with
+> submissions switched off.
+
 ```bash
 npx wrangler login
+
+# 1. the database, then paste the id it prints into wrangler.toml
+npx wrangler d1 create inthinks-submissions
+
+# 2. the bucket (Cloudflare dashboard → R2 → Enable first; free tier is enough)
+npx wrangler r2 bucket create inthinks-evidence
+
+# 3. the schema — migrations 0001 through 0008
+npx wrangler d1 migrations apply inthinks-submissions --remote
+
+# secrets: the first two are required, the third only for matching
+npx wrangler secret put SESSION_SECRET
+npx wrangler secret put IP_SALT
+npx wrangler secret put ANTHROPIC_API_KEY
+
 npx wrangler deploy
 ```
 
-That is enough from a clean clone: `dist/` is git-ignored, so the `[build]`
-command builds it first. The install in that command is conditional — a bare
+Skipping step 3 is the failure that looks like a code bug and is not: the
+bindings resolve, so `/api/status` reports true, and then every query hits a
+table that does not exist.
+
+`dist/` is git-ignored, so the `[build]` command builds it first. The install in that command is conditional — a bare
 runner installs with `--include=dev` (some CI environments set
 `NODE_ENV=production` and drop vite and tsc), while a machine that already has
 `node_modules` skips it, because `npm ci` would delete the directory
@@ -600,7 +625,9 @@ links. `public/_headers` sets a CSP with no external origins, immutable caching
 for `/assets/*` and `/fonts/*`, and no-cache on `index.html`.
 
 **Custom domain.** Uncomment the `[[routes]]` block in `wrangler.toml` once
-`inthinks.com` is a zone on the same Cloudflare account.
+`inthinks.com` is a zone on the same Cloudflare account. It is left off for the
+same reason the bindings were: deploying with a route the account does not own
+fails the deploy.
 
 ## What is and is not here
 

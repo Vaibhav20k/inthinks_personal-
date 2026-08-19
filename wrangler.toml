@@ -3,9 +3,9 @@
 #   npx wrangler login
 #   npx wrangler deploy
 #
-# Submissions need two resources on your account. Until they exist the site
-# deploys and runs, and the forms say plainly that submissions are not
-# configured rather than pretending to accept them. Setup is in README.md.
+# The storage bindings below are ON, so this config needs a D1 database and an
+# R2 bucket to exist on the account before it will deploy at all — and the
+# database_id is still a placeholder. See the block below, and README.md.
 name = "inthinks"
 compatibility_date = "2026-08-18"
 main = "worker/index.ts"
@@ -34,33 +34,42 @@ not_found_handling = "single-page-application"
 run_worker_first = ["/api/*"]
 
 # ─────────────────────────────────────────────────────────────────────────
-# Storage bindings — commented out so the site deploys on a bare account.
+# Storage bindings — ON.
 #
-# A binding that names a resource which does not exist fails the whole deploy,
-# so these stay off until the resources are created. The Worker is built for
-# that: with no bindings, /api/status reports false and the forms say
-# submissions are not configured instead of pretending to accept them.
+# THIS CONFIG DOES NOT DEPLOY UNTIL BOTH RESOURCES EXIST ON THE ACCOUNT.
+# A binding naming a resource that is not there fails the whole deploy, and
+# `database_id` below is still a placeholder. Three steps, once:
 #
-# Turn submissions on:
-#   npx wrangler d1 create inthinks-submissions
-#   # paste the returned database_id below, uncomment the block, then:
-#   npx wrangler d1 migrations apply inthinks-submissions --remote
+#   1. npx wrangler d1 create inthinks-submissions
+#      Replace the placeholder database_id with the id it prints.
 #
-# Turn evidence uploads on (R2 must be enabled once in the dashboard first —
-# Cloudflare dashboard → R2 → Enable; there is a free tier):
-#   npx wrangler r2 bucket create inthinks-evidence
-#   # then uncomment the r2_buckets block below.
+#   2. Cloudflare dashboard → R2 → Enable (free tier is enough), then:
+#      npx wrangler r2 bucket create inthinks-evidence
+#
+#   3. npx wrangler d1 migrations apply inthinks-submissions --remote
+#      Applies migrations/0001 through 0008. Without this the tables the
+#      Worker queries do not exist and every /api call 500s.
+#
+# Then the secrets the platform needs:
+#   npx wrangler secret put SESSION_SECRET       # required for admin sign-in
+#   npx wrangler secret put IP_SALT              # required for rate limiting
+#   npx wrangler secret put ANTHROPIC_API_KEY    # optional; matching 503s without it
+#
+# To go back to a deploy that works on a bare account, comment both blocks out
+# again: the Worker handles their absence deliberately — /api/status reports
+# false and the forms say submissions are not configured rather than
+# pretending to accept them.
 # ─────────────────────────────────────────────────────────────────────────
 
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "inthinks-submissions"
-# database_id = "PASTE_YOUR_D1_DATABASE_ID_HERE"
-# migrations_dir = "migrations"
+[[d1_databases]]
+binding = "DB"
+database_name = "inthinks-submissions"
+database_id = "PASTE_YOUR_D1_DATABASE_ID_HERE"
+migrations_dir = "migrations"
 
-# [[r2_buckets]]
-# binding = "EVIDENCE"
-# bucket_name = "inthinks-evidence"
+[[r2_buckets]]
+binding = "EVIDENCE"
+bucket_name = "inthinks-evidence"
 
 # Custom domain — uncomment once inthinks.com is a zone on this Cloudflare
 # account. Deploying with a route the account doesn't own will fail, so it
