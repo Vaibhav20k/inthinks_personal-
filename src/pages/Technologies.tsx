@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import PageHero from '../components/layout/PageHero'
 import Notice from '../components/primitives/Notice'
 import TechnologyRow from '../components/tech/TechnologyRow'
@@ -8,6 +9,66 @@ import type { Technology, TransferStatus } from '../data/models'
 import { domains, outcomes, sectors } from '../data/taxonomy'
 
 type FilterKey = 'problem' | 'industry' | 'domain' | 'trl' | 'transfer'
+type ViewMode = 'index' | 'visual'
+
+/**
+ * The portfolio as a technical index.
+ *
+ * Denser than the editorial rows and deliberately so: an index is for someone
+ * scanning thirty records for a TRL band, not reading one. Mono throughout,
+ * columns aligned, the ID leading — the same information, at a different
+ * reading speed.
+ */
+function TechnologyIndex({ rows }: { rows: Technology[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full" style={{ borderCollapse: 'collapse' }}>
+        <caption className="sr-only">Technologies in the InThinks portfolio</caption>
+        <thead>
+          <tr>
+            {['Reference', 'Technology', 'TRL', 'Domain', 'Transfer status'].map((h) => (
+              <th
+                key={h}
+                scope="col"
+                className="label whitespace-nowrap px-3 py-3 text-left first:pl-0"
+                style={{ color: 'var(--color-faint)', borderBottom: '1px solid var(--rule-strong)' }}
+              >
+                {h.toUpperCase()}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((tech) => (
+            <tr key={tech.slug} className="group">
+              <td className="px-3 py-4 pl-0 align-baseline" style={{ borderBottom: '1px solid var(--rule)' }}>
+                <Link to={`/technologies/${tech.slug}`} className="ident whitespace-nowrap" style={{ color: 'var(--color-accent)' }}>
+                  {tech.id}
+                </Link>
+              </td>
+              <td className="px-3 py-4 align-baseline" style={{ borderBottom: '1px solid var(--rule)' }}>
+                <Link to={`/technologies/${tech.slug}`} className="text-[0.9375rem] font-medium">
+                  <span className="border-b border-transparent transition-colors duration-250 group-hover:border-current">
+                    {tech.name}
+                  </span>
+                </Link>
+              </td>
+              <td className="ident whitespace-nowrap px-3 py-4 align-baseline tabular-nums" style={{ borderBottom: '1px solid var(--rule)', color: 'var(--color-muted)' }}>
+                {String(tech.currentTrl).padStart(2, '0')} → {String(tech.targetTrl).padStart(2, '0')}
+              </td>
+              <td className="label whitespace-nowrap px-3 py-4 align-baseline" style={{ borderBottom: '1px solid var(--rule)', color: 'var(--color-muted)' }}>
+                {tech.domain.toUpperCase()}
+              </td>
+              <td className="label px-3 py-4 align-baseline" style={{ borderBottom: '1px solid var(--rule)', color: 'var(--color-muted)' }}>
+                {tech.transferStatus.toUpperCase()}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
 
 const TRL_BANDS = [
   { id: '1-3', label: 'TRL 1–3', test: (n: number) => n <= 3 },
@@ -61,6 +122,9 @@ export default function Technologies() {
   })
   const [technologies, setTechnologies] = useState<Technology[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Index is the default on desktop: the spec's point is that this is a
+  // technical register first and a set of cards second.
+  const [view, setView] = useState<ViewMode>('index')
 
   useEffect(() => {
     let live = true
@@ -131,14 +195,48 @@ export default function Technologies() {
             </div>
           </div>
 
-          <div className="lg:col-span-8 xl:col-span-9">
-            <p className="label pb-4" style={{ color: 'var(--color-muted)' }} aria-live="polite">
-              {technologies === null
-                ? 'LOADING…'
-                : `${results.length} OF ${technologies.length} ${technologies.length === 1 ? 'TECHNOLOGY' : 'TECHNOLOGIES'}`}
-            </p>
+          {/* min-w-0: a grid item defaults to min-width:auto, so the index table
+              would otherwise force the whole page wider than the viewport. */}
+          <div className="min-w-0 lg:col-span-8 xl:col-span-9">
+            <div className="flex flex-wrap items-center justify-between gap-4 pb-4">
+              <p className="label" style={{ color: 'var(--color-muted)' }} aria-live="polite">
+                {technologies === null
+                  ? 'SCANNING TECHNOLOGY FIELD'
+                  : `${results.length} OF ${technologies.length} ${technologies.length === 1 ? 'TECHNOLOGY' : 'TECHNOLOGIES'}`}
+              </p>
+              {technologies !== null && technologies.length > 0 && (
+                <div className="flex" role="group" aria-label="View mode">
+                  {(['index', 'visual'] as ViewMode[]).map((mode) => {
+                    const on = view === mode
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setView(mode)}
+                        aria-pressed={on}
+                        className="tap label px-3 py-1.5 transition-colors duration-250"
+                        style={{
+                          border: `1px solid ${on ? 'var(--color-accent)' : 'var(--rule-strong)'}`,
+                          marginLeft: mode === 'visual' ? '-1px' : 0,
+                          color: on ? 'var(--color-accent)' : 'var(--color-muted)',
+                        }}
+                      >
+                        {mode.toUpperCase()}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
 
-            {technologies === null ? null : technologies.length === 0 ? (
+            {technologies === null ? (
+              <div className="py-16" style={{ borderTop: '1px solid var(--rule)' }}>
+                <span className="signal-line" aria-hidden="true" />
+                <p className="label mt-5" style={{ color: 'var(--color-faint)' }}>
+                  SCANNING TECHNOLOGY FIELD
+                </p>
+              </div>
+            ) : technologies.length === 0 ? (
               <div className="py-16" style={{ borderTop: '1px solid var(--rule)' }}>
                 <p className="font-display text-[1.5rem] font-medium tracking-[-0.02em]">
                   No technologies are published yet.
@@ -163,6 +261,8 @@ export default function Technologies() {
                   <span aria-hidden="true" style={{ color: 'var(--color-accent)' }}>→</span>
                 </button>
               </div>
+            ) : view === 'index' ? (
+              <TechnologyIndex rows={results} />
             ) : (
               <ul>
                 {results.map((tech, i) => (
