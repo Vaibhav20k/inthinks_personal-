@@ -15,7 +15,7 @@ interface Props {
 }
 
 const skins: Record<Variant, string> = {
-  solid: 'bg-graphite text-paper hover:bg-accent',
+  solid: 'bg-[var(--color-cta)] text-[var(--color-cta-text)] hover:bg-accent hover:text-white',
   outline: 'border text-ink hover:border-accent hover:text-accent',
   invert: 'bg-paper text-graphite hover:bg-accent hover:text-white',
   'invert-outline': 'border text-paper hover:border-accent hover:text-accent',
