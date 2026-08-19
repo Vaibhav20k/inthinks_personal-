@@ -92,6 +92,9 @@
 
   --tracking-label: 0.15em;
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Motion should read as an instrument, not an app: no overshoot, a long
+     controlled tail. Used wherever something resolves rather than pops. */
+  --ease-instrument: cubic-bezier(0.33, 0, 0.15, 1);
 }
 
 @layer theme {

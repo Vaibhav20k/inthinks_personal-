@@ -12,7 +12,7 @@ import { INSTITUTION_DISCLAIMER, institutions } from '../../data/pipeline'
  */
 export default function InstitutionEcosystem() {
   return (
-    <section className="container-grid py-24 sm:py-32">
+    <section id="sourcing" className="container-grid py-24 sm:py-32">
       <div className="doc-columns">
         <SectionLabel index="04">Innovation Source</SectionLabel>
         <div>
