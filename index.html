@@ -8,6 +8,9 @@
       name="description"
       content="InThinks identifies promising early-stage technologies, develops selected innovations through focused R&D, and connects qualified solutions with real industrial challenges. Technology transfer, licensing and co-development."
     />
+    <!-- Kept in step with the ground by the script below. It tints the
+         browser's own bar on a phone, so a hardcoded white one would leave a
+         white strip above a black page every night. -->
     <meta name="theme-color" content="#ffffff" />
     <link rel="canonical" href="https://inthinks.com/" />
 
@@ -97,6 +100,8 @@
             ground = daylightGround()
           }
           if (ground === 'dark') document.documentElement.setAttribute('data-ground', 'dark')
+          var bar = document.querySelector('meta[name="theme-color"]')
+          if (bar) bar.setAttribute('content', ground === 'dark' ? '#050505' : '#ffffff')
         } catch (e) {
           /* Storage blocked or clock unreadable: fall through to the light
              ground, which is what the stylesheet gives with no attribute. */
