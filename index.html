@@ -59,6 +59,7 @@
            deliberate act — the header control has three positions and the
            middle two are the pins — so it is not something anyone lands on
            by accident, and AUTO is one click away from either of them.
+           Nothing else pins a ground: absent a pin, everyone loads on AUTO.
         2. Otherwise, a system set to dark wins. That is an explicit signal
            from the person, and a clock should not overrule it at 2pm.
         3. Otherwise — and this is the common case, because most people never
@@ -116,10 +117,21 @@
           return daylightGround()
         }
 
-        /** Which of the three positions the control is in. */
+        /**
+         * Which of the three positions the control is in.
+         *
+         * The key is versioned, and the previous one is dropped on sight. The
+         * control it belonged to had two positions and no way back, so a
+         * stored value there did not mean "hold this ground" — most of them
+         * were someone finding out what the button did, and then being served
+         * that ground forever. Those are discarded once so everybody starts
+         * where they should: on AUTO, following their own sunset. A value
+         * written by the three-position control is a real choice and stays.
+         */
         function savedMode() {
           try {
-            var v = localStorage.getItem('inthinks-ground')
+            localStorage.removeItem('inthinks-ground')
+            var v = localStorage.getItem('inthinks-ground-v2')
             return v === 'light' || v === 'dark' ? v : 'auto'
           } catch (e) { return 'auto' }
         }
@@ -153,7 +165,7 @@
          itself within the minute rather than staying wrong all session. */
       addEventListener('load', function () {
         try {
-          if (localStorage.getItem('inthinks-ground')) return
+          if (localStorage.getItem('inthinks-ground-v2')) return
           fetch('/api/daylight', { headers: { accept: 'application/json' } })
             .then(function (r) { return r.ok ? r.json() : null })
             .then(function (d) {
@@ -162,6 +174,37 @@
             .catch(function () { /* offline or blocked: the hours still work */ })
         } catch (e) { /* storage blocked */ }
       })
+    </script>
+
+    <!--
+      Structured data.
+
+      The office address is on the page for a reader; this is the same address
+      for everything that is not one — the panel a search engine shows beside
+      the name, a phone offering to add the contact, an aggregator resolving
+      which InThinks this is. It is a data block, not a program: the browser
+      never executes it, and the build's hasher covers it under the CSP along
+      with the ground script.
+
+      Kept in step with src/data/site.ts by hand, which is the one duplication
+      here — a static file cannot import the module. Change one, change both.
+    -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "InThinks",
+        "url": "https://inthinks.com/",
+        "email": "hello@inthinks.com",
+        "description": "An innovation intelligence and technology-transfer platform. Early-stage technologies developed toward industrial readiness, then transferred to industry.",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "352, MG Road, Sultanpur",
+          "addressLocality": "New Delhi",
+          "postalCode": "110030",
+          "addressCountry": "IN"
+        }
+      }
     </script>
 
     <!-- ?v= is a cache buster. Browsers cache favicons far more stubbornly

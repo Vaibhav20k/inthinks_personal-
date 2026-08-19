@@ -2,6 +2,7 @@ import Button from '../components/primitives/Button'
 import Reveal from '../components/primitives/Reveal'
 import SectionLabel from '../components/primitives/SectionLabel'
 import PageHero from '../components/layout/PageHero'
+import { officeLines, officeMapUrl, site } from '../data/site'
 
 const haveLack = [
   {
@@ -98,6 +99,73 @@ export default function About() {
                 <Button to="/submit-innovation">Submit an Innovation</Button>
                 <Button to="/submit-challenge" variant="outline">Submit a Challenge</Button>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Where and how to reach a real company.
+          About is where someone goes to find out who these people are, and
+          "where are they" is half of that question — a page that answers the
+          first half and not the second reads as a company that would rather
+          not say. Two facts, given the same weight, on the site's own grid. */}
+      <section id="contact" className="py-20 sm:py-28">
+        <div className="container-grid">
+          <div className="doc-columns">
+            <SectionLabel index="03">Contact</SectionLabel>
+            <div>
+              <Reveal as="h2" className="section-type max-w-[20ch]">
+                Where to find us.
+              </Reveal>
+
+              <dl className="mt-12 grid gap-10 sm:grid-cols-2 sm:gap-8">
+                <Reveal className="min-w-0">
+                  <dt className="label" style={{ color: 'var(--color-faint)' }}>ENQUIRIES</dt>
+                  <dd className="mt-4 pt-5" style={{ borderTop: '1px solid var(--rule)' }}>
+                    <a
+                      href={`mailto:${site.email}`}
+                      className="tap group inline-flex min-h-11 items-center text-[1.0625rem] font-medium"
+                    >
+                      <span className="border-b border-transparent pb-0.5 transition-colors duration-250 group-hover:border-current">
+                        {site.email}
+                      </span>
+                    </a>
+                    <p className="body-type mt-3 max-w-[34ch]" style={{ color: 'var(--color-muted)' }}>
+                      Submissions go through the forms rather than by email — they ask for
+                      what an assessment actually needs.
+                    </p>
+                  </dd>
+                </Reveal>
+
+                <Reveal delay={90} className="min-w-0">
+                  <dt className="label" style={{ color: 'var(--color-faint)' }}>OFFICE</dt>
+                  <dd className="mt-4 pt-5" style={{ borderTop: '1px solid var(--rule)' }}>
+                    <address className="not-italic text-[1.0625rem] font-medium leading-relaxed">
+                      {officeLines.map((line) => (
+                        <span key={line} className="block">{line}</span>
+                      ))}
+                    </address>
+                    <a
+                      href={officeMapUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="tap group mt-2 inline-flex min-h-11 items-center gap-2 text-[0.9375rem] font-medium"
+                    >
+                      <span className="border-b border-transparent pb-0.5 transition-colors duration-250 group-hover:border-current">
+                        View on map
+                      </span>
+                      <span
+                        aria-hidden="true"
+                        className="transition-transform duration-300 group-hover:translate-x-0.5"
+                        style={{ color: 'var(--color-accent)' }}
+                      >
+                        ↗
+                      </span>
+                      <span className="sr-only">(opens in a new tab)</span>
+                    </a>
+                  </dd>
+                </Reveal>
+              </dl>
             </div>
           </div>
         </div>

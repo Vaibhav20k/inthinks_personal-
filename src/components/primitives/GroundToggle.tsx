@@ -3,7 +3,12 @@ import { useCallback, useEffect, useState } from 'react'
 type Ground = 'light' | 'dark'
 type Mode = 'auto' | Ground
 
-const KEY = 'inthinks-ground'
+/**
+ * Versioned. The previous key belonged to a two-position control with no way
+ * back to automatic, so its stored values are dropped rather than honoured —
+ * see `savedMode` in index.html, which does the clearing before first paint.
+ */
+const KEY = 'inthinks-ground-v2'
 
 /** The order a click walks through. AUTO is first, and is where you land back. */
 const CYCLE: Mode[] = ['auto', 'light', 'dark']
