@@ -27,5 +27,10 @@ async function get<T>(path: string): Promise<T> {
 export const fetchTechnologies = () =>
   get<{ items: Technology[] }>('/api/technologies').then((r) => r.items)
 
-export const fetchTechnology = (slug: string) =>
-  get<TechnologyDetail>(`/api/technologies/${encodeURIComponent(slug)}`)
+export const fetchTechnology = async (slug: string) => {
+  const body = await get<Partial<TechnologyDetail>>(`/api/technologies/${encodeURIComponent(slug)}`)
+  // A 200 is not proof of a technology. Anything without one is treated as
+  // missing rather than rendered half-built.
+  if (!body?.technology?.slug) throw new Error('Not found')
+  return { technology: body.technology, timeline: body.timeline ?? [] }
+}

@@ -63,9 +63,17 @@ function safeOrNull(row: Record<string, unknown>) {
 
 export async function handleTechnologies(request: Request, env: Env, url: URL): Promise<Response> {
   if (request.method !== 'GET') return json({ error: 'Method not allowed' }, 405, 'no-store')
-  if (!env.DB) return json({ items: [] })
 
   const detail = url.pathname.match(/^\/api\/technologies\/([a-z0-9-]{3,80})$/)
+
+  // On a deployment with no database there is no portfolio: an empty list, and
+  // a genuine 404 for any single technology. Answering a detail request with a
+  // list shape is what breaks the page that asked for it.
+  if (!env.DB) {
+    return detail || url.pathname !== '/api/technologies'
+      ? json({ error: 'Not found' }, 404, 'no-store')
+      : json({ items: [] })
+  }
 
   if (detail) {
     const row = await env.DB
