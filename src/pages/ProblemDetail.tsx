@@ -142,7 +142,7 @@ export default function ProblemDetail() {
                         </Link>
                         <p className="mt-1.5 font-display text-[1.0625rem] font-medium tracking-[-0.02em]">{tech.name}</p>
                         <p className="body-type mt-2" style={{ color: 'var(--color-muted)' }}>{m.rationale}</p>
-                        <p className="label mt-3" style={{ color: 'var(--color-accent-deep)' }}>{m.stage.toUpperCase()}</p>
+                        <p className="label mt-3" style={{ color: 'var(--color-accent-deep)' }}>{m.matchClass.toUpperCase()} · {m.status.toUpperCase()}</p>
                       </li>
                     )
                   })}

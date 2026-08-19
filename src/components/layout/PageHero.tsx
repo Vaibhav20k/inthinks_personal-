@@ -8,7 +8,7 @@ interface Props {
   children?: ReactNode
 }
 
-/** Shared hero for every page other than home, which has the Matchfield. */
+/** Shared hero for every page other than home, which has the signal field. */
 export default function PageHero({ eyebrow, title, lede, children }: Props) {
   return (
     <section className="container-grid pb-16 pt-36 sm:pb-24 sm:pt-44">

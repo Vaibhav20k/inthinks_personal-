@@ -5,12 +5,31 @@ import PageHero from '../components/layout/PageHero'
 import Notice from '../components/primitives/Notice'
 import TechnologyRow from '../components/tech/TechnologyRow'
 import { loadPortfolio } from '../data/portfolio'
+import { matchesForTechnology } from '../data/examples'
 import { TRANSFER_STATUSES } from '../data/models'
 import type { Technology, TransferStatus } from '../data/models'
 import { domains, outcomes, sectors } from '../data/taxonomy'
 
 type FilterKey = 'problem' | 'industry' | 'domain' | 'trl' | 'transfer'
 type ViewMode = 'index' | 'visual'
+
+/**
+ * How many industrial problems this technology is a live candidate for.
+ *
+ * The count is the point of the column: a technology with two open matches is
+ * a different proposition from one with none, and that is invisible if the
+ * index only carries TRL. It links to the matches page rather than opening a
+ * panel, because a match is a record in its own right.
+ */
+function MatchCount({ slug }: { slug: string }) {
+  const n = matchesForTechnology(slug).length
+  if (n === 0) return <span style={{ color: 'var(--color-faint)' }}>—</span>
+  return (
+    <Link to="/matches" style={{ color: 'var(--color-accent)' }}>
+      {n} ACTIVE MATCH{n === 1 ? '' : 'ES'}
+    </Link>
+  )
+}
 
 /**
  * The portfolio as a technical index.
@@ -27,7 +46,7 @@ function TechnologyIndex({ rows }: { rows: Technology[] }) {
         <caption className="sr-only">Technologies in the InThinks portfolio</caption>
         <thead>
           <tr>
-            {['Reference', 'Technology', 'TRL', 'Domain', 'Transfer status'].map((h) => (
+            {['Reference', 'Technology', 'TRL', 'Domain', 'Matches', 'Transfer status'].map((h) => (
               <th
                 key={h}
                 scope="col"
@@ -59,6 +78,9 @@ function TechnologyIndex({ rows }: { rows: Technology[] }) {
               </td>
               <td className="label whitespace-nowrap px-3 py-4 align-baseline" style={{ borderBottom: '1px solid var(--rule)', color: 'var(--color-muted)' }}>
                 {tech.domain.toUpperCase()}
+              </td>
+              <td className="label whitespace-nowrap px-3 py-4 align-baseline" style={{ borderBottom: '1px solid var(--rule)' }}>
+                <MatchCount slug={tech.slug} />
               </td>
               <td className="label px-3 py-4 align-baseline" style={{ borderBottom: '1px solid var(--rule)', color: 'var(--color-muted)' }}>
                 {tech.transferStatus.toUpperCase()}
@@ -171,7 +193,14 @@ export default function Technologies() {
       >
         {error && <Notice>{error}</Notice>}
         {examples && (
-          <Notice>Illustrative examples — the live portfolio appears here once published</Notice>
+          <>
+            <Notice>Illustrative technology records</Notice>
+            <p className="body-type measure-prose mt-4" style={{ color: 'var(--color-muted)' }}>
+              Example records are shown to demonstrate the InThinks technology-intelligence
+              platform. Live portfolio technologies will appear as they are approved for
+              publication.
+            </p>
+          </>
         )}
       </PageHero>
 
