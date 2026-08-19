@@ -31,17 +31,28 @@ export default function Header() {
     <header
       className="fixed inset-x-0 top-0 z-50 transition-[background-color,border-color,backdrop-filter] duration-500"
       style={{
-        backgroundColor: solid ? 'color-mix(in oklab, var(--color-paper) 90%, transparent)' : 'transparent',
-        backdropFilter: solid ? 'blur(14px)' : 'none',
+        // The open menu is a surface, not an overlay. A translucent bar reads
+        // as a bar; the same treatment behind a full sheet of navigation just
+        // reads as the page showing through it, and 90% of the paper colour is
+        // not enough to hold 24px type off a hero. So: solid while open.
+        backgroundColor: menuOpen
+          ? 'var(--color-paper)'
+          : compact
+            ? 'color-mix(in oklab, var(--color-paper) 90%, transparent)'
+            : 'transparent',
+        backdropFilter: compact && !menuOpen ? 'blur(14px)' : 'none',
         borderBottom: `1px solid ${solid ? 'var(--rule)' : 'transparent'}`,
       }}
     >
       <div
         className="container-grid flex items-center justify-between transition-[height] duration-500 ease-[var(--ease-out-quint)]"
-        style={{ height: compact ? '3.75rem' : '5.25rem' }}
+        // Opening the menu collapses the bar. Not decoration: the sheet below
+        // is sized `100svh - 3.75rem`, so a 5.25rem bar pushes its last 24px
+        // past the fold where nothing can reach it.
+        style={{ height: compact || menuOpen ? '3.75rem' : '5.25rem' }}
       >
         <Link to="/" className="-my-2 flex min-h-11 items-center gap-2.5 py-2" aria-label={`${site.name} — home`}>
-          <Logo size={compact ? 1.6 : 1.9} className="transition-[height] duration-500 ease-[var(--ease-out-quint)]" />
+          <Logo size={compact || menuOpen ? 1.6 : 1.9} className="transition-[height] duration-500 ease-[var(--ease-out-quint)]" />
           <span className="font-display text-[1.0625rem] font-semibold tracking-[-0.03em]" style={{ fontStretch: '110%' }}>
             {site.name}
           </span>
@@ -104,7 +115,7 @@ export default function Header() {
       </div>
 
       {menuOpen && (
-        <div id="mobile-nav" className="container-grid max-h-[calc(100svh-3.75rem)] overflow-y-auto pb-10 pt-2 xl:hidden">
+        <div id="mobile-nav" className="container-grid h-[calc(100svh-3.75rem)] overflow-y-auto pb-10 pt-2 xl:hidden">
           <ul className="flex flex-col">
             {nav.map((item, i) => (
               <li key={item.label} style={{ borderTop: '1px solid var(--rule)' }}>
