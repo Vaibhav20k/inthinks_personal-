@@ -8,6 +8,10 @@ import {
 } from './scoring'
 import type { Env } from './types'
 import { MATCH_DECISIONS, decide, generateMatches } from './matches'
+import {
+  DEVELOPMENT_STAGES, DEVELOPMENT_STAGES_ELIGIBLE, LOG_KINDS,
+  READINESS_DIMENSIONS, READINESS_KEYS, READINESS_STATUSES,
+} from './development'
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
@@ -202,6 +206,10 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
       dimensions: SCORING_DIMENSIONS,
       acquisitionStages: ACQUISITION_STAGES,
       challengeStatuses: CHALLENGE_STATUSES,
+      developmentStages: DEVELOPMENT_STAGES,
+      logKinds: LOG_KINDS,
+      readinessDimensions: READINESS_DIMENSIONS,
+      readinessStatuses: READINESS_STATUSES,
       innovationStatuses: INNOVATION_STATUSES,
       roles: ROLES,
     })
@@ -426,6 +434,230 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
       .bind(reference, text, actor.email, new Date().toISOString())
       .run()
     await audit(db, actor, 'note.add', reference, undefined, ip)
+    return json({ ok: true })
+  }
+
+  /* ----------------------------------------------------------- development */
+
+  if (path === '/development' && request.method === 'GET') {
+    // Only technologies InThinks holds rights to develop have a workspace.
+    const placeholders = DEVELOPMENT_STAGES_ELIGIBLE.map(() => '?').join(', ')
+    const rows = await db
+      .prepare(
+        `SELECT i.reference, i.title, i.internal_title, i.category, i.entry_trl,
+                i.current_trl, i.target_trl, i.development_stage, i.acquisition_stage,
+                i.reviewer,
+                (SELECT COUNT(*) FROM dev_log l WHERE l.reference = i.reference) AS log_entries,
+                (SELECT MAX(occurred_on) FROM dev_log l WHERE l.reference = i.reference) AS last_activity
+         FROM innovations i
+         WHERE i.acquisition_stage IN (${placeholders})
+         ORDER BY last_activity DESC NULLS LAST, i.created_at DESC`,
+      )
+      .bind(...DEVELOPMENT_STAGES_ELIGIBLE)
+      .all<Record<string, unknown>>()
+
+    return json({
+      items: rows.results.map((r) => ({
+        reference: r.reference,
+        title: r.internal_title || r.title,
+        category: r.category,
+        entryTrl: r.entry_trl,
+        currentTrl: r.current_trl ?? r.entry_trl,
+        targetTrl: r.target_trl,
+        developmentStage: r.development_stage,
+        acquisitionStage: r.acquisition_stage,
+        reviewer: r.reviewer,
+        logEntries: r.log_entries ?? 0,
+        lastActivity: r.last_activity ?? null,
+      })),
+    })
+  }
+
+  const workspaceMatch = path.match(/^\/development\/([A-Za-z0-9-]{1,32})$/)
+  if (workspaceMatch && request.method === 'GET') {
+    const reference = workspaceMatch[1]
+    const row = await db
+      .prepare(
+        `SELECT reference, title, internal_title, category, entry_trl, current_trl,
+                target_trl, development_stage, acquisition_stage, status, reviewer
+         FROM innovations WHERE reference = ?`,
+      )
+      .bind(reference)
+      .first<Record<string, unknown>>()
+    if (!row) return json({ error: 'Not found' }, 404)
+
+    const [logRows, readinessRows, files] = await Promise.all([
+      db.prepare(
+        `SELECT id, kind, title, body, occurred_on, stage, trl, author, created_at, published
+         FROM dev_log WHERE reference = ? ORDER BY occurred_on DESC, id DESC`,
+      ).bind(reference).all<Record<string, unknown>>(),
+      db.prepare('SELECT dimension, status, note, updated_by, updated_at FROM readiness WHERE reference = ?')
+        .bind(reference).all(),
+      db.prepare('SELECT object_key, file_name, content_type, size_bytes, log_id FROM evidence WHERE reference = ? AND log_id IS NOT NULL')
+        .bind(reference).all<Record<string, unknown>>(),
+    ])
+
+    const attachments = env.SESSION_SECRET
+      ? await Promise.all(files.results.map(async (f) => ({
+          logId: f.log_id,
+          fileName: f.file_name,
+          sizeBytes: f.size_bytes,
+          url: await signEvidence(env.SESSION_SECRET!, String(f.object_key)),
+        })))
+      : []
+
+    await audit(db, actor, 'development.view', reference, undefined, ip)
+
+    return json({
+      reference: row.reference,
+      title: row.internal_title || row.title,
+      submittedTitle: row.title,
+      category: row.category,
+      entryTrl: row.entry_trl,
+      currentTrl: row.current_trl ?? row.entry_trl,
+      targetTrl: row.target_trl,
+      developmentStage: row.development_stage,
+      acquisitionStage: row.acquisition_stage,
+      status: row.status,
+      reviewer: row.reviewer,
+      log: logRows.results.map((l) => ({
+        id: l.id,
+        kind: l.kind,
+        title: l.title,
+        body: l.body,
+        occurredOn: l.occurred_on,
+        stage: l.stage,
+        trl: l.trl,
+        author: l.author,
+        createdAt: l.created_at,
+        published: Boolean(l.published),
+      })),
+      readiness: readinessRows.results,
+      attachments,
+    })
+  }
+
+  if (workspaceMatch && request.method === 'PATCH') {
+    if (!can.editReviewState) return json({ error: 'Not permitted to change development state' }, 403)
+    const reference = workspaceMatch[1]
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+    if (!oneOf(DEVELOPMENT_STAGES, body.developmentStage)) return json({ error: 'Unknown development stage' }, 422)
+    await db.prepare('UPDATE innovations SET development_stage = ? WHERE reference = ?')
+      .bind(body.developmentStage, reference).run()
+    await audit(db, actor, 'development.stage', reference, { stage: body.developmentStage }, ip)
+    return json({ ok: true })
+  }
+
+  const logMatch = path.match(/^\/development\/([A-Za-z0-9-]{1,32})\/log$/)
+  if (logMatch && request.method === 'POST') {
+    if (!can.editReviewState) return json({ error: 'Not permitted to log development work' }, 403)
+    const reference = logMatch[1]
+
+    // Multipart when the entry carries attachments; JSON otherwise.
+    const contentType = request.headers.get('content-type') ?? ''
+    let fields: Record<string, string> = {}
+    let uploads: File[] = []
+
+    if (contentType.includes('multipart/form-data')) {
+      const form = await request.formData()
+      for (const [k, v] of form.entries()) {
+        if (typeof v === 'string') fields[k] = v
+      }
+      uploads = form.getAll('files').filter((f): f is File => f instanceof File)
+    } else {
+      const parsedBody = (await request.json().catch(() => ({}))) as Record<string, unknown>
+      fields = Object.fromEntries(
+        Object.entries(parsedBody).map(([k, v]) => [k, typeof v === 'string' ? v : String(v ?? '')]),
+      )
+    }
+
+    if (!oneOf(LOG_KINDS, fields.kind)) return json({ error: 'Unknown entry kind' }, 422)
+    const title = clip(fields.title, 200)
+    if (!title) return json({ error: 'An entry needs a title' }, 422)
+
+    const trl = fields.trl ? Number(fields.trl) : null
+    if (trl !== null && (!Number.isInteger(trl) || trl < 1 || trl > 9)) {
+      return json({ error: 'TRL must be between 1 and 9' }, 422)
+    }
+
+    const inserted = await db
+      .prepare(
+        `INSERT INTO dev_log (reference, kind, title, body, occurred_on, stage, trl, author, created_at, published)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+         RETURNING id`,
+      )
+      .bind(
+        reference,
+        fields.kind,
+        title,
+        clip(fields.body, 8000),
+        clip(fields.occurredOn, 20) || new Date().toISOString().slice(0, 10),
+        oneOf(DEVELOPMENT_STAGES, fields.stage) ? fields.stage : null,
+        trl,
+        actor.email,
+        new Date().toISOString(),
+      )
+      .first<{ id: number }>()
+
+    // An entry that asserts a TRL advances the record, so the two stay in step.
+    if (trl !== null) {
+      await db.prepare('UPDATE innovations SET current_trl = ? WHERE reference = ?').bind(trl, reference).run()
+    }
+
+    for (const file of uploads.slice(0, 12)) {
+      if (file.size > 25 * 1024 * 1024) continue
+      if (!env.EVIDENCE) break
+      const ext = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.') + 1).toLowerCase() : ''
+      const key = `${reference}/dev/${crypto.randomUUID()}${ext ? `.${ext}` : ''}`
+      await env.EVIDENCE.put(key, file.stream(), {
+        httpMetadata: { contentType: file.type || 'application/octet-stream' },
+        customMetadata: { reference },
+      })
+      await db
+        .prepare(
+          `INSERT INTO evidence (reference, object_key, file_name, content_type, size_bytes, created_at, log_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(reference, key, file.name.slice(0, 300), file.type || 'application/octet-stream', file.size, new Date().toISOString(), inserted?.id ?? null)
+        .run()
+    }
+
+    await audit(db, actor, 'development.log', reference, { kind: fields.kind, files: uploads.length }, ip)
+    return json({ ok: true, id: inserted?.id })
+  }
+
+  const publishMatch = path.match(/^\/development\/log\/(\d{1,12})\/publish$/)
+  if (publishMatch && request.method === 'POST') {
+    // Publication puts an entry on a public technology page, so it is gated on
+    // the commercial capability rather than the review one.
+    if (!can.moveAcquisitionStage) {
+      return json({ error: 'Only admins and business development can publish a development entry.' }, 403)
+    }
+    const body = (await request.json().catch(() => ({}))) as { published?: unknown }
+    const published = body.published === true ? 1 : 0
+    await db.prepare('UPDATE dev_log SET published = ? WHERE id = ?').bind(published, Number(publishMatch[1])).run()
+    await audit(db, actor, published ? 'development.publish' : 'development.unpublish', publishMatch[1], undefined, ip)
+    return json({ ok: true })
+  }
+
+  const readinessMatch = path.match(/^\/development\/([A-Za-z0-9-]{1,32})\/readiness$/)
+  if (readinessMatch && request.method === 'POST') {
+    if (!can.editReviewState) return json({ error: 'Not permitted to set readiness' }, 403)
+    const reference = readinessMatch[1]
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+    if (!oneOf(READINESS_KEYS, body.dimension)) return json({ error: 'Unknown readiness dimension' }, 422)
+    if (!oneOf(READINESS_STATUSES, body.status)) return json({ error: 'Unknown readiness status' }, 422)
+    await db
+      .prepare(
+        `INSERT INTO readiness (reference, dimension, status, note, updated_by, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(reference, dimension) DO UPDATE SET
+           status = excluded.status, note = excluded.note,
+           updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
+      )
+      .bind(reference, body.dimension, body.status, clip(body.note, 2000), actor.email, new Date().toISOString())
+      .run()
+    await audit(db, actor, 'development.readiness', reference, { dimension: body.dimension, status: body.status }, ip)
     return json({ ok: true })
   }
 

@@ -11,6 +11,8 @@ import Challenges from './Challenges'
 import ChallengeDetail from './ChallengeDetail'
 import Matches from './Matches'
 import MatchRoom from './MatchRoom'
+import Development from './Development'
+import Workspace from './Workspace'
 import AuditLog from './AuditLog'
 import Users from './Users'
 import { Empty } from './ui'
@@ -72,6 +74,8 @@ export default function AdminApp() {
         <Route path="challenges/:reference" element={<ChallengeDetail me={me} />} />
         <Route path="matches" element={<Matches />} />
         <Route path="matches/:reference" element={<MatchRoom me={me} />} />
+        <Route path="development" element={<Development />} />
+        <Route path="development/:reference" element={<Workspace me={me} />} />
         {me.can.viewAudit && <Route path="audit" element={<AuditLog />} />}
         {me.can.manageUsers && <Route path="users" element={<Users />} />}
         <Route path="*" element={<Empty>That admin page does not exist.</Empty>} />
