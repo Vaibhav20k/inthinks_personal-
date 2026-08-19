@@ -16,7 +16,9 @@
     "r2:create": "wrangler r2 bucket create inthinks-evidence",
     "dev:worker": "wrangler dev -c wrangler.local.toml",
     "dev:db": "wrangler d1 migrations apply inthinks-submissions --local -c wrangler.local.toml",
-    "test": "esbuild tests/match-rules.test.ts --bundle --platform=node --format=esm --outfile=.test-build/match-rules.mjs && node .test-build/match-rules.mjs"
+    "test": "npm run test:match && npm run test:deals",
+    "test:match": "esbuild tests/match-rules.test.ts --bundle --platform=node --format=esm --outfile=.test-build/match-rules.mjs && node .test-build/match-rules.mjs",
+    "test:deals": "esbuild tests/deal-terms.test.ts --bundle --platform=node --format=esm --outfile=.test-build/deal-terms.mjs && node .test-build/deal-terms.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",

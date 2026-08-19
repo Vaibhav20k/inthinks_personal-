@@ -217,7 +217,7 @@ keep the long-form answers in a `payload` JSON column, so the question set can
 change without a migration. `evidence` is the manifest pointing at R2 objects.
 Schema is in `migrations/`, applied in order: `0001_init.sql` (intake),
 `0002_admin.sql` (accounts, audit, scoring), `0003_matches.sql`,
-`0004_development.sql` and `0005_opportunities.sql`.
+`0004_development.sql`, `0005_opportunities.sql` and `0006_deals.sql`.
 
 ## Admin dashboard
 
@@ -257,18 +257,22 @@ exists forever to solve a problem you have once.
 
 ### Roles
 
-| Role | Sees identity | Scores | Moves acquisition stage | Audit | Users |
-|---|---|---|---|---|---|
-| `super-admin` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `admin` | ✓ | ✓ | ✓ | ✓ | — |
-| `business-development` | ✓ | — | ✓ | — | — |
-| `rnd-reviewer` | — | ✓ | — | — | — |
+| Role | Sees identity | Scores | Moves acquisition stage | Deal terms | Audit | Users |
+|---|---|---|---|---|---|---|
+| `super-admin` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `admin` | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| `business-development` | ✓ | — | ✓ | ✓ | — | — |
+| `rnd-reviewer` | — | ✓ | — | — | — | — |
 
-The R&D reviewer row is the one that carries weight. The platform promises
-innovators their identity is private by default, so a reviewer **cannot
-retrieve it** — the fields are absent from the API response, not hidden by the
-frontend. Every admin response is assembled field by field; there is no
-`SELECT *` path to the client anywhere in `worker/admin.ts`.
+The R&D reviewer row is the one that carries weight, in both directions. The
+platform promises innovators their identity is private by default, so a
+reviewer **cannot retrieve it** — the fields are absent from the API response,
+not hidden by the frontend. The deal-terms column is the mirror: a reviewer
+cannot read consideration or negotiation state either, because what a
+technology is worth has no bearing on whether it works, and a review that knows
+the number is not an independent one. Every admin response is assembled field
+by field; there is no `SELECT *` path to the client anywhere in
+`worker/admin.ts`.
 
 ### Modules
 
@@ -280,8 +284,8 @@ frontend. Every admin response is assembled field by field; there is no
   stage, TRL tracking and internal notes.
 - **Challenges** — list with status filter; detail carries the problem,
   technical environment, business impact, constraints, handling and notes.
-- **Matches**, **R&D** and **Opportunities** — described in their own sections
-  below.
+- **Matches**, **R&D**, **Opportunities** and **Deals** — described in their own
+  sections below.
 - **Audit log** — reads as well as writes.
 - **Users** — accounts and roles, super-admin only.
 
@@ -302,11 +306,11 @@ answerable.
 
 ### Beyond the dashboard
 
-The match engine, the Match Room, the R&D development workspace and the
-industry opportunity pipeline are described in their own sections below. What
-the brief still asks for and this build does not have is the commercial deal
-room and royalty management; the record shapes they need (`InternalDealRecord`,
-the royalty fields) are typed in `src/data/models.ts`.
+The match engine, the Match Room, the R&D development workspace, the industry
+opportunity pipeline and the commercial deal room are described in their own
+sections below. What the brief still asks for and this build does not have is
+royalty management — tracking amounts due and paid against a reporting period,
+once a deal is executed.
 
 ## Match engine
 
@@ -419,6 +423,47 @@ workspace recorded — the same six dimensions, not a re-entered copy — and a
 link into that workspace. The identity rule holds here too: a reviewer opening
 an opportunity sees the challenge without the company or the contact.
 
+### Commercial deal room
+
+A deal room opens for an opportunity that has reached `Commercial Negotiation`
+and not before, because until then there are no terms and an empty deal
+workspace reads as a deal that exists. One deal per opportunity; opening the
+same one twice returns the same reference.
+
+It records what the brief asks for — structure, upfront, royalty rate and
+basis, territory, field of use, exclusivity, term, milestones, payment
+schedule, pilot conditions, IP and manufacturing rights, technical support,
+transfer documentation, agreement status and closing status.
+
+Four things about how it holds them:
+
+- **Money is never a float.** Amounts are an integer count of the currency's
+  minor unit and rates are basis points, parsed by `parseAmountMinor` and
+  `parseRateBp`, which refuse anything they cannot represent exactly.
+  `1024.09 * 100` is `102408.99999999999` in JavaScript, and a licence dispute
+  over a rounded paisa is a real thing. `npm test` holds both to exact values.
+- **Agreement status and closing status are separate fields.** An agreement can
+  be fully drafted and the deal still lapse; collapsing the two loses the
+  record of what nearly happened.
+- **A royalty rate without a basis means nothing**, so the basis is a named
+  option — net sales, gross revenue, units, verified cost savings, sub-licence
+  revenue — rather than free text. Three per cent of which number is the deal.
+- **Marking a deal executed advances its opportunity** to `Technology Transfer`,
+  so the pipeline cannot report a negotiation that has in fact been signed.
+
+There is no projected value, no weighted probability and no expected close date
+anywhere in the module, and the deal list deliberately shows no total. Summing
+live negotiations produces a pipeline forecast, which is the one number this
+platform does not keep.
+
+**Private to the commercial roles.** The routes refuse an R&D reviewer before
+they read anything — list, detail, open and every mutation — and the
+opportunity page omits the deal panel for that role rather than disabling it.
+
+> Transfer documentation is a **register**: which instruments this deal needs
+> and how far each has got. It records the state of a document, not the
+> document. Executed agreements are not stored here.
+
 ### Configuring
 
 ```bash
@@ -432,8 +477,9 @@ platform is unaffected.
 ### Tests
 
 `npm test` covers the deterministic half — ranking, exclusion, readiness
-reporting, affinity bounds, and all four identity-guard cases. It runs as part
-of `npm run build`, so a regression fails the deploy.
+reporting, affinity bounds, all four identity-guard cases, and the deal room's
+money and rate parsers against exact integers. It runs as part of
+`npm run build`, so a regression fails the deploy.
 
 ## Deployment
 
@@ -467,12 +513,13 @@ match engine, the Match Room, acquisition pipeline, R&D workspace, industry
 opportunity pipeline, deal room, royalty management and analytics.
 
 Intake, the admin dashboard, the match engine, the Match Room, the R&D
-development workspace and the industry opportunity pipeline now exist. What
-remains from the brief is the commercial tail: the deal room and royalty
-management.
+development workspace, the industry opportunity pipeline and the commercial
+deal room now exist. What remains from the brief is royalty management: tracking
+amounts due and paid against reporting periods after a deal is executed. The
+deal room records the royalty *terms*; nothing yet records the payments they
+generate.
 
-What is here is the architecture for it. `src/data/models.ts` types the
-innovation and challenge records, the fifteen `MatchSignals` dimensions, the
-`MatchRecord` whose `humanReview` field is non-optional by design, deal
-structures and royalty shape, and the platform roles — so the public site and a
-future backend already agree on one schema.
+`src/data/models.ts` types the innovation and challenge records, the fifteen
+`MatchSignals` dimensions, the `MatchRecord` whose `humanReview` field is
+non-optional by design, `InternalDealRecord`, and the platform roles — one
+schema the public site and the Worker both agree on.
