@@ -186,6 +186,9 @@
       never executes it, and the build's hasher covers it under the CSP along
       with the ground script.
 
+      Both offices, primary first — `address` takes a list, and an
+      organisation with two addresses that publishes one is findable at one.
+
       Kept in step with src/data/site.ts by hand, which is the one duplication
       here — a static file cannot import the module. Change one, change both.
     -->
@@ -197,13 +200,22 @@
         "url": "https://inthinks.com/",
         "email": "hello@inthinks.com",
         "description": "An innovation intelligence and technology-transfer platform. Early-stage technologies developed toward industrial readiness, then transferred to industry.",
-        "address": {
-          "@type": "PostalAddress",
-          "streetAddress": "352, MG Road, Sultanpur",
-          "addressLocality": "New Delhi",
-          "postalCode": "110030",
-          "addressCountry": "IN"
-        }
+        "address": [
+          {
+            "@type": "PostalAddress",
+            "streetAddress": "237, 1st Floor, Gujranwala Town, Part-3",
+            "addressLocality": "New Delhi",
+            "postalCode": "110009",
+            "addressCountry": "IN"
+          },
+          {
+            "@type": "PostalAddress",
+            "streetAddress": "352, MG Road, Sultanpur",
+            "addressLocality": "New Delhi",
+            "postalCode": "110030",
+            "addressCountry": "IN"
+          }
+        ]
       }
     </script>
 

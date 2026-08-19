@@ -5,7 +5,8 @@ import Notice from '../components/primitives/Notice'
 import Reveal from '../components/primitives/Reveal'
 import PageHero from '../components/layout/PageHero'
 import { SubmissionError, submissionStatus, submitMessage } from '../lib/api'
-import { officeLines, officeMapUrl, site } from '../data/site'
+import { offices, site } from '../data/site'
+import OfficeList from '../components/primitives/OfficeList'
 
 /**
  * Must match the list the Worker checks. The admin view filters on this
@@ -318,26 +319,11 @@ export default function Contact() {
                   </a>
                 </dd>
 
-                <dt className="label mt-8 pt-6" style={{ color: 'var(--color-faint)', borderTop: '1px solid var(--rule)' }}>OFFICE</dt>
+                <dt className="label mt-8 pt-6" style={{ color: 'var(--color-faint)', borderTop: '1px solid var(--rule)' }}>
+                  {offices.length === 1 ? 'OFFICE' : 'OFFICES'}
+                </dt>
                 <dd className="mt-2">
-                  <address className="not-italic text-[0.9375rem] font-medium leading-relaxed">
-                    {officeLines.map((line) => (
-                      <span key={line} className="block">{line}</span>
-                    ))}
-                  </address>
-                  <a
-                    href={officeMapUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="tap group mt-1 inline-flex min-h-11 items-center gap-2 text-[0.875rem]"
-                    style={{ color: 'var(--color-muted)' }}
-                  >
-                    <span className="border-b border-transparent pb-0.5 transition-colors duration-250 group-hover:border-current">
-                      View on map
-                    </span>
-                    <span aria-hidden="true" style={{ color: 'var(--color-accent)' }}>↗</span>
-                    <span className="sr-only">(opens in a new tab)</span>
-                  </a>
+                  <OfficeList size="compact" />
                 </dd>
               </dl>
             </Reveal>
