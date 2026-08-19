@@ -1,15 +1,29 @@
 import { useEffect, useState } from 'react'
 import { useMediaQuery, usePrefersReducedMotion } from '../../lib/motion'
 
+interface Section {
+  id: string
+  label: string
+  /** The phase of the argument this section belongs to. */
+  thread: string
+}
+
 interface Props {
-  /** Section ids in document order, with the name each one reports. */
-  sections: { id: string; label: string }[]
+  sections: Section[]
 }
 
 /**
- * Section 26 — page position as a technical coordinate rather than a
- * percentage bar. It reports which part of the argument you are standing in,
- * which a percentage cannot.
+ * The page thread — sections 7 and 26 of the brief, which are one thing.
+ *
+ * The qualified connection selected in the hero does not stop at the hero. It
+ * continues down the left margin as a single line, and renames itself as the
+ * argument changes: a match signal becomes a technology path, becomes
+ * development progress, becomes a commercial pathway. That is the business
+ * model stated as one continuous mark instead of four separate sections.
+ *
+ * The filled length tracks scroll distance rather than section index, because
+ * a thread that jumps in twelve steps is a progress bar wearing a costume. The
+ * coordinate and the labels are discrete; the line is not.
  *
  * Desktop only: on a phone it would cost more screen than it returns.
  */
@@ -17,6 +31,7 @@ export default function ScrollCoordinate({ sections }: Props) {
   const isDesktop = useMediaQuery('(width >= 80rem)')
   const reduced = usePrefersReducedMotion()
   const [index, setIndex] = useState(0)
+  const [progress, setProgress] = useState(0)
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
@@ -33,6 +48,9 @@ export default function ScrollCoordinate({ sections }: Props) {
         if (el && el.getBoundingClientRect().top <= line) current = i
       })
       setIndex(current)
+
+      const travel = document.documentElement.scrollHeight - window.innerHeight
+      setProgress(travel > 0 ? Math.min(1, Math.max(0, window.scrollY / travel)) : 0)
       setVisible(window.scrollY > window.innerHeight * 0.4)
     }
 
@@ -51,34 +69,48 @@ export default function ScrollCoordinate({ sections }: Props) {
 
   if (!isDesktop) return null
 
+  const section = sections[index]
+  const ease = reduced ? 'none' : 'var(--ease-instrument)'
+
   return (
     <div
       aria-hidden="true"
       className="pointer-events-none fixed left-5 top-1/2 z-30 -translate-y-1/2"
       style={{
         opacity: visible ? 1 : 0,
-        transition: reduced ? 'none' : 'opacity 600ms var(--ease-instrument)',
+        transition: reduced ? 'none' : `opacity 600ms ${ease}`,
       }}
     >
-      <p className="label" style={{ color: 'var(--color-accent)' }}>
+      <p className="label tabular-nums" style={{ color: 'var(--color-accent-deep)' }}>
         {String(index + 1).padStart(2, '0')} / {String(sections.length).padStart(2, '0')}
       </p>
-      {/* Vertical rule: the thread the page is travelling along. */}
-      <div className="my-3 h-24 w-px" style={{ background: 'var(--rule)' }}>
+
+      {/* The thread. One line, continuous, filled by distance travelled. */}
+      <div className="relative my-3 w-px" style={{ height: '42vh', background: 'var(--rule)' }}>
         <div
-          className="w-px"
+          className="absolute left-0 top-0 w-px"
           style={{
-            height: `${((index + 1) / sections.length) * 100}%`,
+            height: `${progress * 100}%`,
             background: 'var(--color-accent)',
-            transition: reduced ? 'none' : 'height 700ms var(--ease-instrument)',
+            transition: reduced ? 'none' : `height 180ms linear`,
+          }}
+        />
+        {/* The travelling node: where the page currently is on the thread. */}
+        <span
+          className="absolute -left-[2px] block h-[5px] w-[5px]"
+          style={{
+            top: `calc(${progress * 100}% - 2px)`,
+            background: 'var(--color-accent)',
+            transition: reduced ? 'none' : `top 180ms linear`,
           }}
         />
       </div>
-      <p
-        className="label max-w-[7rem]"
-        style={{ color: 'var(--color-muted)', writingMode: 'horizontal-tb' }}
-      >
-        {sections[index]?.label.toUpperCase()}
+
+      <p className="label" style={{ color: 'var(--color-accent-deep)' }}>
+        {section?.thread.toUpperCase()}
+      </p>
+      <p className="label mt-1.5 max-w-[8rem]" style={{ color: 'var(--color-faint)' }}>
+        {section?.label.toUpperCase()}
       </p>
     </div>
   )

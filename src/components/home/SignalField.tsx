@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import PointerLabel from '../primitives/PointerLabel'
 import { demandSignals, qualifiedPairs, technologySignals } from '../../data/signals'
 import type { Signal } from '../../data/signals'
 import { useMediaQuery, usePrefersReducedMotion } from '../../lib/motion'
@@ -151,6 +152,7 @@ export default function SignalField() {
   }
 
   return (
+    <PointerLabel label="CONNECT">
     <div ref={frameRef} className="relative">
       {/* Connections, drawn behind the nodes from their measured anchors. */}
       {size.width > 0 && (
@@ -260,5 +262,6 @@ export default function SignalField() {
         </div>
       </div>
     </div>
+    </PointerLabel>
   )
 }

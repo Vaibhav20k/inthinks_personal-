@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import PointerLabel from '../primitives/PointerLabel'
 import { Link } from 'react-router-dom'
 import Reveal from '../primitives/Reveal'
 import SectionLabel from '../primitives/SectionLabel'
@@ -71,6 +72,7 @@ export default function ProblemExplorer() {
           {/* Step one: the verb. Seven choices instead of fifteen sentences —
               industry knows it wants to reduce something before it knows what. */}
           <Reveal delay={120}>
+            <PointerLabel label="EXPLORE">
             <ul className="mt-10 flex flex-wrap gap-2.5">
               {VERBS.map((v) => {
                 const on = verb === v
@@ -94,6 +96,7 @@ export default function ProblemExplorer() {
                 )
               })}
             </ul>
+            </PointerLabel>
           </Reveal>
 
           {/* Step two: what the verb acts on. Only ever rendered for a chosen

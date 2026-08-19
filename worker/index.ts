@@ -11,6 +11,7 @@ import { insertChallenge, insertInnovation, nextReference, notify, recordEvidenc
 import { SUBMISSION_CEILING, chargeSubmission, checkRequest, submissionsUsed } from './ratelimit'
 import { handleAdmin } from './admin'
 import { handleTechnologies } from './technologies'
+import { coarse, isDaylight, sunTimes } from './daylight'
 
 const MAX_JSON_BYTES = 256 * 1024
 const MAX_TOTAL_UPLOAD = 60 * 1024 * 1024
@@ -233,6 +234,49 @@ export default {
         console.error('portfolio request failed', cause instanceof Error ? cause.message : 'unknown')
         return json({ error: 'Something went wrong.' }, 500)
       }
+    }
+
+    /**
+     * Whether it is light where the visitor is.
+     *
+     * The coordinates come from the edge, so nobody is asked for permission to
+     * pick a colour scheme — a geolocation prompt on page load is a bad trade
+     * for that. They are rounded to a whole degree before anything is computed
+     * or returned: enough to place a sunrise within a few minutes, far too
+     * coarse to place a person, and nothing is stored or logged.
+     */
+    if (url.pathname === '/api/daylight' && request.method === 'GET') {
+      const cf = (request as unknown as { cf?: Record<string, unknown> }).cf
+      const lat = Number(cf?.latitude)
+      const lon = Number(cf?.longitude)
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        // No location at the edge: say so rather than invent a sunrise.
+        return new Response(JSON.stringify({ known: false }), {
+          headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+        })
+      }
+      const now = new Date()
+      const times = sunTimes(coarse(lat), coarse(lon), now)
+      const minute = now.getUTCHours() * 60 + now.getUTCMinutes()
+      return new Response(
+        JSON.stringify({
+          known: true,
+          kind: times.kind,
+          // Whole minutes: the algorithm does not claim more, and a colour
+          // scheme cannot express more.
+          sunriseUtcMin: times.sunriseUtcMin === null ? null : Math.round(times.sunriseUtcMin),
+          sunsetUtcMin: times.sunsetUtcMin === null ? null : Math.round(times.sunsetUtcMin),
+          ground: isDaylight(times, minute) ? 'light' : 'dark',
+        }),
+        {
+          headers: {
+            'content-type': 'application/json; charset=utf-8',
+            // private, and never s-maxage: this answer is one visitor's
+            // location and would otherwise be served to the next one.
+            'cache-control': 'private, max-age=900',
+          },
+        },
+      )
     }
 
     const ip = request.headers.get('cf-connecting-ip') ?? '0.0.0.0'

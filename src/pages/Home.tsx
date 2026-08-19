@@ -12,20 +12,26 @@ import ConfidentialityStrip from '../components/home/ConfidentialityStrip'
 import FinalCta from '../components/home/FinalCta'
 import ScrollCoordinate from '../components/home/ScrollCoordinate'
 
-/** Homepage section order is fixed by the brief; each section owns its number. */
+/**
+ * Homepage section order is fixed by the brief; each section owns its number.
+ *
+ * `thread` is the phase of the argument the section belongs to. The four
+ * phases are what the page thread renames itself through on the way down —
+ * the same connection, described by what it has become.
+ */
 const COORDINATES = [
-  { id: 'top', label: 'Signal' },
-  { id: 'gateways', label: 'Entry points' },
-  { id: 'engine', label: 'The engine' },
-  { id: 'pipeline', label: 'Technology development' },
-  { id: 'technologies', label: 'Portfolio' },
-  { id: 'explore', label: 'Problem explorer' },
-  { id: 'value', label: 'Value addition' },
-  { id: 'challenge-model', label: 'Challenge model' },
-  { id: 'sourcing', label: 'Innovation sourcing' },
-  { id: 'transfer', label: 'Technology transfer' },
-  { id: 'confidentiality', label: 'Confidentiality' },
-  { id: 'partner', label: 'Which side' },
+  { id: 'top', label: 'Signal', thread: 'Match signal' },
+  { id: 'gateways', label: 'Entry points', thread: 'Match signal' },
+  { id: 'engine', label: 'The engine', thread: 'Technology path' },
+  { id: 'pipeline', label: 'Technology development', thread: 'Technology path' },
+  { id: 'technologies', label: 'Portfolio', thread: 'Technology path' },
+  { id: 'explore', label: 'Problem explorer', thread: 'Technology path' },
+  { id: 'value', label: 'Value addition', thread: 'Development progress' },
+  { id: 'challenge-model', label: 'Challenge model', thread: 'Development progress' },
+  { id: 'sourcing', label: 'Innovation sourcing', thread: 'Development progress' },
+  { id: 'transfer', label: 'Technology transfer', thread: 'Commercial pathway' },
+  { id: 'confidentiality', label: 'Confidentiality', thread: 'Commercial pathway' },
+  { id: 'partner', label: 'Which side', thread: 'Commercial pathway' },
 ]
 
 export default function Home() {

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import PointerLabel from '../components/primitives/PointerLabel'
 import { Link } from 'react-router-dom'
 import PageHero from '../components/layout/PageHero'
 import Notice from '../components/primitives/Notice'
@@ -262,7 +263,7 @@ export default function Technologies() {
                 </button>
               </div>
             ) : view === 'index' ? (
-              <TechnologyIndex rows={results} />
+              <PointerLabel label="VIEW"><TechnologyIndex rows={results} /></PointerLabel>
             ) : (
               <ul>
                 {results.map((tech, i) => (

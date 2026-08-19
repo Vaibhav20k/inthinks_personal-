@@ -16,11 +16,12 @@
     "r2:create": "wrangler r2 bucket create inthinks-evidence",
     "dev:worker": "wrangler dev -c wrangler.local.toml",
     "dev:db": "wrangler d1 migrations apply inthinks-submissions --local -c wrangler.local.toml",
-    "test": "npm run test:match && npm run test:deals && npm run test:royalties && npm run test:portfolio",
+    "test": "npm run test:match && npm run test:deals && npm run test:royalties && npm run test:portfolio && npm run test:daylight",
     "test:match": "esbuild tests/match-rules.test.ts --bundle --platform=node --format=esm --outfile=.test-build/match-rules.mjs && node .test-build/match-rules.mjs",
     "test:deals": "esbuild tests/deal-terms.test.ts --bundle --platform=node --format=esm --outfile=.test-build/deal-terms.mjs && node .test-build/deal-terms.mjs",
     "test:royalties": "esbuild tests/royalties.test.ts --bundle --platform=node --format=esm --outfile=.test-build/royalties.mjs && node .test-build/royalties.mjs",
-    "test:portfolio": "esbuild tests/portfolio.test.ts --bundle --platform=node --format=esm --outfile=.test-build/portfolio.mjs && node .test-build/portfolio.mjs"
+    "test:portfolio": "esbuild tests/portfolio.test.ts --bundle --platform=node --format=esm --outfile=.test-build/portfolio.mjs && node .test-build/portfolio.mjs",
+    "test:daylight": "esbuild tests/daylight.test.ts --bundle --platform=node --format=esm --outfile=.test-build/daylight.mjs && node .test-build/daylight.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
