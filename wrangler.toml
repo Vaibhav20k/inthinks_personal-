@@ -77,8 +77,15 @@ bucket_name = "inthinks-evidence"
 # same way a missing binding does.
 #
 # `custom_domain = true` makes Cloudflare create and manage the DNS record and
-# the certificate for the apex. It covers the apex only — www.inthinks.com
-# needs its own entry, either a second [[routes]] block or a redirect rule.
+# the certificate for the apex. It covers the apex only.
+#
+# www is handled by a redirect rule, not by a route here: page requests are
+# served from the asset layer without invoking the Worker (see run_worker_first
+# above), so a redirect written in the Worker would never run for them. Set it
+# up once with:
+#
+#   CLOUDFLARE_API_TOKEN=... node scripts/setup-www-redirect.mjs --dry-run
+#   CLOUDFLARE_API_TOKEN=... node scripts/setup-www-redirect.mjs
 #
 # Comment this block out again to deploy to the workers.dev subdomain instead.
 [[routes]]
