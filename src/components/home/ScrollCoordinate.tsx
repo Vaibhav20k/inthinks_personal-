@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMediaQuery, usePrefersReducedMotion } from '../../lib/motion'
 
 interface Section {
@@ -25,7 +25,10 @@ interface Props {
  * a thread that jumps in twelve steps is a progress bar wearing a costume. The
  * coordinate and the labels are discrete; the line is not.
  *
- * Desktop only: on a phone it would cost more screen than it returns.
+ * Desktop only: on a phone it would cost more screen than it returns. It also
+ * withdraws whenever the window is too narrow to hold it clear of the content
+ * column — the thread lives in the left margin, and at laptop widths there is
+ * no left margin, so it would otherwise print itself over the section labels.
  */
 export default function ScrollCoordinate({ sections }: Props) {
   const isDesktop = useMediaQuery('(width >= 80rem)')
@@ -33,6 +36,9 @@ export default function ScrollCoordinate({ sections }: Props) {
   const [index, setIndex] = useState(0)
   const [progress, setProgress] = useState(0)
   const [visible, setVisible] = useState(false)
+  /** Whether the window is wide enough for the thread to sit clear of the page. */
+  const [hasRoom, setHasRoom] = useState(false)
+  const railRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!isDesktop) return
@@ -40,6 +46,19 @@ export default function ScrollCoordinate({ sections }: Props) {
 
     const measure = () => {
       frame = 0
+      // Measured, not a breakpoint: the gutter is a clamp against viewport
+      // width and the container is capped, so where the content starts is not
+      // something a media query can be trusted to predict.
+      const content = document.querySelector('.container-grid')
+      const rail = railRef.current
+      if (content && rail) {
+        // The padded edge, not the box edge: the container's gutter is where
+        // the page actually starts painting, and that is what the rail has to
+        // stay clear of.
+        const box = content.getBoundingClientRect()
+        const painted = box.left + parseFloat(getComputedStyle(content).paddingLeft || '0')
+        setHasRoom(painted >= 20 + rail.getBoundingClientRect().width + 16)
+      }
       // The section whose top has most recently passed the upper third.
       const line = window.innerHeight / 3
       let current = 0
@@ -75,9 +94,10 @@ export default function ScrollCoordinate({ sections }: Props) {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none fixed left-5 top-1/2 z-30 -translate-y-1/2"
+      className="pointer-events-none fixed left-5 top-1/2 z-30 w-32 -translate-y-1/2"
+      ref={railRef}
       style={{
-        opacity: visible ? 1 : 0,
+        opacity: visible && hasRoom ? 1 : 0,
         transition: reduced ? 'none' : `opacity 600ms ${ease}`,
       }}
     >
@@ -106,7 +126,10 @@ export default function ScrollCoordinate({ sections }: Props) {
         />
       </div>
 
-      <p className="label" style={{ color: 'var(--color-accent-deep)' }}>
+      {/* Bounded, like the label below it. Without a max-width the thread name
+          sets the rail's whole width, and "DEVELOPMENT PROGRESS" is wide enough
+          to decide on its own whether the rail fits in the margin. */}
+      <p className="label max-w-[8rem]" style={{ color: 'var(--color-accent-deep)' }}>
         {section?.thread.toUpperCase()}
       </p>
       <p className="label mt-1.5 max-w-[8rem]" style={{ color: 'var(--color-faint)' }}>

@@ -1,38 +1,117 @@
-/** Section 5 — the two sides of the field, and the metadata each node reveals. */
+/**
+ * Section 5 — the two sides of the hero field, and the metadata each node reveals.
+ *
+ * These used to be hand-written labels and invented reference numbers, which
+ * meant the site's central image described a database that did not exist:
+ * `INT / MAT / 024` appeared on the homepage and nowhere else, and a visitor
+ * who went looking for it found nothing. Every node is now a real record from
+ * the published set, and every qualified pair is a real match — so hovering a
+ * node in the hero and opening the Technology Explorer show the same reference.
+ *
+ * The short label is written here rather than derived from the record title. A
+ * node is one line of 11px mono; "Excessive heat loss from reheating furnaces"
+ * is not going to fit in it, and truncating it would read as a bug.
+ */
+
+import { exampleProblems, exampleTechnologies } from './examples'
 
 export interface Signal {
   id: string
+  /** The record's reference, shown above the label. */
+  ref: string
   label: string
   meta: [string, string][]
 }
 
-export const demandSignals: Signal[] = [
-  { id: 'thermal', label: 'Thermal loss', meta: [['PROCESS', 'Furnace'], ['REQUIREMENT', '>800 °C'], ['STATUS', 'Active']] },
-  { id: 'energy', label: 'Energy intensity', meta: [['PROCESS', 'Compression'], ['REQUIREMENT', 'Continuous duty'], ['STATUS', 'Active']] },
-  { id: 'corrosion', label: 'Corrosion', meta: [['PROCESS', 'Wet handling'], ['REQUIREMENT', 'Chloride exposure'], ['STATUS', 'Active']] },
-  { id: 'water', label: 'Water loss', meta: [['PROCESS', 'Cooling'], ['REQUIREMENT', 'Closed loop'], ['STATUS', 'Active']] },
-  { id: 'material', label: 'Material failure', meta: [['PROCESS', 'Wear surface'], ['REQUIREMENT', 'Cyclic load'], ['STATUS', 'Active']] },
-  { id: 'yield', label: 'Process yield', meta: [['PROCESS', 'Forming'], ['REQUIREMENT', 'Dimensional hold'], ['STATUS', 'Active']] },
+/** Display order on the left, and the short label each problem shows. */
+const DEMAND = [
+  { slug: 'furnace-heat-loss', label: 'Thermal loss' },
+  { slug: 'low-grade-waste-heat', label: 'Waste heat' },
+  { slug: 'premature-tool-wear', label: 'Surface wear' },
+  { slug: 'metal-loss-in-process-water', label: 'Metal loss' },
+  { slug: 'mixed-polymer-waste', label: 'Polymer waste' },
+  { slug: 'industrial-cooling-demand', label: 'Cooling demand' },
 ]
 
-export const technologySignals: Signal[] = [
-  { id: 'mat', label: 'Advanced material', meta: [['ID', 'INT / MAT / 024'], ['DOMAIN', 'Advanced Materials'], ['CURRENT TRL', '05'], ['STATUS', 'Development']] },
-  { id: 'coat', label: 'Novel coating', meta: [['ID', 'INT / MFG / 041'], ['DOMAIN', 'Industrial Processes'], ['CURRENT TRL', '05'], ['STATUS', 'Industrialisation']] },
-  { id: 'proc', label: 'Process technology', meta: [['ID', 'INT / CLN / 032'], ['DOMAIN', 'Clean Technology'], ['CURRENT TRL', '04'], ['STATUS', 'Validation']] },
-  { id: 'energy-sys', label: 'Energy system', meta: [['ID', 'INT / ENR / 017'], ['DOMAIN', 'Energy'], ['CURRENT TRL', '03'], ['STATUS', 'Development']] },
-  { id: 'sensor', label: 'Sensor platform', meta: [['ID', 'INT / ELC / 056'], ['DOMAIN', 'Electronics & Sensing'], ['CURRENT TRL', '04'], ['STATUS', 'Development']] },
-  { id: 'circular', label: 'Circular material', meta: [['ID', 'INT / BLT / 009'], ['DOMAIN', 'Built Environment'], ['CURRENT TRL', '03'], ['STATUS', 'Technical Review']] },
+/**
+ * Display order on the right. Deliberately not the same order as the left: the
+ * pairs are what they are, and a list ordered to make every connection
+ * horizontal would suggest the match was decided by position.
+ */
+const TECHNOLOGY = [
+  { slug: 'thermal-barrier-composite-coating', label: 'Thermal barrier' },
+  { slug: 'low-temperature-surface-hardening', label: 'Surface hardening' },
+  { slug: 'low-grade-heat-recovery', label: 'Heat recovery' },
+  { slug: 'polymer-waste-conversion', label: 'Waste conversion' },
+  { slug: 'selective-metal-recovery', label: 'Metal recovery' },
+  { slug: 'passive-industrial-cooling-material', label: 'Passive cooling' },
 ]
 
-/** Which demand signal resolves to which technology, and the ID it surfaces. */
-export const qualifiedPairs: { demand: number; technology: number; id: string }[] = [
-  { demand: 0, technology: 0, id: 'INT / MAT / 024' },
-  { demand: 2, technology: 1, id: 'INT / MFG / 041' },
-  { demand: 3, technology: 2, id: 'INT / CLN / 032' },
-  { demand: 1, technology: 3, id: 'INT / ENR / 017' },
-  { demand: 5, technology: 4, id: 'INT / ELC / 056' },
-  { demand: 4, technology: 5, id: 'INT / BLT / 009' },
+/** A record that has gone missing drops out of the field rather than rendering blank. */
+export const demandSignals: Signal[] = DEMAND.flatMap(({ slug, label }) => {
+  const p = exampleProblems.find((x) => x.slug === slug)
+  if (!p) return []
+  return [{
+    id: slug,
+    ref: p.id,
+    label,
+    meta: [
+      ['INDUSTRY', p.sector],
+      ['PRIORITY', p.priorityArea],
+      ['TARGET', p.target],
+      ['STATUS', p.status],
+    ] as [string, string][],
+  }]
+})
+
+export const technologySignals: Signal[] = TECHNOLOGY.flatMap(({ slug, label }) => {
+  const t = exampleTechnologies.find((x) => x.slug === slug)
+  if (!t) return []
+  return [{
+    id: slug,
+    ref: t.id,
+    label,
+    meta: [
+      ['DOMAIN', t.domain],
+      ['CURRENT TRL', String(t.currentTrl).padStart(2, '0')],
+      ['TARGET TRL', String(t.targetTrl).padStart(2, '0')],
+      ['STATUS', t.stage],
+    ] as [string, string][],
+  }]
+})
+
+export interface QualifiedPair {
+  demand: number
+  technology: number
+  /** The problem reference, shown on the left of the readout. */
+  problemRef: string
+  /** The technology reference, shown on the right. */
+  id: string
+}
+
+/**
+ * Which demand signal resolves to which technology.
+ *
+ * Indices are resolved from the slugs rather than written by hand, so
+ * reordering either column above cannot silently rewire the connections.
+ */
+const QUALIFIED: [string, string][] = [
+  ['furnace-heat-loss', 'thermal-barrier-composite-coating'],
+  ['low-grade-waste-heat', 'low-grade-heat-recovery'],
+  ['premature-tool-wear', 'low-temperature-surface-hardening'],
+  ['metal-loss-in-process-water', 'selective-metal-recovery'],
+  ['mixed-polymer-waste', 'polymer-waste-conversion'],
+  ['industrial-cooling-demand', 'passive-industrial-cooling-material'],
 ]
+
+export const qualifiedPairs: QualifiedPair[] = QUALIFIED.flatMap(([p, t]) => {
+  const demand = demandSignals.findIndex((s) => s.id === p)
+  const technology = technologySignals.findIndex((s) => s.id === t)
+  // A pair whose either end is missing is dropped: half a connection is worse
+  // than no connection, because the field would draw a line to nothing.
+  if (demand < 0 || technology < 0) return []
+  return [{ demand, technology, problemRef: demandSignals[demand].ref, id: technologySignals[technology].ref }]
+})
 
 /** Section 7 — the thread's name as it travels down the page. */
 export const threadStages = [

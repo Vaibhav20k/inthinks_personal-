@@ -143,15 +143,24 @@ export default function SignalField() {
           onMouseLeave={() => isDesktop && setHeld(null)}
           onFocus={() => setHeld({ side, index })}
           onBlur={() => setHeld(null)}
-          aria-label={`${signal.label} — ${signal.meta.map(([k, v]) => `${k} ${v}`).join(', ')}`}
-          className="label w-full px-3 py-2.5 text-left transition-colors duration-500 lg:w-auto"
+          aria-label={`${signal.ref} ${signal.label} — ${signal.meta.map(([k, v]) => `${k} ${v}`).join(', ')}`}
+          className="label w-full px-3 py-2 text-left transition-colors duration-500 lg:w-auto"
           style={{
             border: `1px solid ${isActive && locked ? 'var(--color-accent)' : 'var(--rule)'}`,
             color: isActive && locked ? 'var(--color-accent)' : 'var(--color-muted)',
             background: 'var(--color-paper)',
           }}
         >
-          {signal.label.toUpperCase()}
+          {/* The reference sits above the label, so the node names a record
+              rather than a category. Faint until the connection locks: six
+              references at full weight would compete with the line being drawn. */}
+          <span
+            className="block text-[0.5625rem] transition-colors duration-500"
+            style={{ color: isActive && locked ? 'var(--color-accent)' : 'var(--color-faint)' }}
+          >
+            {signal.ref}
+          </span>
+          <span className="mt-0.5 block">{signal.label.toUpperCase()}</span>
         </button>
       </li>
     )
@@ -252,12 +261,17 @@ export default function SignalField() {
           >
             QUALIFIED CONNECTION
           </p>
-          <p
-            className="ident mt-3 text-[1.0625rem] transition-opacity duration-700"
+          {/* Both ends, not just the technology. A connection named by one of
+              its two records is half a statement — and the problem reference is
+              the half an industrial visitor came for. */}
+          <div
+            className="mt-3 transition-opacity duration-700"
             style={{ opacity: locked ? 1 : 0 }}
           >
-            {pair.id}
-          </p>
+            <p className="ident text-[1.0625rem]">{pair.problemRef}</p>
+            <p className="my-0.5 leading-none" aria-hidden="true" style={{ color: 'var(--color-accent)' }}>↕</p>
+            <p className="ident text-[1.0625rem]">{pair.id}</p>
+          </div>
 
           {/* Metadata. A held node wins — that is the visitor inspecting
               something deliberately. With nothing held, the qualified
@@ -270,6 +284,9 @@ export default function SignalField() {
                 style={{ border: '1px solid var(--rule-strong)', background: 'var(--color-paper)' }}
               >
                 <p className="label" style={{ color: 'var(--color-accent)' }}>
+                  {metadata.signal.ref}
+                </p>
+                <p className="label mt-0.5" style={{ color: 'var(--color-ink)' }}>
                   {metadata.signal.label.toUpperCase()}
                 </p>
                 {metadata.signal.meta.map(([k, v]) => (
@@ -290,6 +307,8 @@ export default function SignalField() {
                     transition: reduced ? 'none' : 'opacity 700ms var(--ease-instrument)',
                   }}
                 >
+                  {/* No reference here: the readout directly above already
+                      names this record, and printing it twice reads as a bug. */}
                   <p className="label" style={{ color: 'var(--color-accent)' }}>
                     {technologySignals[pair.technology].label.toUpperCase()}
                   </p>

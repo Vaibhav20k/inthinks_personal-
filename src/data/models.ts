@@ -90,6 +90,17 @@ export interface Technology {
   ipStatus: IpStatus
   transferStatus: TransferStatus
   nextMilestones: string[]
+  /** Industries this could serve. Named as possibilities, never as customers. */
+  potentialIndustries?: string[]
+  /**
+   * Demo or live.
+   *
+   * The one field that decides whether a record is labelled as illustrative on
+   * every surface it appears on. Optional so a real published record simply
+   * omits it — a flag you have to remember to set to `false` is a flag that
+   * eventually is not set.
+   */
+  demo?: boolean
 }
 
 /**
@@ -143,13 +154,19 @@ export interface IndustrialProblem {
   /** The lowest maturity that could still be useful here. */
   minimumTrl: TRL
   status: ProblemStatus
+  /** The single dimension this problem is really about — energy, water, materials. */
+  priorityArea: string
+  /** What good looks like, as the operator states it. Their target, not a promise. */
+  target: string
+  demo?: boolean
 }
 
 export type ProblemStatus =
-  | 'Open for technologies'
-  | 'Technologies identified'
-  | 'Under technical evaluation'
-  | 'In pilot discussion'
+  | 'Open challenge'
+  | 'Technology search'
+  | 'Candidate technologies identified'
+  | 'Match identified'
+  | 'Technical review'
   | 'Closed'
 
 /**
@@ -162,14 +179,50 @@ export type ProblemStatus =
  * about the fit.
  */
 export interface PublicMatch {
+  id: string
   problemSlug: string
   technologySlug: string
   /** Why these two, in a reviewer's words. */
   rationale: string
   /** What still has to be true. Never omitted — a match with no gap is a sale. */
   openQuestions: string[]
-  stage: 'Qualified' | 'In technical discussion' | 'Pilot proposed'
+  /** The single next action that would move it, in engineering terms. */
+  nextStep: string
+  matchClass: MatchClass
+  status: MatchStatus
+  /**
+   * How the pairing fits, dimension by dimension.
+   *
+   * Words rather than a number, and deliberately so: a percentage implies the
+   * machine measured something it cannot measure, and averages a strong
+   * mechanism fit against a poor TRL fit into a middling figure that describes
+   * neither. `Moderate` on TRL is the useful part of the answer.
+   */
+  fit: { dimension: string; rating: FitRating }[]
+  developmentRequired: 'Low' | 'Medium' | 'High'
+  demo?: boolean
 }
+
+export type FitRating = 'Strong' | 'Promising' | 'Moderate' | 'Limited' | 'Unknown'
+
+export type MatchClass = 'Strong candidate' | 'Promising match' | 'Candidate match'
+
+/**
+ * Where a pairing has got to.
+ *
+ * `AI candidate` exists in the type but never reaches the public site: the
+ * engine's raw output is a shortlist, and publishing one unreviewed would be
+ * the platform asserting something no person has checked.
+ */
+export type MatchStatus =
+  | 'AI candidate'
+  | 'Technical review'
+  | 'Qualified match'
+  | 'R&D required'
+  | 'Industry evaluation'
+  | 'Pilot'
+  | 'Commercial discussion'
+  | 'Transfer'
 
 /**
  * Internal innovation record — the submission plus everything evaluation

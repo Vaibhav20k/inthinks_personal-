@@ -7,7 +7,19 @@ import { exampleProblems, exampleTechnologies } from '../data/examples'
 import { loadMatches } from '../data/portfolio'
 import type { PublicMatch } from '../data/models'
 
-const STAGE_ORDER = ['Qualified', 'In technical discussion', 'Pilot proposed']
+/** Furthest along first — a reader scanning wants the live ones at the top. */
+const STATUS_ORDER = [
+  'Transfer', 'Commercial discussion', 'Pilot', 'Industry evaluation',
+  'Qualified match', 'Technical review', 'R&D required', 'AI candidate',
+]
+
+const RATING_TONE: Record<string, string> = {
+  Strong: 'var(--color-accent)',
+  Promising: 'var(--color-accent-deep)',
+  Moderate: 'var(--color-muted)',
+  Limited: 'var(--color-faint)',
+  Unknown: 'var(--color-faint)',
+}
 
 /**
  * What the matching actually produces.
@@ -35,18 +47,18 @@ export default function Matches() {
   }, [])
 
   const sorted = [...(matches ?? [])].sort(
-    (a, b) => STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage),
+    (a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status),
   )
 
   return (
     <>
       <PageHero
         eyebrow="Matching"
-        title="Problem, meet technology."
-        lede="Where an industrial problem and a developed technology have been put together and a reviewer has said the pairing is worth pursuing. The engine shortlists across fifteen technical dimensions; a person decides."
+        title="Where problems meet possibilities."
+        lede="InThinks evaluates relationships between industrial challenges and emerging technologies using structured technology intelligence and expert review. Nothing here is a completed commercial relationship — a match is a pairing worth pursuing, with what is still open stated alongside it."
       >
         {examples && (
-          <Notice>Illustrative examples — real matches appear here once qualified</Notice>
+          <Notice>Illustrative matches — real matches appear here once qualified</Notice>
         )}
       </PageHero>
 
@@ -106,9 +118,12 @@ export default function Matches() {
                       </div>
 
                       <div className="lg:col-span-3">
-                        <p className="label" style={{ color: 'var(--color-faint)' }}>STAGE</p>
-                        <p className="label mt-3" style={{ color: 'var(--color-accent-deep)' }}>
-                          {m.stage.toUpperCase()}
+                        <p className="ident" style={{ color: 'var(--color-faint)' }}>{m.id}</p>
+                        <p className="label mt-3" style={{ color: 'var(--color-accent)' }}>
+                          {m.matchClass.toUpperCase()}
+                        </p>
+                        <p className="label mt-1.5" style={{ color: 'var(--color-muted)' }}>
+                          {m.status.toUpperCase()}
                         </p>
                       </div>
 
@@ -116,6 +131,34 @@ export default function Matches() {
                         <p className="label" style={{ color: 'var(--color-faint)' }}>WHY THESE TWO</p>
                         <p className="body-type measure-prose mt-3" style={{ color: 'var(--color-muted)' }}>
                           {m.rationale}
+                        </p>
+
+                        {/* Fit, dimension by dimension. Deliberately words:
+                            averaging a strong mechanism against a moderate TRL
+                            gives a number that describes neither, and the
+                            moderate part is the useful half of the answer. */}
+                        <dl className="mt-7 flex flex-wrap gap-x-8 gap-y-3">
+                          {m.fit.map((f) => (
+                            <div key={f.dimension}>
+                              <dt className="label" style={{ color: 'var(--color-faint)' }}>
+                                {f.dimension.toUpperCase()} FIT
+                              </dt>
+                              <dd className="label mt-1" style={{ color: RATING_TONE[f.rating] }}>
+                                {f.rating.toUpperCase()}
+                              </dd>
+                            </div>
+                          ))}
+                          <div>
+                            <dt className="label" style={{ color: 'var(--color-faint)' }}>DEVELOPMENT REQUIRED</dt>
+                            <dd className="label mt-1" style={{ color: 'var(--color-muted)' }}>
+                              {m.developmentRequired.toUpperCase()}
+                            </dd>
+                          </div>
+                        </dl>
+
+                        <p className="label mt-7" style={{ color: 'var(--color-faint)' }}>NEXT STEP</p>
+                        <p className="body-type measure-prose mt-2" style={{ color: 'var(--color-muted)' }}>
+                          {m.nextStep}
                         </p>
 
                         <p className="label mt-7" style={{ color: 'var(--color-faint)' }}>STILL OPEN</p>

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import PageHero from '../components/layout/PageHero'
 import Notice from '../components/primitives/Notice'
 import { loadProblems } from '../data/portfolio'
+import { matchesForProblem } from '../data/examples'
 import { sectors } from '../data/taxonomy'
 import type { IndustrialProblem } from '../data/models'
 
@@ -48,11 +49,11 @@ export default function Problems() {
     <>
       <PageHero
         eyebrow="Industry"
-        title="Industrial Problems"
-        lede="Problems industry has brought to InThinks, stated in enough detail for someone who could solve them to recognise it. Every one is anonymised — the problem is public, the company is not."
+        title="Problems worth solving."
+        lede="Industrial challenges submitted to or structured by InThinks, converted into technical problem profiles that can be evaluated against emerging technologies. Every one is anonymised — the problem is public, the company is not."
       >
         {examples && (
-          <Notice>Illustrative examples — real challenges appear here once published</Notice>
+          <Notice>Illustrative industrial challenges — live challenges appear here as they are approved for publication</Notice>
         )}
       </PageHero>
 
@@ -117,40 +118,68 @@ export default function Problems() {
             </p>
 
             {problems === null ? null : (
-              <ul>
-                {results.map((p) => (
-                  <li key={p.slug} style={{ borderTop: '1px solid var(--rule)' }}>
-                    <Link to={`/problems/${p.slug}`} className="group grid gap-5 py-9 lg:grid-cols-12 lg:gap-10">
-                      <div className="lg:col-span-3">
-                        <p className="ident" style={{ color: 'var(--color-accent)' }}>{p.id}</p>
-                        <p className="label mt-3" style={{ color: 'var(--color-faint)' }}>
-                          {p.sector.toUpperCase()}
-                        </p>
-                      </div>
-                      <div className="lg:col-span-6">
-                        <h3 className="font-display text-[1.375rem] font-medium leading-snug tracking-[-0.02em]">
-                          <span className="border-b border-transparent transition-colors duration-250 group-hover:border-current">
-                            {p.title}
-                          </span>
-                        </h3>
-                        <p className="body-type mt-3" style={{ color: 'var(--color-muted)' }}>
-                          {p.summary}
-                        </p>
-                      </div>
-                      <div className="lg:col-span-3">
-                        <p className="label" style={{ color: 'var(--color-faint)' }}>STATUS</p>
-                        <p className="label mt-2" style={{ color: 'var(--color-accent-deep)' }}>
-                          {p.status.toUpperCase()}
-                        </p>
-                        <p className="label mt-4" style={{ color: 'var(--color-faint)' }}>
-                          MINIMUM TRL {String(p.minimumTrl).padStart(2, '0')}
-                        </p>
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-                <li style={{ borderTop: '1px solid var(--rule)' }} />
-              </ul>
+              /* An index, matching the Technology Explorer: this is a register
+                 to scan for a sector or a target, not a page to read. The
+                 MATCHES column is the point of it — a challenge with candidates
+                 against it is the one an innovator should look at first. */
+              <div className="overflow-x-auto">
+                <table className="w-full" style={{ borderCollapse: 'collapse' }}>
+                  <caption className="sr-only">Industrial problems brought to InThinks</caption>
+                  <thead>
+                    <tr>
+                      {['Reference', 'Problem', 'Industry', 'Priority', 'Target', 'Matches', 'Status'].map((h) => (
+                        <th key={h} scope="col" className="label whitespace-nowrap px-3 py-3 text-left first:pl-0"
+                            style={{ color: 'var(--color-faint)', borderBottom: '1px solid var(--rule-strong)' }}>
+                          {h.toUpperCase()}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {results.map((p) => {
+                      const n = matchesForProblem(p.slug).length
+                      const cell = { borderBottom: '1px solid var(--rule)' }
+                      return (
+                        <tr key={p.slug} className="group">
+                          <td className="px-3 py-4 pl-0 align-baseline" style={cell}>
+                            <Link to={`/problems/${p.slug}`} className="ident whitespace-nowrap" style={{ color: 'var(--color-accent)' }}>
+                              {p.id}
+                            </Link>
+                          </td>
+                          <td className="max-w-[22rem] px-3 py-4 align-baseline" style={cell}>
+                            <Link to={`/problems/${p.slug}`} className="text-[0.9375rem] font-medium">
+                              <span className="border-b border-transparent transition-colors duration-250 group-hover:border-current">
+                                {p.title}
+                              </span>
+                            </Link>
+                          </td>
+                          <td className="label whitespace-nowrap px-3 py-4 align-baseline" style={{ ...cell, color: 'var(--color-muted)' }}>
+                            {p.sector.toUpperCase()}
+                          </td>
+                          <td className="label whitespace-nowrap px-3 py-4 align-baseline" style={{ ...cell, color: 'var(--color-muted)' }}>
+                            {p.priorityArea.toUpperCase()}
+                          </td>
+                          <td className="label px-3 py-4 align-baseline" style={{ ...cell, color: 'var(--color-muted)' }}>
+                            {p.target.toUpperCase()}
+                          </td>
+                          <td className="label whitespace-nowrap px-3 py-4 align-baseline" style={cell}>
+                            {n > 0 ? (
+                              <Link to="/matches" style={{ color: 'var(--color-accent)' }}>
+                                {n} CANDIDATE{n === 1 ? '' : 'S'}
+                              </Link>
+                            ) : (
+                              <span style={{ color: 'var(--color-faint)' }}>—</span>
+                            )}
+                          </td>
+                          <td className="label px-3 py-4 align-baseline" style={{ ...cell, color: 'var(--color-muted)' }}>
+                            {p.status.toUpperCase()}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>

@@ -1,5 +1,6 @@
 import Hero from '../components/home/Hero'
 import AudienceGateway from '../components/home/AudienceGateway'
+import IntelligenceSnapshot from '../components/home/IntelligenceSnapshot'
 import Engine from '../components/home/Engine'
 import TrlJourney from '../components/home/TrlJourney'
 import SelectedTechnologies from '../components/home/SelectedTechnologies'
@@ -22,6 +23,7 @@ import ScrollCoordinate from '../components/home/ScrollCoordinate'
 const COORDINATES = [
   { id: 'top', label: 'Signal', thread: 'Match signal' },
   { id: 'gateways', label: 'Entry points', thread: 'Match signal' },
+  { id: 'intelligence', label: 'Intelligence layer', thread: 'Match signal' },
   { id: 'engine', label: 'The engine', thread: 'Technology path' },
   { id: 'pipeline', label: 'Technology development', thread: 'Technology path' },
   { id: 'technologies', label: 'Portfolio', thread: 'Technology path' },
@@ -40,6 +42,7 @@ export default function Home() {
       <ScrollCoordinate sections={COORDINATES} />
       <Hero />
       <AudienceGateway />
+      <IntelligenceSnapshot />
       <Engine />
       <TrlJourney />
       <SelectedTechnologies />
