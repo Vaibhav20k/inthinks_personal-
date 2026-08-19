@@ -41,6 +41,11 @@ export default function GroundToggle({ className = '' }: { className?: string })
   const apply = (next: Ground) => {
     if (next === 'dark') document.documentElement.setAttribute('data-ground', 'dark')
     else document.documentElement.removeAttribute('data-ground')
+    // The phone's browser bar is tinted by this, so it has to move with the
+    // ground or there is a white strip above a black page.
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute('content', next === 'dark' ? '#050505' : '#ffffff')
   }
 
   if (ground === null) return null
