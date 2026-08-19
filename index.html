@@ -31,6 +31,47 @@
       crossorigin
     />
 
+    <!--
+      Ground selection, before first paint.
+
+      Inline and synchronous on purpose: if this ran after hydration the page
+      would paint light and then flip, which is worse than either ground on
+      its own. It is the one script that has to block.
+
+      The order is deliberate:
+
+        1. A choice the visitor made here wins, always, and persists.
+        2. Otherwise, a system set to dark wins. That is an explicit signal
+           from the person, and a clock should not overrule it at 2pm.
+        3. Otherwise — and this is the common case, because most people never
+           change the system default off light — the local hour decides.
+           Light from 06:00, dark from 18:00.
+
+      The clock is the visitor's, not the server's: this site says INDIA /
+      GLOBAL, and a reader in Toronto should get their own evening.
+    -->
+    <script>
+      (function () {
+        try {
+          var LIGHT_FROM = 6, DARK_FROM = 18
+          var saved = localStorage.getItem('inthinks-ground')
+          var ground
+          if (saved === 'light' || saved === 'dark') {
+            ground = saved
+          } else if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) {
+            ground = 'dark'
+          } else {
+            var h = new Date().getHours()
+            ground = h >= LIGHT_FROM && h < DARK_FROM ? 'light' : 'dark'
+          }
+          if (ground === 'dark') document.documentElement.setAttribute('data-ground', 'dark')
+        } catch (e) {
+          /* Storage blocked or clock unreadable: fall through to the light
+             ground, which is what the stylesheet gives with no attribute. */
+        }
+      })()
+    </script>
+
     <!-- ?v= is a cache buster. Browsers cache favicons far more stubbornly
          than ordinary assets — Chrome keeps them in a separate store that a
          normal reload does not touch — so an edited icon can keep showing the

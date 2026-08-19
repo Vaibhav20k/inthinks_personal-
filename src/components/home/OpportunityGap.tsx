@@ -52,7 +52,7 @@ export default function OpportunityGap() {
             <Reveal delay={90}>
               <div
                 className="flex h-full flex-col justify-between p-7"
-                style={{ background: 'var(--color-graphite)', color: 'var(--color-paper)' }}
+                style={{ background: 'var(--color-graphite)', color: 'var(--color-on-graphite)' }}
               >
                 <p className="label" style={{ color: 'var(--color-accent)' }}>INTHINKS</p>
                 <div className="py-10">

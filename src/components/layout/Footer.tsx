@@ -7,7 +7,7 @@ const lifecycle = ['Discover', 'Evaluate', 'Acquire', 'Develop', 'Validate', 'Ma
 
 export default function Footer() {
   return (
-    <footer style={{ background: 'var(--color-graphite)', color: 'var(--color-paper)' }}>
+    <footer style={{ background: 'var(--color-graphite)', color: 'var(--color-on-graphite)' }}>
       <div className="container-grid py-20">
         <div className="grid gap-12 lg:grid-cols-12">
           <div className="lg:col-span-4">

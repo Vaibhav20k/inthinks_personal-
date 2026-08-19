@@ -31,7 +31,7 @@ export default function FinalCta() {
   return (
     <section
       className="py-24 sm:py-32"
-      style={{ background: 'var(--color-graphite)', color: 'var(--color-paper)' }}
+      style={{ background: 'var(--color-graphite)', color: 'var(--color-on-graphite)' }}
     >
       <div className="container-grid">
         <h2 className="statement-type mx-auto max-w-[18ch] text-center">

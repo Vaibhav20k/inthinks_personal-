@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run typecheck && npm test && vite build",
+    "build": "npm run typecheck && npm test && vite build && node scripts/csp-hash.mjs",
     "typecheck": "tsc --noEmit && tsc --noEmit -p worker/tsconfig.json",
     "preview": "vite preview",
     "deploy": "wrangler deploy",

@@ -23,7 +23,7 @@ export default function IndustryChallengeModel() {
     <section
       id="challenge-model"
       className="py-24 sm:py-32"
-      style={{ background: 'var(--color-graphite)', color: 'var(--color-paper)' }}
+      style={{ background: 'var(--color-graphite)', color: 'var(--color-on-graphite)' }}
     >
       <div className="container-grid">
         <div className="doc-columns">
@@ -74,7 +74,7 @@ export default function IndustryChallengeModel() {
                         <div>
                           <p
                             className="font-display text-[1.0625rem] font-medium leading-snug tracking-[-0.02em]"
-                            style={{ color: last ? 'var(--color-accent-light)' : 'var(--color-paper)' }}
+                            style={{ color: last ? 'var(--color-accent-light)' : 'var(--color-on-graphite)' }}
                           >
                             {step.label}
                           </p>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import GroundToggle from '../primitives/GroundToggle'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { nav, site } from '../../data/site'
 import Logo from '../primitives/Logo'
@@ -71,6 +72,7 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-4">
+          <GroundToggle className="hidden sm:inline-block" />
           <Link
             to="/submit-innovation"
             className="hidden text-[0.8125rem] font-medium transition-colors duration-300 lg:inline-block"
