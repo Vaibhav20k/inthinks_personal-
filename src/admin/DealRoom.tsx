@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import * as api from './api'
 import { Chip, Empty, Field, Panel, Withheld, shortDate, shortDateTime } from './ui'
 import type { Me } from './api'
@@ -87,6 +87,7 @@ export default function DealRoom({ me }: { me: Me }) {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [note, setNote] = useState('')
+  const navigate = useNavigate()
 
   const load = useCallback(() => {
     api.deal(reference).then(setData).catch((e) => setError(e.message))
@@ -420,6 +421,44 @@ export default function DealRoom({ me }: { me: Me }) {
             <p className="label mt-4" style={{ color: 'var(--color-faint)' }}>
               MARKING A DEAL EXECUTED MOVES ITS OPPORTUNITY TO TECHNOLOGY TRANSFER
             </p>
+          </Panel>
+
+          <Panel title="Royalties">
+            {data.royalty ? (
+              <>
+                <p className="ident" style={{ color: 'var(--color-accent)' }}>{data.royalty.reference}</p>
+                <p className="mt-3 text-[0.9375rem]" style={{ color: 'var(--color-muted)' }}>{data.royalty.status}</p>
+                <Link to={`/admin/royalties/${data.royalty.reference}`} className="label mt-4 inline-block" style={{ color: 'var(--color-accent)' }}>
+                  OPEN ROYALTY RECORD →
+                </Link>
+              </>
+            ) : !data.royaltyEligible ? (
+              <p className="text-[0.9375rem] leading-relaxed" style={{ color: 'var(--color-muted)' }}>
+                {data.royaltyBp
+                  ? 'Royalties are monitored once the deal is executed.'
+                  : 'This deal carries no royalty rate, so there is nothing to monitor.'}
+              </p>
+            ) : (
+              <>
+                <p className="text-[0.9375rem] leading-relaxed" style={{ color: 'var(--color-muted)' }}>
+                  Opening this generates the reporting schedule from the term.
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const result = await api.openRoyalty(reference)
+                      navigate(`/admin/royalties/${result.royalty}`)
+                    } catch (cause) {
+                      setError(cause instanceof api.AdminError ? cause.message : 'Could not open royalty monitoring')
+                    }
+                  }}
+                  className="mt-4 bg-graphite px-4 py-2.5 text-[0.875rem] font-medium text-paper transition-colors duration-300 hover:bg-accent"
+                >
+                  Monitor royalties
+                </button>
+              </>
+            )}
           </Panel>
 
           <Panel title="Opportunity">

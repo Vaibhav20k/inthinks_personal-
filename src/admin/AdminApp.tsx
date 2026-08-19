@@ -17,6 +17,8 @@ import Pipeline from './Pipeline'
 import Opportunity from './Opportunity'
 import Deals from './Deals'
 import DealRoom from './DealRoom'
+import Royalties from './Royalties'
+import Royalty from './Royalty'
 import AuditLog from './AuditLog'
 import Users from './Users'
 import { Empty } from './ui'
@@ -84,6 +86,8 @@ export default function AdminApp() {
         <Route path="opportunities/:reference" element={<Opportunity me={me} />} />
         {me.can.viewCommercialTerms && <Route path="deals" element={<Deals me={me} />} />}
         {me.can.viewCommercialTerms && <Route path="deals/:reference" element={<DealRoom me={me} />} />}
+        {me.can.viewCommercialTerms && <Route path="royalties" element={<Royalties me={me} />} />}
+        {me.can.viewCommercialTerms && <Route path="royalties/:reference" element={<Royalty me={me} />} />}
         {me.can.viewAudit && <Route path="audit" element={<AuditLog />} />}
         {me.can.manageUsers && <Route path="users" element={<Users />} />}
         <Route path="*" element={<Empty>That admin page does not exist.</Empty>} />

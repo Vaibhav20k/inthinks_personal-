@@ -217,7 +217,8 @@ keep the long-form answers in a `payload` JSON column, so the question set can
 change without a migration. `evidence` is the manifest pointing at R2 objects.
 Schema is in `migrations/`, applied in order: `0001_init.sql` (intake),
 `0002_admin.sql` (accounts, audit, scoring), `0003_matches.sql`,
-`0004_development.sql`, `0005_opportunities.sql` and `0006_deals.sql`.
+`0004_development.sql`, `0005_opportunities.sql`, `0006_deals.sql` and
+`0007_royalties.sql`.
 
 ## Admin dashboard
 
@@ -257,7 +258,7 @@ exists forever to solve a problem you have once.
 
 ### Roles
 
-| Role | Sees identity | Scores | Moves acquisition stage | Deal terms | Audit | Users |
+| Role | Sees identity | Scores | Moves acquisition stage | Deal terms and royalties | Audit | Users |
 |---|---|---|---|---|---|---|
 | `super-admin` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `admin` | ✓ | ✓ | ✓ | ✓ | ✓ | — |
@@ -284,8 +285,8 @@ by field; there is no `SELECT *` path to the client anywhere in
   stage, TRL tracking and internal notes.
 - **Challenges** — list with status filter; detail carries the problem,
   technical environment, business impact, constraints, handling and notes.
-- **Matches**, **R&D**, **Opportunities** and **Deals** — described in their own
-  sections below.
+- **Matches**, **R&D**, **Opportunities**, **Deals** and **Royalties** —
+  described in their own sections below.
 - **Audit log** — reads as well as writes.
 - **Users** — accounts and roles, super-admin only.
 
@@ -307,10 +308,8 @@ answerable.
 ### Beyond the dashboard
 
 The match engine, the Match Room, the R&D development workspace, the industry
-opportunity pipeline and the commercial deal room are described in their own
-sections below. What the brief still asks for and this build does not have is
-royalty management — tracking amounts due and paid against a reporting period,
-once a deal is executed.
+opportunity pipeline, the commercial deal room and royalty management are
+described in their own sections below.
 
 ## Match engine
 
@@ -464,6 +463,52 @@ opportunity page omits the deal panel for that role rather than disabling it.
 > and how far each has got. It records the state of a document, not the
 > document. Executed agreements are not stored here.
 
+### Royalty management
+
+An agreement opens when a deal that carries a royalty is executed — not before,
+and not for a deal settled entirely by an upfront payment, because an empty
+royalty record would make the register overstate how many live royalties exist.
+Opening one moves its opportunity to `Post-Transfer Royalty Monitoring`.
+
+It answers three questions and no others: what was reported, what is owed on
+it, and what has been paid. There is no expected-revenue figure anywhere — a
+royalty forecast is a guess about someone else's sales.
+
+Four things hold the record together:
+
+- **The schedule is generated from the term**, one row per reporting period for
+  the whole length of it. A period nobody reported is therefore visibly missing
+  rather than simply never created. The date arithmetic clamps to month ends,
+  so a term starting 31 January produces 28 February and not 3 March — `Date`
+  rolls over on its own, which drifts a schedule forward a few days a year.
+- **What is owed is computed, never typed.** A percentage royalty is
+  `reported × basis points ÷ 10,000`, rounded once at the end; a unit royalty is
+  `per-unit × units`. The route ignores any `dueMinor` a client sends. A
+  hand-entered amount due is the one number in a licence both sides later
+  dispute.
+- **Whether a period is settled is derived** from due, adjustments and paid —
+  `Unpaid` / `Part paid` / `Settled` / `Overpaid` — rather than being a status
+  someone sets. A status field that can disagree with the amounts beside it is
+  a bug waiting to be filed. The workflow status alongside it carries only what
+  the amounts cannot say: awaiting a statement, disputed, waived.
+- **The reporting frequency is a term of the licence, not a setting.** Changing
+  it rebuilds the schedule, because quarter 5 and month 5 are not the same
+  period — so it can only be changed before the first statement is recorded.
+  After that the schedule can be extended when the term grows, never rewritten.
+
+**The minimum annual royalty** is exactly that — annual. A quarter that
+under-performs may be made up by the next one, so the shortfall is only real
+once every period in the royalty year has reported, and a year with a period
+still outstanding claims no shortfall at all: an unreported quarter is not a
+zero. Charging a shortfall is an explicit adjustment on a period, with a
+required reason, not something the system applies on its own.
+
+`npm test` holds the date arithmetic, the schedule, the due calculation, the
+settlement rule, the next-statement date and the annual close to exact values.
+
+**Private to the commercial roles**, on the same gate as the deal room, and not
+exposed on the public site in any form.
+
 ### Configuring
 
 ```bash
@@ -477,9 +522,10 @@ platform is unaffected.
 ### Tests
 
 `npm test` covers the deterministic half — ranking, exclusion, readiness
-reporting, affinity bounds, all four identity-guard cases, and the deal room's
-money and rate parsers against exact integers. It runs as part of
-`npm run build`, so a regression fails the deploy.
+reporting, affinity bounds, all four identity-guard cases, the deal room's money
+and rate parsers, and the royalty schedule, due calculation and annual close,
+all against exact integers. It runs as part of `npm run build`, so a regression
+fails the deploy.
 
 ## Deployment
 
@@ -505,19 +551,25 @@ for `/assets/*` and `/fonts/*`, and no-cache on `index.html`.
 **Custom domain.** Uncomment the `[[routes]]` block in `wrangler.toml` once
 `inthinks.com` is a zone on the same Cloudflare account.
 
-## Not built
+## What is and is not here
 
 The brief describes a private operating platform behind the public site:
 authentication and roles, the admin innovation and challenge databases, the AI
 match engine, the Match Room, acquisition pipeline, R&D workspace, industry
-opportunity pipeline, deal room, royalty management and analytics.
+opportunity pipeline, deal room, royalty management and analytics. All of those
+now exist, end to end: a challenge and an innovation arrive through intake, the
+engine shortlists and a person decides, an approved match opens an opportunity,
+a negotiated opportunity opens a deal, and an executed deal opens the royalty
+record that outlives it.
 
-Intake, the admin dashboard, the match engine, the Match Room, the R&D
-development workspace, the industry opportunity pipeline and the commercial
-deal room now exist. What remains from the brief is royalty management: tracking
-amounts due and paid against reporting periods after a deal is executed. The
-deal room records the royalty *terms*; nothing yet records the payments they
-generate.
+Two things named in the brief are still placeholders rather than gaps in the
+platform. The public technology pages read `src/data/technologies.ts` instead of
+the portfolio, so R&D timeline entries published through the workspace are not
+yet rendered publicly — the flag, the gate and the serializer are in place, and
+connecting them is what real portfolio records will need. And the live call to
+the Claude API in the match engine has never run here, because this environment
+has no `ANTHROPIC_API_KEY`; the deterministic layers around it are tested, the
+model call is not.
 
 `src/data/models.ts` types the innovation and challenge records, the fifteen
 `MatchSignals` dimensions, the `MatchRecord` whose `humanReview` field is
