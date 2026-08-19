@@ -55,6 +55,7 @@ export const nav = [
   { label: 'For Industry', to: '/for-industry' },
   { label: 'For Innovators', to: '/for-innovators' },
   { label: 'How It Works', to: '/how-it-works' },
+  { label: 'Contact', to: '/contact' },
 ] as const
 
 export const footerGroups = [
