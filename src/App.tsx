@@ -3,6 +3,9 @@ import { BrowserRouter, HashRouter, Route, Routes } from 'react-router-dom'
 import Layout from './components/layout/Layout'
 import Home from './pages/Home'
 import Technologies from './pages/Technologies'
+import Problems from './pages/Problems'
+import ProblemDetail from './pages/ProblemDetail'
+import Matches from './pages/Matches'
 import TechnologyDetail from './pages/TechnologyDetail'
 import ForIndustry from './pages/ForIndustry'
 import ForInnovators from './pages/ForInnovators'
@@ -33,6 +36,9 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/technologies" element={<Technologies />} />
           <Route path="/technologies/:slug" element={<TechnologyDetail />} />
+          <Route path="/problems" element={<Problems />} />
+          <Route path="/problems/:slug" element={<ProblemDetail />} />
+          <Route path="/matches" element={<Matches />} />
           <Route path="/for-industry" element={<ForIndustry />} />
           <Route path="/for-innovators" element={<ForInnovators />} />
           <Route path="/how-it-works" element={<HowItWorks />} />

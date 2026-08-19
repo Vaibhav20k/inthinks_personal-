@@ -106,6 +106,72 @@ export interface TimelineEntry {
 }
 
 /**
+ * Public problem record — what the site may show about an industry challenge.
+ *
+ * The mirror of `Technology`, and it withholds the mirror thing: a technology
+ * page never names the innovator, and a problem page never names the company.
+ * An industrial problem is often a public admission that something does not
+ * work, and a competitor reading it should learn the problem exists without
+ * learning whose plant it is in.
+ *
+ * So there is no company, no contact, no site and no location — not hidden,
+ * absent. What remains is the problem itself, which is the part an innovator
+ * needs in order to recognise that they can solve it.
+ */
+export interface IndustrialProblem {
+  id: string
+  slug: string
+  /** The problem as a headline, not the company's internal project name. */
+  title: string
+  sector: string
+  /** One sentence: what is going wrong. */
+  summary: string
+  /** The situation in full, written for someone who has never seen the plant. */
+  problem: string
+  /** What the current approach is, and why it is not enough. */
+  currentApproach: string
+  /** What a solution would have to achieve to be adopted. */
+  targetOutcome: string
+  /** Hard constraints a solution cannot violate. */
+  constraints: string[]
+  /** Where it happens: process, temperature, scale — never a named site. */
+  environment: { term: string; value: string }[]
+  /** What it costs the operator today, qualitatively. */
+  impact: string[]
+  /** Outcome ids from the taxonomy, so problems and technologies share a spine. */
+  outcomes: string[]
+  /** The lowest maturity that could still be useful here. */
+  minimumTrl: TRL
+  status: ProblemStatus
+}
+
+export type ProblemStatus =
+  | 'Open for technologies'
+  | 'Technologies identified'
+  | 'Under technical evaluation'
+  | 'In pilot discussion'
+  | 'Closed'
+
+/**
+ * A pairing the engine proposed and a person qualified.
+ *
+ * Deliberately not a score. The public site never shows a match percentage:
+ * the brief is explicit that no match reaches an industry counterparty on the
+ * strength of the signals alone, and a number implies the machine decided.
+ * What is shown is which problem, which technology, and what a reviewer said
+ * about the fit.
+ */
+export interface PublicMatch {
+  problemSlug: string
+  technologySlug: string
+  /** Why these two, in a reviewer's words. */
+  rationale: string
+  /** What still has to be true. Never omitted — a match with no gap is a sale. */
+  openQuestions: string[]
+  stage: 'Qualified' | 'In technical discussion' | 'Pilot proposed'
+}
+
+/**
  * Internal innovation record — the submission plus everything evaluation
  * adds to it. Never serialised to the public site.
  */
