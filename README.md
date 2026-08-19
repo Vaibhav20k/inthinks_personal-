@@ -294,6 +294,71 @@ management. Those are not in this build. The record shapes they need
 (`MatchRecord` with its non-optional `humanReview`, `InternalDealRecord`,
 `MatchSignals`) are typed in `src/data/models.ts`.
 
+## Match engine
+
+Connects the challenge database to the technology portfolio. Two layers, then a
+person.
+
+**Layer 1 — expert rules** (`worker/match-rules.ts`). Deterministic,
+explainable and free. It excludes what cannot answer the challenge whatever the
+prose says, and ranks the rest so only a shortlist reaches the model. Every rule
+is a claim a domain expert could argue with, and each candidate carries the
+signals that produced its ranking. A readiness gap lowers the ranking but never
+excludes — closing that gap is what the development pipeline is for.
+
+**Layer 2 — semantic analysis** (`worker/match-engine.ts`). Claude assesses the
+shortlist and returns, per candidate: classification, six per-dimension fits,
+estimated TRL gap, IP risk, why they match, technical conflicts, missing
+evidence, required development, commercial potential, and a suggested next step.
+Structured output via Zod, so the shape is guaranteed rather than parsed out of
+prose.
+
+Two constraints shape the module:
+
+- **No identity reaches the model.** The candidate context is assembled from
+  technical columns only — `loadTechnologies` never reads innovator name, email
+  or institution — and `assertNoIdentity` throws if an email, phone number or
+  LinkedIn URL ever appears in the prompt. It should never fire, which is why
+  it is worth having: a change that widens the record shape breaks loudly rather
+  than quietly sending an innovator's name to a third party.
+- **No fake precision.** Classifications (`Strong Match`, `Promising Match`,
+  `Adjacent Opportunity`, `Weak Match`) and fits (`Strong` / `Moderate` /
+  `Limited` / `Unknown`), never a percentage. "93.76% match" invents confidence
+  the analysis does not have.
+
+The prompt tells the model it is one input to a decision, instructs it to be
+sceptical, and requires it to report what is *unknown* rather than treat silence
+as either a strength or a conflict.
+
+### AI recommends. InThinks decides.
+
+Enforced in `worker/matches.ts`, not in the UI. A generated match is always
+written `Pending`. Only an authenticated actor can move it, regenerating never
+overwrites a decision, and `Approved for Industry Discussion` — the one decision
+that lets a match leave InThinks — requires the acquisition capability, so an
+R&D reviewer cannot release one. That approval is audited under its own action
+name, separate from ordinary decisions.
+
+A **Match Room** presents the challenge on the left, the technology on the
+right, the analysis between them, and the five decisions along the bottom. No
+party identity appears anywhere on it.
+
+### Configuring
+
+```bash
+npx wrangler secret put ANTHROPIC_API_KEY   # required; without it matching is disabled
+npx wrangler secret put MATCH_MODEL         # optional, defaults to claude-opus-5
+```
+
+Without the key, `/api/admin/matches/generate` returns 503 and the rest of the
+platform is unaffected.
+
+### Tests
+
+`npm test` covers the deterministic half — ranking, exclusion, readiness
+reporting, affinity bounds, and all four identity-guard cases. It runs as part
+of `npm run build`, so a regression fails the deploy.
+
 ## Deployment
 
 `wrangler.toml` publishes `dist/` plus the Worker.
@@ -326,9 +391,10 @@ match engine, the Match Room, acquisition pipeline, R&D workspace, industry
 opportunity pipeline, deal room, royalty management and analytics. None of that
 is in this build.
 
-Intake and the admin dashboard now exist. What remains from the brief is the
-match engine and the workflow surfaces built on top of it — Match Room,
-R&D workspace, opportunity pipeline, deal room and royalties.
+Intake, the admin dashboard, the match engine and the Match Room now exist.
+What remains from the brief is the workflow that follows an approved match: the
+R&D development workspace, the industry opportunity pipeline, the commercial
+deal room and royalty management.
 
 What is here is the architecture for it. `src/data/models.ts` types the
 innovation and challenge records, the fifteen `MatchSignals` dimensions, the

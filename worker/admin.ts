@@ -7,6 +7,7 @@ import {
   INNOVATION_STATUSES, SCORING_DIMENSIONS,
 } from './scoring'
 import type { Env } from './types'
+import { MATCH_DECISIONS, decide, generateMatches } from './matches'
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
@@ -425,6 +426,142 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
       .bind(reference, text, actor.email, new Date().toISOString())
       .run()
     await audit(db, actor, 'note.add', reference, undefined, ip)
+    return json({ ok: true })
+  }
+
+  /* --------------------------------------------------------------- matches */
+
+  if (path === '/matches' && request.method === 'GET') {
+    const challenge = url.searchParams.get('challenge')
+    const decision = url.searchParams.get('decision')
+    const where: string[] = []
+    const binds: unknown[] = []
+    if (challenge) { where.push('m.challenge_ref = ?'); binds.push(challenge) }
+    if (decision && oneOf(MATCH_DECISIONS, decision)) { where.push('m.decision = ?'); binds.push(decision) }
+
+    const rows = await db
+      .prepare(
+        `SELECT m.*, c.title AS challenge_title, c.sector AS challenge_sector,
+                i.title AS technology_title, i.category AS technology_category
+         FROM matches m
+         LEFT JOIN challenges c ON c.reference = m.challenge_ref
+         LEFT JOIN innovations i ON i.reference = m.technology_ref
+         ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+         ORDER BY m.created_at DESC LIMIT 200`,
+      )
+      .bind(...binds)
+      .all<Record<string, unknown>>()
+
+    return json({
+      items: rows.results.map((r) => ({
+        reference: r.reference,
+        createdAt: r.created_at,
+        challengeRef: r.challenge_ref,
+        challengeTitle: r.challenge_title,
+        challengeSector: r.challenge_sector,
+        technologyRef: r.technology_ref,
+        technologyTitle: r.technology_title,
+        technologyCategory: r.technology_category,
+        classification: r.classification,
+        decision: r.decision,
+        trlGap: r.trl_gap,
+        ipRisk: r.ip_risk,
+      })),
+    })
+  }
+
+  if (path === '/matches/generate' && request.method === 'POST') {
+    if (!can.editReviewState) return json({ error: 'Not permitted to run the match engine' }, 403)
+    const body = (await request.json().catch(() => ({}))) as { challenge?: unknown }
+    const challengeRef = clip(body.challenge, 32)
+    if (!challengeRef) return json({ error: 'A challenge reference is required' }, 422)
+    try {
+      const result = await generateMatches(env, ctx, challengeRef, ip)
+      return json(result)
+    } catch (cause) {
+      const status = (cause as { status?: number }).status ?? 502
+      const message = cause instanceof Error ? cause.message : 'The match engine failed.'
+      // Engine failures are logged by shape, never with the challenge content.
+      console.error('match engine failed', status)
+      return json({ error: message }, status)
+    }
+  }
+
+  const matchMatch = path.match(/^\/matches\/([A-Za-z0-9-]{1,32})$/)
+  if (matchMatch && request.method === 'GET') {
+    const reference = matchMatch[1]
+    const row = await db
+      .prepare(
+        `SELECT m.*, c.title AS challenge_title, c.sector AS challenge_sector,
+                c.confidentiality AS challenge_confidentiality,
+                i.title AS technology_title, i.category AS technology_category,
+                i.entry_trl, i.current_trl, i.target_trl, i.acquisition_stage
+         FROM matches m
+         LEFT JOIN challenges c ON c.reference = m.challenge_ref
+         LEFT JOIN innovations i ON i.reference = m.technology_ref
+         WHERE m.reference = ?`,
+      )
+      .bind(reference)
+      .first<Record<string, unknown>>()
+    if (!row) return json({ error: 'Not found' }, 404)
+
+    await audit(db, actor, 'match.view', reference, undefined, ip)
+
+    // No innovator or company identity is assembled into this response: a
+    // match room shows a challenge and a technology, never the two parties.
+    return json({
+      reference: row.reference,
+      createdAt: row.created_at,
+      engine: row.engine,
+      challenge: {
+        reference: row.challenge_ref,
+        title: row.challenge_title,
+        sector: row.challenge_sector,
+        confidentiality: row.challenge_confidentiality,
+      },
+      technology: {
+        reference: row.technology_ref,
+        title: row.technology_title,
+        category: row.technology_category,
+        entryTrl: row.entry_trl,
+        currentTrl: row.current_trl,
+        targetTrl: row.target_trl,
+        acquisitionStage: row.acquisition_stage,
+      },
+      classification: row.classification,
+      fits: {
+        mechanism: row.mechanism_fit,
+        application: row.application_fit,
+        trl: row.trl_fit,
+        constraint: row.constraint_fit,
+        ipAvailability: row.ip_availability,
+        developmentEffort: row.development_effort,
+      },
+      trlGap: row.trl_gap,
+      ipRisk: row.ip_risk,
+      analysis: parsePayload(row.analysis),
+      decision: row.decision,
+      decidedBy: row.decided_by,
+      decidedAt: row.decided_at,
+      decisionNote: row.decision_note,
+    })
+  }
+
+  const decideMatch = path.match(/^\/matches\/([A-Za-z0-9-]{1,32})\/decision$/)
+  if (decideMatch && request.method === 'POST') {
+    const body = (await request.json().catch(() => ({}))) as { decision?: unknown; note?: unknown }
+    if (!oneOf(MATCH_DECISIONS, body.decision)) return json({ error: 'Unknown decision' }, 422)
+
+    // Releasing a match to industry is a commercial act, not a review action.
+    if (body.decision === 'Approved for Industry Discussion') {
+      if (!can.moveAcquisitionStage) {
+        return json({ error: 'Only admins and business development can approve a match for industry discussion.' }, 403)
+      }
+    } else if (!can.editReviewState && !can.moveAcquisitionStage) {
+      return json({ error: 'Not permitted to decide matches' }, 403)
+    }
+
+    await decide(ctx, decideMatch[1], body.decision, clip(body.note, 2000), ip)
     return json({ ok: true })
   }
 
