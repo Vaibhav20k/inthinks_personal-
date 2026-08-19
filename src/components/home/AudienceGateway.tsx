@@ -6,8 +6,8 @@ const gates = [
   {
     key: 'industry',
     eyebrow: 'Industry',
-    headline: 'I have a problem to solve.',
-    body: 'Submit a technical, operational, material or product challenge. InThinks evaluates the requirement and identifies relevant technology opportunities from its innovation pipeline.',
+    headline: 'Bring us the problem.',
+    body: 'Submit a technical, operational, material or product challenge. InThinks evaluates the requirement and identifies potentially relevant technology opportunities.',
     cta: 'Submit an Industry Challenge',
     to: '/submit-challenge',
     secondary: { label: 'How it works for industry', to: '/for-industry' },
@@ -15,8 +15,8 @@ const gates = [
   {
     key: 'innovators',
     eyebrow: 'Innovators',
-    headline: 'I have an innovation.',
-    body: 'Submit an early-stage technology, prototype or invention for evaluation and potential development through the InThinks technology pipeline.',
+    headline: 'Built something worth taking further?',
+    body: 'Submit an early-stage technology, prototype or invention for evaluation and potential inclusion in the InThinks development portfolio.',
     cta: 'Submit Your Innovation',
     to: '/submit-innovation',
     secondary: { label: 'What we look for', to: '/for-innovators' },
@@ -31,7 +31,7 @@ const gates = [
  */
 export default function AudienceGateway() {
   return (
-    <section className="container-grid py-24 sm:py-32">
+    <section id="gateways" className="container-grid py-24 sm:py-32">
       <div className="doc-columns">
         <SectionLabel index="01">Entry Points</SectionLabel>
         <div>

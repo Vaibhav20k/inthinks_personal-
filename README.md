@@ -64,19 +64,29 @@ element via the `.ident` utility. Numbering appears only where order is real.
 | `/submit-challenge` | Six-step industry challenge submission |
 | `/submit-innovation` | Eight-step innovation submission |
 
-### The Matchfield
+### The signal field
 
-`src/components/home/Matchfield.tsx` is the signature visual. Labelled
-industrial challenges on the left, emerging technologies on the right, the
-InThinks axis between them. It cycles through qualified matches: one pair
-resolves, its path draws through the centre, the rest of the field recedes, and
-the three stages that follow a match run underneath. Pointer height biases which
-row is interrogated.
+`src/components/home/SignalField.tsx` is the signature visual and the site's
+thesis in one figure: industry emits problem signals, researchers emit
+technology signals, and one meaningful connection resolves out of the noise.
 
-Every line is a real relationship between plausible neighbours — drawing all 25
-pairs would read as the neural-network cliché the brief rules out, so `LATENT`
-lists only the links worth showing. The readout sits below the field rather than
-inside it, so nothing overlaps the relationships.
+The hero is a composition rather than a headline stacked on a paragraph stacked
+on buttons — industrial demand on the left, emerging technology on the right,
+the qualified connection and its ID between them.
+
+Nodes are real HTML buttons and the connection paths are computed from their
+measured positions. That costs a measurement pass and buys keyboard focus,
+screen-reader labels and responsive reflow — a field drawn entirely in SVG
+would have none of those. Anchors are re-measured on resize and once the
+webfont swaps in, since that reflows the labels.
+
+Pointer behaviour follows the brief exactly: nodes never chase the cursor.
+Hovering shifts which relationship is in focus and reveals that node's
+metadata (`PROCESS / FURNACE`, `REQUIREMENT / >800 °C`, `STATUS / ACTIVE`).
+
+`ScrollCoordinate` reports page position as a technical coordinate — `04 / 12
+TECHNOLOGY DEVELOPMENT` — rather than a percentage, because a percentage cannot
+say which part of the argument you are standing in.
 
 ### Forms
 
