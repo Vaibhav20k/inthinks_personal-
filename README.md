@@ -49,15 +49,39 @@ same audit on the previous palette found 14 failures, all accent text at 11px
 on the black footer — so this palette is stricter than the one it replaced,
 not merely different.
 
-**Ground — light by day, dark by night.** The site picks its ground from the
-visitor's own clock: light from 06:00, dark from 18:00. Three rules, in order.
-A choice made on the site wins and persists. Otherwise a system set to dark
-wins — that is an explicit signal from a person, and a clock should not
-overrule it at 2pm. Otherwise the hour decides, which is the common case
-because most people never move the system default off light.
+**Ground — light while the sun is up.** Not a clock: actual daylight where the
+visitor is. 18:00 is broad daylight in Reykjavik in June and long dark in Delhi
+in December, and a site that says INDIA / GLOBAL cannot pick one hour for both.
+
+Three rules, in order. A choice made on the site wins and persists. Otherwise a
+system set to dark wins — that is an explicit signal from a person, and the sun
+should not overrule it. Otherwise sunrise and sunset decide.
+
+The coordinates come from Cloudflare's edge (`request.cf`), so **nobody is asked
+for permission to pick a colour scheme** — a geolocation prompt on page load is
+a bad trade for that, and most people decline it anyway. They are rounded to a
+whole degree before anything is computed: enough to place a sunrise within a few
+minutes, far too coarse to place a person. Nothing is stored server-side or
+logged, and `/api/daylight` is `private, max-age=900` with no `s-maxage`, since
+one visitor's sunrise must never be served to the next.
+
+`worker/daylight.ts` is NOAA's solar position algorithm, using a 90.833° zenith
+because the sun is a disc and the atmosphere lifts its image above the horizon.
+Two cases it handles rather than fudges: the daylight window crossing midnight
+UTC, which it does at every longitude far from Greenwich, and the poles, where
+on a given date there may be no sunrise at all — `polar-day` and `polar-night`
+pick a ground for the whole day instead of inventing a sunrise at some default
+hour. `npm test` checks it against published times for London, Delhi, Sydney
+and Tromsø, to within four minutes.
+
+The first-ever page view has no cached sunrise, so it falls back to 06:00–18:00
+local, and the real times are fetched after paint for next time. That fallback
+is wrong at the edges of the year and the map — which is the entire reason the
+real answer exists — but correcting the ground mid-read is a flash with extra
+steps, so it takes effect on the next visit rather than this one.
 
 The selection is an inline script in `<head>`, synchronous and before first
-paint. Anything later paints one ground and flips to the other, which is worse
+paint, reading only the cached sunrise — never the network. Anything later paints one ground and flips to the other, which is worse
 than either. That collides with `script-src 'self'`, so `scripts/csp-hash.mjs`
 runs after the build, hashes the script that actually shipped and names it in
 the CSP — `'unsafe-inline'` would open the directive for every script on the

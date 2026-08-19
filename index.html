@@ -52,8 +52,41 @@
     -->
     <script>
       (function () {
-        try {
+        /**
+         * Is it light out?
+         *
+         * Read from a sunrise and sunset cached by an earlier visit — no
+         * network, so no flash. The times come from /api/daylight, which
+         * computes them from the edge's coarse location; this script only
+         * compares against them.
+         *
+         * With nothing cached, 06:00–18:00 local. That is wrong at the edges
+         * of the year and the map, which is the whole reason the real answer
+         * exists — but it is close enough for one page view, and it is the
+         * only option that does not paint the wrong ground and flip.
+         */
+        function daylightGround() {
           var LIGHT_FROM = 6, DARK_FROM = 18
+          try {
+            var raw = localStorage.getItem('inthinks-daylight')
+            if (raw) {
+              var d = JSON.parse(raw)
+              if (d.kind === 'polar-day') return 'light'
+              if (d.kind === 'polar-night') return 'dark'
+              if (typeof d.sunriseUtcMin === 'number' && typeof d.sunsetUtcMin === 'number') {
+                var now = new Date()
+                var m = now.getUTCHours() * 60 + now.getUTCMinutes()
+                var rise = d.sunriseUtcMin, set = d.sunsetUtcMin
+                var light = rise <= set ? (m >= rise && m < set) : (m >= rise || m < set)
+                return light ? 'light' : 'dark'
+              }
+            }
+          } catch (e) { /* unreadable cache: fall through to the hours */ }
+          var h = new Date().getHours()
+          return h >= LIGHT_FROM && h < DARK_FROM ? 'light' : 'dark'
+        }
+
+        try {
           var saved = localStorage.getItem('inthinks-ground')
           var ground
           if (saved === 'light' || saved === 'dark') {
@@ -61,8 +94,7 @@
           } else if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) {
             ground = 'dark'
           } else {
-            var h = new Date().getHours()
-            ground = h >= LIGHT_FROM && h < DARK_FROM ? 'light' : 'dark'
+            ground = daylightGround()
           }
           if (ground === 'dark') document.documentElement.setAttribute('data-ground', 'dark')
         } catch (e) {
@@ -70,6 +102,22 @@
              ground, which is what the stylesheet gives with no attribute. */
         }
       })()
+
+      /* Refresh the cached sunrise after the page has painted. Deliberately
+         not awaited and never applied to the current view: correcting the
+         ground mid-read is a flash with extra steps. It takes effect on the
+         next visit, by which time it is exact. */
+      addEventListener('load', function () {
+        try {
+          if (localStorage.getItem('inthinks-ground')) return
+          fetch('/api/daylight', { headers: { accept: 'application/json' } })
+            .then(function (r) { return r.ok ? r.json() : null })
+            .then(function (d) {
+              if (d && d.known) localStorage.setItem('inthinks-daylight', JSON.stringify(d))
+            })
+            .catch(function () { /* offline or blocked: the hours still work */ })
+        } catch (e) { /* storage blocked */ }
+      })
     </script>
 
     <!-- ?v= is a cache buster. Browsers cache favicons far more stubbornly
