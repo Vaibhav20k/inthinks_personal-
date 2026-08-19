@@ -353,6 +353,43 @@ A **Match Room** presents the challenge on the left, the technology on the
 right, the analysis between them, and the five decisions along the bottom. No
 party identity appears anywhere on it.
 
+### R&D development workspace
+
+A workspace opens once InThinks holds rights to develop a technology — at
+`Rights Secured` or in the development portfolio. Before that there is nothing
+to log against, so the list is empty by design rather than by accident.
+
+Each workspace carries:
+
+- **TRL** as entry, current and target against the 1–9 scale. The span between
+  entry and current is the value InThinks has added.
+- **Development stage** across the nine-stage sequence, from Research to
+  Transfer Readiness.
+- **Transfer readiness** as six dimensions — technical, validation, IP,
+  scale-up, application, commercial — each `Early` / `Developing` / `Qualified`
+  / `Ready`, with a note recording what the status rests on. Deliberately not a
+  single percentage: "87% ready" hides which half is missing, and the missing
+  half is what a buyer asks about first.
+- **A development log** of experiments, test results, prototype revisions,
+  pilot data, cost estimates, scale-up and manufacturing notes — with
+  attachments, and with `Failure` as a first-class entry kind. A log that
+  records only successes is a brochure; knowing what was ruled out, and when,
+  is most of what survives technical due diligence.
+
+An entry that asserts a TRL advances the technology record, so the log and the
+readiness number cannot drift apart.
+
+**Publication is a separate decision.** Entries are private by default. Putting
+one on a public technology page requires the commercial capability, not the
+review one — an R&D reviewer can log freely but cannot publish — and is audited
+under its own action. The workspace shows the resulting public timeline beside
+the working log, so it is always visible what an outsider would see.
+
+> The public technology pages still read the placeholder portfolio in
+> `src/data/technologies.ts`, so published entries are not yet rendered
+> publicly. The flag, the gate and the serializer are in place; connecting them
+> is the step that comes with real portfolio records.
+
 ### Configuring
 
 ```bash
@@ -401,10 +438,9 @@ match engine, the Match Room, acquisition pipeline, R&D workspace, industry
 opportunity pipeline, deal room, royalty management and analytics. None of that
 is in this build.
 
-Intake, the admin dashboard, the match engine and the Match Room now exist.
-What remains from the brief is the workflow that follows an approved match: the
-R&D development workspace, the industry opportunity pipeline, the commercial
-deal room and royalty management.
+Intake, the admin dashboard, the match engine, the Match Room and the R&D
+development workspace now exist. What remains from the brief is the commercial
+tail: the industry opportunity pipeline, the deal room and royalty management.
 
 What is here is the architecture for it. `src/data/models.ts` types the
 innovation and challenge records, the fifteen `MatchSignals` dimensions, the

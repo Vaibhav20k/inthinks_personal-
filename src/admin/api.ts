@@ -76,6 +76,10 @@ export interface Meta {
   acquisitionStages: string[]
   challengeStatuses: string[]
   innovationStatuses: string[]
+  developmentStages: string[]
+  logKinds: string[]
+  readinessDimensions: { key: string; label: string }[]
+  readinessStatuses: string[]
   roles: Role[]
 }
 export const meta = () => call<Meta>('/meta')
@@ -301,4 +305,103 @@ export const decideMatch = (reference: string, decision: MatchDecision, note: st
   call<{ ok: true }>(`/matches/${reference}/decision`, {
     method: 'POST',
     body: JSON.stringify({ decision, note }),
+  })
+
+/* -------------------------------------------------------------- development */
+
+export interface WorkspaceSummary {
+  reference: string
+  title: string
+  category: string
+  entryTrl: number
+  currentTrl: number
+  targetTrl: number | null
+  developmentStage: string
+  acquisitionStage: string
+  reviewer: string | null
+  logEntries: number
+  lastActivity: string | null
+}
+
+export interface LogEntry {
+  id: number
+  kind: string
+  title: string
+  body: string | null
+  occurredOn: string | null
+  stage: string | null
+  trl: number | null
+  author: string
+  createdAt: string
+  published: boolean
+}
+
+export interface ReadinessRow {
+  dimension: string
+  status: string
+  note: string | null
+  updated_by: string
+  updated_at: string
+}
+
+export interface Attachment {
+  logId: number
+  fileName: string
+  sizeBytes: number
+  url: string
+}
+
+export interface Workspace {
+  reference: string
+  title: string
+  submittedTitle: string
+  category: string
+  entryTrl: number
+  currentTrl: number
+  targetTrl: number | null
+  developmentStage: string
+  acquisitionStage: string
+  status: string
+  reviewer: string | null
+  log: LogEntry[]
+  readiness: ReadinessRow[]
+  attachments: Attachment[]
+}
+
+export const workspaces = () => call<{ items: WorkspaceSummary[] }>('/development')
+export const workspace = (reference: string) => call<Workspace>(`/development/${reference}`)
+
+export const setDevelopmentStage = (reference: string, developmentStage: string) =>
+  call<{ ok: true }>(`/development/${reference}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ developmentStage }),
+  })
+
+export const addLogEntry = (
+  reference: string,
+  entry: { kind: string; title: string; body: string; occurredOn: string; stage: string; trl: string },
+  files: File[],
+) => {
+  if (files.length === 0) {
+    return call<{ ok: true }>(`/development/${reference}/log`, {
+      method: 'POST',
+      body: JSON.stringify(entry),
+    })
+  }
+  const form = new FormData()
+  for (const [k, v] of Object.entries(entry)) form.append(k, v)
+  for (const file of files) form.append('files', file, file.name)
+  return call<{ ok: true }>(`/development/${reference}/log`, { method: 'POST', body: form })
+}
+
+export const publishLogEntry = (id: number, published: boolean) =>
+  call<{ ok: true }>(`/development/log/${id}/publish`, {
+    method: 'POST',
+    body: JSON.stringify({ published }),
+  })
+
+export const setReadiness = (reference: string, dimension: string, status: string, note: string) =>
+  call<{ ok: true }>(`/development/${reference}/readiness`, {
+    method: 'POST',
+    body: JSON.stringify({ dimension, status, note }),
   })

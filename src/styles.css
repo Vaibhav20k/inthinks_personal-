@@ -249,6 +249,8 @@ body {
    one system. */
 @utility field-input {
   width: 100%;
+  /* Without this a date input's intrinsic width overrides the track. */
+  min-width: 0;
   background: var(--color-paper-raised);
   border: 1px solid var(--rule-strong);
   padding: 0.875rem 1rem;
