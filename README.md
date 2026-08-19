@@ -630,9 +630,30 @@ to be on the same Cloudflare account — add the domain there first, or the
 deploy fails on the route before it reaches anything else. `custom_domain = true`
 means Cloudflare creates and manages the DNS record and the certificate for it.
 
-It covers the apex only. `www.inthinks.com` needs its own entry — a second
-`[[routes]]` block, or a redirect rule in the dashboard sending www to the
-apex, which is usually what you want so the site has one canonical address.
+It covers the apex only. `www` is sent to the apex by a redirect rule:
+
+```bash
+CLOUDFLARE_API_TOKEN=... node scripts/setup-www-redirect.mjs --dry-run
+CLOUDFLARE_API_TOKEN=... node scripts/setup-www-redirect.mjs
+```
+
+**Why a rule and not a Worker route.** `run_worker_first = ["/api/*"]` means
+page requests are answered by the asset layer without invoking the Worker at
+all — verified: a probe at the top of `fetch` fires for `/api/status` and not
+for `/`, `/about` or `/assets/*`. A redirect written in the Worker would
+therefore run on `/api/*` and nowhere a visitor goes. A redirect rule runs at
+the edge, ahead of both.
+
+The script does two things, and the second is the one that gets missed. It adds
+the rule, and it creates a **proxied** DNS record for `www` — without one the
+hostname does not resolve, nothing reaches Cloudflare, and the rule never runs.
+The record points at `192.0.2.1`, which is TEST-NET-1: reserved, unroutable,
+and never serves traffic. It exists only so the hostname terminates at the edge.
+
+It appends rather than replaces. `PUT` on a ruleset replaces every rule in it,
+so the script `POST`s a single rule to an existing redirect ruleset and only
+`PUT`s when the zone has none — redirects you already have are left alone. It
+is idempotent: a second run finds the rule by `ref` and stops.
 
 ## What is and is not here
 
