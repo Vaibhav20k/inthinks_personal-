@@ -582,12 +582,13 @@ fails the deploy.
 
 `wrangler.toml` publishes `dist/` plus the Worker.
 
-> **The storage bindings are on, and `database_id` is a placeholder.** This
-> config does not deploy until a D1 database and an R2 bucket exist on the
-> account and the real id is pasted in — a binding naming a resource that is
-> not there fails the whole deploy. Do the three steps below first, or comment
-> both blocks out to get a deploy that works on a bare account with
-> submissions switched off.
+> **The storage bindings and the custom domain are on, and `database_id` is a
+> placeholder.** This config does not deploy until a D1 database, an R2 bucket
+> and the `inthinks.com` zone all exist on the account and the real id is
+> pasted in — a binding naming a resource that is not there, or a route the
+> account does not own, fails the whole deploy. Do the steps below first, or
+> comment the blocks out to get a deploy that works on a bare account with
+> submissions switched off and a `workers.dev` address.
 
 ```bash
 npx wrangler login
@@ -624,10 +625,14 @@ unmatched path, which is what makes client-side routes work on refresh and deep
 links. `public/_headers` sets a CSP with no external origins, immutable caching
 for `/assets/*` and `/fonts/*`, and no-cache on `index.html`.
 
-**Custom domain.** Uncomment the `[[routes]]` block in `wrangler.toml` once
-`inthinks.com` is a zone on the same Cloudflare account. It is left off for the
-same reason the bindings were: deploying with a route the account does not own
-fails the deploy.
+**Custom domain.** The `[[routes]]` block claims `inthinks.com`, so the zone has
+to be on the same Cloudflare account — add the domain there first, or the
+deploy fails on the route before it reaches anything else. `custom_domain = true`
+means Cloudflare creates and manages the DNS record and the certificate for it.
+
+It covers the apex only. `www.inthinks.com` needs its own entry — a second
+`[[routes]]` block, or a redirect rule in the dashboard sending www to the
+apex, which is usually what you want so the site has one canonical address.
 
 ## What is and is not here
 
