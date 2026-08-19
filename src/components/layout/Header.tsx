@@ -72,7 +72,7 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-4">
-          <GroundToggle className="hidden sm:inline-block" />
+          <GroundToggle className="hidden sm:inline-flex" />
           <Link
             to="/submit-innovation"
             className="hidden text-[0.8125rem] font-medium transition-colors duration-300 lg:inline-block"
@@ -117,6 +117,16 @@ export default function Header() {
               </li>
             ))}
           </ul>
+          {/* The header control is hidden on a narrow screen, so without this
+              a phone has no way back to AUTO once someone pins a ground. */}
+          <div
+            className="mt-6 flex items-center justify-between py-4 sm:hidden"
+            style={{ borderTop: '1px solid var(--rule)', borderBottom: '1px solid var(--rule)' }}
+          >
+            <span className="label" style={{ color: 'var(--color-faint)' }}>THEME</span>
+            <GroundToggle />
+          </div>
+
           <div className="mt-6 flex flex-col gap-3">
             <Link to="/submit-challenge" className="bg-[var(--color-cta)] px-6 py-4 text-center text-[0.9375rem] font-medium text-[var(--color-cta-text)]">
               Submit a Challenge
