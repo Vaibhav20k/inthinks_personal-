@@ -3,10 +3,9 @@
 #   npx wrangler login
 #   npx wrangler deploy
 #
-# The storage bindings and the custom domain below are ON, so this config needs
-# a D1 database, an R2 bucket and the inthinks.com zone to exist on the account
-# before it will deploy at all — and the database_id is still a placeholder.
-# See the blocks below, and README.md.
+# The custom domain is ON; the storage bindings are OFF, waiting on resources
+# that do not exist yet. `node scripts/setup-cloudflare.mjs` creates them and
+# switches the bindings on in one go. See README.md.
 name = "inthinks"
 compatibility_date = "2026-08-18"
 main = "worker/index.ts"
@@ -35,42 +34,36 @@ not_found_handling = "single-page-application"
 run_worker_first = ["/api/*"]
 
 # ─────────────────────────────────────────────────────────────────────────
-# Storage bindings — ON.
+# Storage bindings — OFF, deliberately, and this is not the finished state.
 #
-# THIS CONFIG DOES NOT DEPLOY UNTIL BOTH RESOURCES EXIST ON THE ACCOUNT.
-# A binding naming a resource that is not there fails the whole deploy, and
-# `database_id` below is still a placeholder. Three steps, once:
+# A binding naming a resource that does not exist fails the whole deploy. With
+# these switched on and no database created, every build failed — which froze
+# the live site on an old version and took the whole design with it, not just
+# the feature that was waiting. The site now deploys again; submissions stay
+# off until the resources exist.
 #
-#   1. npx wrangler d1 create inthinks-submissions
-#      Replace the placeholder database_id with the id it prints.
+# The Worker is built for this: with no bindings, /api/status reports false and
+# the forms say submissions are not configured rather than pretending to accept
+# them. Nothing is broken, it is switched off.
 #
-#   2. Cloudflare dashboard → R2 → Enable (free tier is enough), then:
-#      npx wrangler r2 bucket create inthinks-evidence
+# To switch it on, one command:
 #
-#   3. npx wrangler d1 migrations apply inthinks-submissions --remote
-#      Applies migrations/0001 through 0008. Without this the tables the
-#      Worker queries do not exist and every /api call 500s.
+#   npx wrangler login
+#   node scripts/setup-cloudflare.mjs
 #
-# Then the secrets the platform needs:
-#   npx wrangler secret put SESSION_SECRET       # required for admin sign-in
-#   npx wrangler secret put IP_SALT              # required for rate limiting
-#   npx wrangler secret put ANTHROPIC_API_KEY    # optional; matching 503s without it
-#
-# To go back to a deploy that works on a bare account, comment both blocks out
-# again: the Worker handles their absence deliberately — /api/status reports
-# false and the forms say submissions are not configured rather than
-# pretending to accept them.
+# That creates the database and the bucket, writes the real id in below,
+# uncomments both blocks, and applies the migrations. Commit what it changes.
 # ─────────────────────────────────────────────────────────────────────────
 
-[[d1_databases]]
-binding = "DB"
-database_name = "inthinks-submissions"
-database_id = "PASTE_YOUR_D1_DATABASE_ID_HERE"
-migrations_dir = "migrations"
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "inthinks-submissions"
+# database_id = "PASTE_YOUR_D1_DATABASE_ID_HERE"
+# migrations_dir = "migrations"
 
-[[r2_buckets]]
-binding = "EVIDENCE"
-bucket_name = "inthinks-evidence"
+# [[r2_buckets]]
+# binding = "EVIDENCE"
+# bucket_name = "inthinks-evidence"
 
 # Custom domain — ON. inthinks.com must be a zone on this Cloudflare account
 # before this deploys; a route the account does not own fails the deploy the

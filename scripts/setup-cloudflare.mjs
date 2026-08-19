@@ -74,18 +74,47 @@ if (!databaseId) {
 /* ------------------------------------------------- 2. put the id in config */
 
 step(2, `${TOML}`)
-const toml = readFileSync(TOML, 'utf8')
-const current = toml.match(/database_id\s*=\s*"([^"]*)"/)
+let toml = readFileSync(TOML, 'utf8')
+const before = toml
+
+/**
+ * The binding blocks ship commented out, because a binding naming a resource
+ * that does not exist fails the whole deploy — and a failing deploy freezes
+ * the live site on whatever shipped last, taking every unrelated change with
+ * it. Now that the resources exist, switch them on.
+ *
+ * Line by line rather than by block: matching a block needs a multiline regex,
+ * and under the `m` flag `$` means end-of-line, so a block match quietly stops
+ * at the first newline and uncomments only the heading. Each key is required
+ * to be followed by `=` so prose in the comments above is never touched.
+ */
+const KEYS = /^# ?(\[\[(?:d1_databases|r2_buckets)\]\]$|(?:binding|database_name|database_id|migrations_dir|bucket_name)\s*=)/gm
+const switchedOn = toml.replace(KEYS, '$1')
+if (switchedOn !== toml) {
+  toml = switchedOn
+  console.log('    switched the D1 and R2 bindings on')
+} else {
+  console.log('    bindings already on')
+}
+
+const current = toml.match(/^database_id\s*=\s*"([^"]*)"/m)
 if (!current) {
-  console.error('    no database_id line found — is the [[d1_databases]] block commented out?')
+  console.error('    no active database_id line found in wrangler.toml')
   process.exit(1)
 }
-if (current[1] === databaseId) {
-  console.log('    already correct')
-} else {
-  writeFileSync(TOML, toml.replace(/database_id\s*=\s*"[^"]*"/, `database_id = "${databaseId}"`))
+if (current[1] !== databaseId) {
+  toml = toml.replace(/^database_id\s*=\s*"[^"]*"/m, `database_id = "${databaseId}"`)
   console.log(`    set database_id (was "${current[1]}")`)
-  console.log('    commit this change — the deploy reads it from the repository')
+} else {
+  console.log('    database_id already correct')
+}
+
+if (toml !== before) {
+  writeFileSync(TOML, toml)
+  console.log('    ── commit this file. The deploy reads it from the repository,')
+  console.log('       not from your machine, so an uncommitted change changes nothing.')
+} else {
+  console.log('    no change needed')
 }
 
 /* --------------------------------------------------------------- 3. bucket */
