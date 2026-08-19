@@ -215,7 +215,9 @@ resources are touched.
 `challenges` and `innovations` promote the triage fields to real columns and
 keep the long-form answers in a `payload` JSON column, so the question set can
 change without a migration. `evidence` is the manifest pointing at R2 objects.
-Schema is in `migrations/0001_init.sql`.
+Schema is in `migrations/`, applied in order: `0001_init.sql` (intake),
+`0002_admin.sql` (accounts, audit, scoring), `0003_matches.sql`,
+`0004_development.sql` and `0005_opportunities.sql`.
 
 ## Admin dashboard
 
@@ -278,6 +280,8 @@ frontend. Every admin response is assembled field by field; there is no
   stage, TRL tracking and internal notes.
 - **Challenges** — list with status filter; detail carries the problem,
   technical environment, business impact, constraints, handling and notes.
+- **Matches**, **R&D** and **Opportunities** — described in their own sections
+  below.
 - **Audit log** — reads as well as writes.
 - **Users** — accounts and roles, super-admin only.
 
@@ -296,13 +300,13 @@ action, target and a truncated IP hash. Reads are logged because opening a
 disclosure is the sensitive action — "who looked at this submission" has to stay
 answerable.
 
-### Not built
+### Beyond the dashboard
 
-The brief also describes an AI match engine and Match Room, an R&D development
-workspace, an industry opportunity pipeline, a commercial deal room and royalty
-management. Those are not in this build. The record shapes they need
-(`MatchRecord` with its non-optional `humanReview`, `InternalDealRecord`,
-`MatchSignals`) are typed in `src/data/models.ts`.
+The match engine, the Match Room, the R&D development workspace and the
+industry opportunity pipeline are described in their own sections below. What
+the brief still asks for and this build does not have is the commercial deal
+room and royalty management; the record shapes they need (`InternalDealRecord`,
+the royalty fields) are typed in `src/data/models.ts`.
 
 ## Match engine
 
@@ -390,6 +394,31 @@ the working log, so it is always visible what an outsider would see.
 > publicly. The flag, the gate and the serializer are in place; connecting them
 > is the step that comes with real portfolio records.
 
+### Industry opportunity pipeline
+
+An opportunity is one challenge paired with one technology, and it exists only
+because a human approved that pairing for industry discussion. Approving a
+match with `Approved for industry discussion` opens the opportunity in the same
+transaction; nothing else creates one, and approving twice returns the same
+reference rather than a second row.
+
+The funnel runs eleven stages, from `Challenge Received` to
+`Post-Transfer Royalty Monitoring`. The first four are **derived** — they are
+counted from live challenge and match state each time the board is read, not
+stored — so a challenge cannot sit in `Technical Evaluation` on the board while
+its record says otherwise. Only the seven stages from `Match Approved` onward
+are rows an operator can move, and the board marks the derived four so it is
+never ambiguous which half is being read and which is being managed.
+
+Moving an opportunity requires the commercial capability: an R&D reviewer is
+refused, business development and admins are not. Unknown stages and the four
+derived stages are both refused as move targets.
+
+Each opportunity carries the challenge, the technology, the readiness the R&D
+workspace recorded — the same six dimensions, not a re-entered copy — and a
+link into that workspace. The identity rule holds here too: a reviewer opening
+an opportunity sees the challenge without the company or the contact.
+
 ### Configuring
 
 ```bash
@@ -435,12 +464,12 @@ for `/assets/*` and `/fonts/*`, and no-cache on `index.html`.
 The brief describes a private operating platform behind the public site:
 authentication and roles, the admin innovation and challenge databases, the AI
 match engine, the Match Room, acquisition pipeline, R&D workspace, industry
-opportunity pipeline, deal room, royalty management and analytics. None of that
-is in this build.
+opportunity pipeline, deal room, royalty management and analytics.
 
-Intake, the admin dashboard, the match engine, the Match Room and the R&D
-development workspace now exist. What remains from the brief is the commercial
-tail: the industry opportunity pipeline, the deal room and royalty management.
+Intake, the admin dashboard, the match engine, the Match Room, the R&D
+development workspace and the industry opportunity pipeline now exist. What
+remains from the brief is the commercial tail: the deal room and royalty
+management.
 
 What is here is the architecture for it. `src/data/models.ts` types the
 innovation and challenge records, the fifteen `MatchSignals` dimensions, the

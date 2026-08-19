@@ -12,6 +12,7 @@ import {
   DEVELOPMENT_STAGES, DEVELOPMENT_STAGES_ELIGIBLE, LOG_KINDS,
   READINESS_DIMENSIONS, READINESS_KEYS, READINESS_STATUSES,
 } from './development'
+import { CLOSED_STAGE, OPPORTUNITY_STAGES, PIPELINE_STAGES, derivedFunnel } from './opportunities'
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
@@ -210,6 +211,8 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
       logKinds: LOG_KINDS,
       readinessDimensions: READINESS_DIMENSIONS,
       readinessStatuses: READINESS_STATUSES,
+      pipelineStages: PIPELINE_STAGES,
+      opportunityStages: [...OPPORTUNITY_STAGES, CLOSED_STAGE],
       innovationStatuses: INNOVATION_STATUSES,
       roles: ROLES,
     })
@@ -793,7 +796,161 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
       return json({ error: 'Not permitted to decide matches' }, 403)
     }
 
-    await decide(ctx, decideMatch[1], body.decision, clip(body.note, 2000), ip)
+    const outcome = await decide(ctx, decideMatch[1], body.decision, clip(body.note, 2000), ip)
+    return json({ ok: true, opportunity: outcome.opportunity })
+  }
+
+  /* --------------------------------------------------------- opportunities */
+
+  if (path === '/opportunities' && request.method === 'GET') {
+    const stage = url.searchParams.get('stage')
+    const rows = await db
+      .prepare(
+        `SELECT o.*, c.title AS challenge_title, c.sector AS challenge_sector,
+                c.company AS company, c.confidentiality AS confidentiality,
+                i.title AS technology_title, i.internal_title AS technology_internal_title,
+                i.current_trl, i.development_stage
+         FROM opportunities o
+         LEFT JOIN challenges c ON c.reference = o.challenge_ref
+         LEFT JOIN innovations i ON i.reference = o.technology_ref
+         ${stage ? 'WHERE o.stage = ?' : ''}
+         ORDER BY o.updated_at DESC LIMIT 200`,
+      )
+      .bind(...(stage ? [stage] : []))
+      .all<Record<string, unknown>>()
+
+    const funnel = await derivedFunnel(db)
+    const byStage = await db
+      .prepare('SELECT stage, COUNT(*) AS n FROM opportunities GROUP BY stage')
+      .all<{ stage: string; n: number }>()
+    for (const row of byStage.results) funnel[row.stage] = row.n
+
+    return json({
+      stages: PIPELINE_STAGES,
+      funnel,
+      items: rows.results.map((r) => ({
+        reference: r.reference,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+        stage: r.stage,
+        challengeRef: r.challenge_ref,
+        challengeTitle: r.challenge_title,
+        challengeSector: r.challenge_sector,
+        // Company identity follows the same rule as everywhere else.
+        company: can.viewChallengeContacts ? r.company : null,
+        confidentiality: r.confidentiality,
+        technologyRef: r.technology_ref,
+        technologyTitle: r.technology_internal_title || r.technology_title,
+        currentTrl: r.current_trl,
+        developmentStage: r.development_stage,
+        owner: r.owner,
+        nextAction: r.next_action,
+        nextActionDue: r.next_action_due,
+      })),
+    })
+  }
+
+  const opportunityMatch = path.match(/^\/opportunities\/([A-Za-z0-9-]{1,32})$/)
+  if (opportunityMatch && request.method === 'GET') {
+    const reference = opportunityMatch[1]
+    const row = await db
+      .prepare(
+        `SELECT o.*, c.title AS challenge_title, c.sector AS challenge_sector,
+                c.company AS company, c.contact_name AS contact_name, c.email AS contact_email,
+                c.confidentiality AS confidentiality, c.status AS challenge_status,
+                i.title AS technology_title, i.internal_title AS technology_internal_title,
+                i.category AS technology_category, i.entry_trl, i.current_trl, i.target_trl,
+                i.development_stage, i.acquisition_stage
+         FROM opportunities o
+         LEFT JOIN challenges c ON c.reference = o.challenge_ref
+         LEFT JOIN innovations i ON i.reference = o.technology_ref
+         WHERE o.reference = ?`,
+      )
+      .bind(reference)
+      .first<Record<string, unknown>>()
+    if (!row) return json({ error: 'Not found' }, 404)
+
+    const [notes, readiness] = await Promise.all([
+      db.prepare('SELECT id, body, author, created_at FROM notes WHERE reference = ? ORDER BY created_at DESC')
+        .bind(reference).all(),
+      db.prepare('SELECT dimension, status, note FROM readiness WHERE reference = ?')
+        .bind(String(row.technology_ref)).all(),
+    ])
+
+    await audit(db, actor, 'opportunity.view', reference, undefined, ip)
+
+    return json({
+      reference: row.reference,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      stage: row.stage,
+      owner: row.owner,
+      nextAction: row.next_action,
+      nextActionDue: row.next_action_due,
+      note: row.note,
+      closedReason: row.closed_reason,
+      matchRef: row.match_ref,
+      challenge: {
+        reference: row.challenge_ref,
+        title: row.challenge_title,
+        sector: row.challenge_sector,
+        status: row.challenge_status,
+        confidentiality: row.confidentiality,
+        company: can.viewChallengeContacts ? row.company : null,
+        contactName: can.viewChallengeContacts ? row.contact_name : null,
+        contactEmail: can.viewChallengeContacts ? row.contact_email : null,
+      },
+      contactsWithheld: !can.viewChallengeContacts,
+      technology: {
+        reference: row.technology_ref,
+        title: row.technology_internal_title || row.technology_title,
+        category: row.technology_category,
+        entryTrl: row.entry_trl,
+        currentTrl: row.current_trl,
+        targetTrl: row.target_trl,
+        developmentStage: row.development_stage,
+        acquisitionStage: row.acquisition_stage,
+      },
+      readiness: readiness.results,
+      notes: notes.results,
+    })
+  }
+
+  if (opportunityMatch && request.method === 'PATCH') {
+    // Moving an opportunity is a commercial act, not a review one.
+    if (!can.moveAcquisitionStage) {
+      return json({ error: 'Only admins and business development can move an opportunity.' }, 403)
+    }
+    const reference = opportunityMatch[1]
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+    const sets: string[] = []
+    const binds: unknown[] = []
+
+    if (body.stage !== undefined) {
+      if (!oneOf([...OPPORTUNITY_STAGES, CLOSED_STAGE], body.stage)) {
+        return json({ error: 'Unknown pipeline stage' }, 422)
+      }
+      sets.push('stage = ?'); binds.push(body.stage)
+      if (body.stage === CLOSED_STAGE) {
+        sets.push('closed_reason = ?'); binds.push(clip(body.closedReason, 500))
+      }
+    }
+    for (const [field, column, max] of [
+      ['owner', 'owner', 200],
+      ['nextAction', 'next_action', 500],
+      ['nextActionDue', 'next_action_due', 20],
+      ['note', 'note', 4000],
+    ] as const) {
+      if (typeof body[field] === 'string') {
+        sets.push(`${column} = ?`); binds.push(clip(body[field], max))
+      }
+    }
+    if (sets.length === 0) return json({ error: 'Nothing to update' }, 400)
+
+    sets.push('updated_at = ?'); binds.push(new Date().toISOString())
+    binds.push(reference)
+    await db.prepare(`UPDATE opportunities SET ${sets.join(', ')} WHERE reference = ?`).bind(...binds).run()
+    await audit(db, actor, 'opportunity.update', reference, body, ip)
     return json({ ok: true })
   }
 
