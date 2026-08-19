@@ -18,6 +18,11 @@ export interface Env {
   /** HMAC secret for password-login sessions. */
   SESSION_SECRET?: string
 
+  /** Anthropic API key for the match engine. Without it, matching is disabled. */
+  ANTHROPIC_API_KEY?: string
+  /** Overrides the matching model. Defaults to claude-opus-5. */
+  MATCH_MODEL?: string
+
   ASSETS: Fetcher
 }
 

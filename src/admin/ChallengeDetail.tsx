@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import * as api from './api'
+import { Link } from 'react-router-dom'
 import { Chip, Empty, Field, Panel, Withheld, shortDateTime } from './ui'
 import type { Me } from './api'
 
@@ -52,12 +53,38 @@ export default function ChallengeDetail({ me }: { me: Me }) {
   const [meta, setMeta] = useState<api.Meta | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState('')
+  const [matches, setMatches] = useState<api.MatchSummary[]>([])
+  const [running, setRunning] = useState(false)
+  const [engineMessage, setEngineMessage] = useState<string | null>(null)
+
+  const loadMatches = useCallback(() => {
+    api.matches({ challenge: reference }).then((r) => setMatches(r.items)).catch(() => undefined)
+  }, [reference])
+
+  const runEngine = async () => {
+    setRunning(true)
+    setEngineMessage(null)
+    try {
+      const result = await api.generateMatches(reference)
+      setEngineMessage(
+        result.created === 0
+          ? `No candidates passed the prefilter. ${result.considered} technologies considered.`
+          : `${result.created} candidate${result.created === 1 ? '' : 's'} from ${result.shortlisted} shortlisted of ${result.considered} considered.`,
+      )
+      loadMatches()
+    } catch (cause) {
+      setEngineMessage(cause instanceof api.AdminError ? cause.message : 'The match engine failed.')
+    } finally {
+      setRunning(false)
+    }
+  }
 
   const load = useCallback(() => {
     api.challenge(reference).then(setData).catch((e) => setError(e.message))
   }, [reference])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { loadMatches() }, [loadMatches])
   useEffect(() => { api.meta().then(setMeta).catch(() => undefined) }, [])
 
   if (error) return <Empty>{error}</Empty>
@@ -98,6 +125,46 @@ export default function ChallengeDetail({ me }: { me: Me }) {
             </dl>
           </Panel>
           <Panel title="Solution constraints"><dl>{section(CONSTRAINTS)}</dl></Panel>
+
+          <Panel
+            title="Technology matches"
+            action={
+              <button
+                type="button"
+                onClick={runEngine}
+                disabled={running}
+                className="label px-3 py-2 transition-colors duration-200 hover:text-accent disabled:opacity-50"
+                style={{ border: '1px solid var(--rule-strong)' }}
+              >
+                {running ? 'RUNNING…' : 'RUN MATCH ENGINE'}
+              </button>
+            }
+          >
+            {engineMessage && (
+              <p className="label mb-4" style={{ color: 'var(--color-muted)' }}>{engineMessage.toUpperCase()}</p>
+            )}
+            {matches.length === 0 ? (
+              <Empty>
+                No candidates generated yet. The engine filters the portfolio on structured
+                criteria, then assesses the shortlist — results are proposals for review.
+              </Empty>
+            ) : (
+              <ul>
+                {matches.map((m) => (
+                  <li key={m.reference} className="py-3" style={{ borderTop: '1px solid var(--rule)' }}>
+                    <Link to={`/admin/matches/${m.reference}`} className="flex flex-wrap items-center justify-between gap-3">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[0.9375rem] font-medium">{m.technologyTitle ?? m.technologyRef}</span>
+                        <span className="label" style={{ color: 'var(--color-faint)' }}>{m.technologyRef}</span>
+                      </span>
+                      <Chip tone={m.classification === 'Strong Match' ? 'active' : 'neutral'}>{m.classification}</Chip>
+                      <Chip tone={m.decision === 'Pending' ? 'quiet' : 'neutral'}>{m.decision}</Chip>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
 
           <Panel title="Notes">
             <form

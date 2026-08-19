@@ -212,3 +212,93 @@ export interface AdminUser {
 export const users = () => call<{ items: AdminUser[] }>('/users')
 export const upsertUser = (payload: { email: string; role: Role; password?: string }) =>
   call<{ ok: true }>('/users', { method: 'POST', body: JSON.stringify(payload) })
+
+/* ------------------------------------------------------------------ matches */
+
+export const MATCH_DECISIONS = [
+  'Pending',
+  'Rejected',
+  'Hold',
+  'Information Requested',
+  'Technical Review',
+  'Approved for Industry Discussion',
+] as const
+
+export type MatchDecision = (typeof MATCH_DECISIONS)[number]
+
+export interface MatchSummary {
+  reference: string
+  createdAt: string
+  challengeRef: string
+  challengeTitle: string | null
+  challengeSector: string | null
+  technologyRef: string
+  technologyTitle: string | null
+  technologyCategory: string | null
+  classification: string
+  decision: MatchDecision
+  trlGap: number | null
+  ipRisk: string | null
+}
+
+export interface MatchAnalysis {
+  challengeSummary?: string
+  technologySummary?: string
+  whyTheyMatch?: string[]
+  technicalConflicts?: string[]
+  missingEvidence?: string[]
+  requiredDevelopment?: string[]
+  commercialPotential?: string
+  internalRecommendation?: string
+}
+
+export interface MatchDetail {
+  reference: string
+  createdAt: string
+  engine: string
+  challenge: { reference: string; title: string | null; sector: string | null; confidentiality: string | null }
+  technology: {
+    reference: string
+    title: string | null
+    category: string | null
+    entryTrl: number | null
+    currentTrl: number | null
+    targetTrl: number | null
+    acquisitionStage: string | null
+  }
+  classification: string
+  fits: {
+    mechanism: string
+    application: string
+    trl: string
+    constraint: string
+    ipAvailability: string
+    developmentEffort: string
+  }
+  trlGap: number | null
+  ipRisk: string | null
+  analysis: MatchAnalysis
+  decision: MatchDecision
+  decidedBy: string | null
+  decidedAt: string | null
+  decisionNote: string | null
+}
+
+export const matches = (params: Record<string, string> = {}) => {
+  const q = new URLSearchParams(params).toString()
+  return call<{ items: MatchSummary[] }>(`/matches${q ? `?${q}` : ''}`)
+}
+
+export const match = (reference: string) => call<MatchDetail>(`/matches/${reference}`)
+
+export const generateMatches = (challenge: string) =>
+  call<{ created: number; considered: number; shortlisted: number; engine: string }>('/matches/generate', {
+    method: 'POST',
+    body: JSON.stringify({ challenge }),
+  })
+
+export const decideMatch = (reference: string, decision: MatchDecision, note: string) =>
+  call<{ ok: true }>(`/matches/${reference}/decision`, {
+    method: 'POST',
+    body: JSON.stringify({ decision, note }),
+  })
