@@ -1,85 +1,160 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 type Ground = 'light' | 'dark'
+type Mode = 'auto' | Ground
 
 const KEY = 'inthinks-ground'
-const read = (): Ground =>
-  document.documentElement.getAttribute('data-ground') === 'dark' ? 'dark' : 'light'
+
+/** The order a click walks through. AUTO is first, and is where you land back. */
+const CYCLE: Mode[] = ['auto', 'light', 'dark']
 
 /**
- * Switches the ground, and remembers.
+ * What the pre-paint script in index.html hands over.
  *
- * The site picks a ground from the visitor's clock, which means the site has
- * made a decision on their behalf. That is only acceptable if they can undo it
- * — so this exists, and what it writes wins over both the clock and the system
- * setting on every later visit.
- *
- * It renders nothing until mounted. The ground is set by an inline script
- * before first paint, so rendering this during SSR or before hydration would
- * mean announcing a state the button might not actually be in.
+ * It owns the definition of "automatic" — system setting, then the visitor's
+ * own sunrise and sunset — because it has to answer that question before the
+ * bundle exists. This component asks it rather than keeping a second copy.
  */
-export default function GroundToggle({ className = '' }: { className?: string }) {
-  const [ground, setGround] = useState<Ground | null>(null)
-
-  useEffect(() => { setGround(read()) }, [])
-
-  // A visitor who never touches this should still follow their clock across a
-  // long session, so an untouched page keeps up with the system setting.
-  useEffect(() => {
-    if (!window.matchMedia) return
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const onChange = () => {
-      try { if (localStorage.getItem(KEY)) return } catch { /* storage blocked */ }
-      const next: Ground = mq.matches ? 'dark' : 'light'
-      apply(next)
-      setGround(next)
+declare global {
+  interface Window {
+    __inthinksGround?: {
+      auto: () => Ground
+      mode: () => Mode
+      apply: (ground: Ground) => void
     }
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
+  }
+}
+
+/** Falls back to reading the DOM if the inline script did not run. */
+const readMode = (): Mode => {
+  const api = window.__inthinksGround
+  if (api) return api.mode()
+  try {
+    const v = localStorage.getItem(KEY)
+    return v === 'light' || v === 'dark' ? v : 'auto'
+  } catch { return 'auto' }
+}
+
+const resolve = (mode: Mode): Ground => {
+  if (mode !== 'auto') return mode
+  const api = window.__inthinksGround
+  if (api) return api.auto()
+  return document.documentElement.getAttribute('data-ground') === 'dark' ? 'dark' : 'light'
+}
+
+const paint = (ground: Ground) => {
+  const api = window.__inthinksGround
+  if (api) { api.apply(ground); return }
+  if (ground === 'dark') document.documentElement.setAttribute('data-ground', 'dark')
+  else document.documentElement.removeAttribute('data-ground')
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute('content', ground === 'dark' ? '#050505' : '#ffffff')
+}
+
+const COPY: Record<Mode, { label: string; hint: string }> = {
+  auto: { label: 'AUTO', hint: 'following your sunset' },
+  light: { label: 'LIGHT', hint: 'held light' },
+  dark: { label: 'DARK', hint: 'held dark' },
+}
+
+/**
+ * Switches the ground, in three positions rather than two.
+ *
+ * A two-position switch had a trap in it: the site picks a ground from the
+ * visitor's clock, one click pinned the opposite, and there was no way back to
+ * automatic short of clearing site data. Someone who tried the control once at
+ * noon was still being shown a white page at ten at night, with nothing on
+ * screen to tell them why or how to undo it.
+ *
+ * So AUTO is a position you can see and return to, not the absence of a
+ * choice. The label says which of the three you are in — this control was
+ * missed entirely when it was an unlabelled icon, and a three-state icon
+ * would have been harder to read, not easier.
+ *
+ * It renders nothing until mounted. The ground is set before first paint, so
+ * rendering during SSR or before hydration would announce a state the control
+ * might not actually be in.
+ *
+ * The display class is the caller's, not this component's: the header hides
+ * its copy below `sm` and the mobile menu shows one instead. A `display` baked
+ * in here would win over the `hidden` the header passes — Tailwind resolves
+ * that clash by stylesheet order, not by class order — and both copies would
+ * render on a phone.
+ */
+export default function GroundToggle({ className = 'inline-flex' }: { className?: string }) {
+  const [mode, setMode] = useState<Mode | null>(null)
+
+  useEffect(() => { setMode(readMode()) }, [])
+
+  const sync = useCallback(() => {
+    setMode((current) => {
+      if (current === null || current !== 'auto') return current
+      paint(resolve('auto'))
+      return current
+    })
   }, [])
 
-  const apply = (next: Ground) => {
-    if (next === 'dark') document.documentElement.setAttribute('data-ground', 'dark')
-    else document.documentElement.removeAttribute('data-ground')
-    // The phone's browser bar is tinted by this, so it has to move with the
-    // ground or there is a white strip above a black page.
-    document
-      .querySelector('meta[name="theme-color"]')
-      ?.setAttribute('content', next === 'dark' ? '#050505' : '#ffffff')
+  // AUTO has to keep up on its own, or it is only automatic at the moment the
+  // page loaded. Three things move under it: the system setting, the clock
+  // crossing sunset during a long read, and the sunrise times arriving from
+  // the API a moment after load on a first visit.
+  useEffect(() => {
+    if (mode !== 'auto') return
+    const mq = window.matchMedia?.('(prefers-color-scheme: dark)')
+    mq?.addEventListener('change', sync)
+    const tick = window.setInterval(sync, 60_000)
+    // A tab left open overnight is the common case for the clock crossing.
+    document.addEventListener('visibilitychange', sync)
+    return () => {
+      mq?.removeEventListener('change', sync)
+      window.clearInterval(tick)
+      document.removeEventListener('visibilitychange', sync)
+    }
+  }, [mode, sync])
+
+  if (mode === null) return null
+
+  const next = CYCLE[(CYCLE.indexOf(mode) + 1) % CYCLE.length]
+
+  const advance = () => {
+    setMode(next)
+    paint(resolve(next))
+    try {
+      if (next === 'auto') localStorage.removeItem(KEY)
+      else localStorage.setItem(KEY, next)
+    } catch { /* storage blocked; the sun still decides on the next visit */ }
   }
-
-  if (ground === null) return null
-
-  const next: Ground = ground === 'light' ? 'dark' : 'light'
 
   return (
     <button
       type="button"
-      onClick={() => {
-        apply(next)
-        setGround(next)
-        try { localStorage.setItem(KEY, next) } catch { /* storage blocked; the sun still decides next visit */ }
-      }}
-      className={`tap inline-flex items-center justify-center transition-colors duration-250 hover:text-accent ${className}`}
-      style={{ color: 'var(--color-faint)', width: '1.75rem', height: '1.75rem' }}
-      aria-label={`Switch to the ${next} ground`}
-      title={`Switch to the ${next} ground`}
+      onClick={advance}
+      className={`tap label items-center gap-1.5 transition-colors duration-250 hover:text-accent ${className}`}
+      style={{ color: mode === 'auto' ? 'var(--color-faint)' : 'var(--color-accent)' }}
+      aria-label={`Theme ${COPY[mode].label.toLowerCase()}, ${COPY[mode].hint}. Switch to ${COPY[next].label.toLowerCase()}.`}
+      title={`Theme: ${COPY[mode].label.toLowerCase()} — ${COPY[mode].hint}. Click for ${COPY[next].label.toLowerCase()}.`}
     >
-      {/* The icon names the destination, not the current state — the label
-          says "switch to", and an icon contradicting it would be worse than
-          no icon. A word here read as a developer control; a moon is the
-          same instruction without the shouting. */}
-      <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor"
+      {/* The icon names the position the control is in, and the word beside it
+          says the same thing — the icon alone was the version nobody found. */}
+      <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor"
            strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-        {next === 'dark' ? (
-          <path d="M16.5 11.4A6.6 6.6 0 0 1 8.6 3.5a6.8 6.8 0 1 0 7.9 7.9Z" />
-        ) : (
+        {mode === 'auto' ? (
+          /* Half lit: neither one nor the other, because the sun decides. */
+          <>
+            <circle cx="10" cy="10" r="6.4" />
+            <path d="M10 3.6a6.4 6.4 0 0 1 0 12.8Z" fill="currentColor" stroke="none" />
+          </>
+        ) : mode === 'light' ? (
           <>
             <circle cx="10" cy="10" r="3.4" />
             <path d="M10 2v1.8M10 16.2V18M2 10h1.8M16.2 10H18M4.3 4.3l1.3 1.3M14.4 14.4l1.3 1.3M15.7 4.3l-1.3 1.3M5.6 14.4l-1.3 1.3" />
           </>
+        ) : (
+          <path d="M16.5 11.4A6.6 6.6 0 0 1 8.6 3.5a6.8 6.8 0 1 0 7.9 7.9Z" />
         )}
       </svg>
+      <span aria-hidden="true">{COPY[mode].label}</span>
     </button>
   )
 }
