@@ -665,27 +665,33 @@ fails the deploy.
 
 ```bash
 npx wrangler login
+node scripts/setup-cloudflare.mjs
+```
 
-# 1. the database, then paste the id it prints into wrangler.toml
-npx wrangler d1 create inthinks-submissions
+That creates the database, writes its id into `wrangler.toml`, creates the
+bucket, and applies migrations 0001 through 0008. It is safe to run twice: it
+checks for each resource before creating it, and only rewrites the id if what
+is there is wrong. **Commit the `wrangler.toml` change it makes** — the deploy
+reads the id from the repository, not from your machine.
 
-# 2. the bucket (Cloudflare dashboard → R2 → Enable first; free tier is enough)
-npx wrangler r2 bucket create inthinks-evidence
+If R2 has never been used on the account it will say so; enable it once at
+Cloudflare dashboard → R2 → Enable (the free tier is enough) and run it again.
 
-# 3. the schema — migrations 0001 through 0008
-npx wrangler d1 migrations apply inthinks-submissions --remote
+Then, by hand:
 
-# secrets: the first two are required, the third only for matching
-npx wrangler secret put SESSION_SECRET
-npx wrangler secret put IP_SALT
-npx wrangler secret put ANTHROPIC_API_KEY
+```bash
+npx wrangler secret put SESSION_SECRET      # required — admin sign-in
+npx wrangler secret put IP_SALT             # required — rate limiting
+npx wrangler secret put ANTHROPIC_API_KEY   # optional — matching 503s without it
 
+node scripts/create-admin.mjs               # prints SQL for the first account
 npx wrangler deploy
 ```
 
-Skipping step 3 is the failure that looks like a code bug and is not: the
-bindings resolve, so `/api/status` reports true, and then every query hits a
-table that does not exist.
+The migrations are the step that is easy to skip, and skipping it is the
+failure that looks like a code bug and is not: the bindings resolve, so
+`/api/status` reports true, and then every query hits a table that does not
+exist. The script does it for you so that cannot happen.
 
 `dist/` is git-ignored, so the `[build]` command builds it first. The install in that command is conditional — a bare
 runner installs with `--include=dev` (some CI environments set
