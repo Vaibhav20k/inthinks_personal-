@@ -51,7 +51,10 @@ export default function TechnologyDetail() {
   if (state === 'loading') {
     return (
       <section className="container-grid pb-28 pt-36 sm:pt-44">
-        <p className="label" style={{ color: 'var(--color-muted)' }} aria-live="polite">LOADING…</p>
+        <span className="signal-line" aria-hidden="true" />
+        <p className="label mt-5" style={{ color: 'var(--color-faint)' }} aria-live="polite">
+          RETRIEVING TECHNOLOGY RECORD
+        </p>
       </section>
     )
   }

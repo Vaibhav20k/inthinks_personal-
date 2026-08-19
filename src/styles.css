@@ -166,6 +166,39 @@ body {
  *
  * `deep` is the same hue, so the section still reads as one colour family.
  */
+/**
+ * The loading state, as a signal rather than a spinner.
+ *
+ * A single hairline sweeps once across the width. It reads as the system
+ * scanning rather than as an app waiting, and because it is one pass rather
+ * than a loop it never implies the wait is longer than it is. Under
+ * reduced-motion it holds still at partial width instead of animating.
+ */
+@utility signal-line {
+  position: relative;
+  display: block;
+  height: 1px;
+  width: 100%;
+  background: var(--rule);
+  overflow: hidden;
+}
+.signal-line::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 34%;
+  background: var(--color-accent);
+  animation: signal-sweep 1.15s var(--ease-instrument) infinite;
+}
+@keyframes signal-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(394%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .signal-line::after { animation: none; width: 34%; }
+}
+
 @utility sunk {
   background: var(--color-paper-sunk);
   --color-accent: var(--color-accent-deep);

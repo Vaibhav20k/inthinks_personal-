@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Reveal from '../primitives/Reveal'
 import SectionLabel from '../primitives/SectionLabel'
-import { outcomes, sectors } from '../../data/taxonomy'
+import { VERBS, objectsFor, sectors } from '../../data/taxonomy'
+import type { Verb } from '../../data/taxonomy'
 import { fetchTechnologies } from '../../data/portfolio'
 import type { Technology } from '../../data/models'
 
@@ -15,6 +16,7 @@ import type { Technology } from '../../data/models'
  * portfolio. Selecting nothing shows nothing: the empty state is the prompt.
  */
 export default function ProblemExplorer() {
+  const [verb, setVerb] = useState<Verb | null>(null)
   const [picked, setPicked] = useState<string[]>([])
   const [sector, setSector] = useState<string | null>(null)
   const [technologies, setTechnologies] = useState<Technology[]>([])
@@ -29,6 +31,15 @@ export default function ProblemExplorer() {
 
   const toggle = (id: string) =>
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))
+
+  // Changing the verb drops any object chosen under the previous one, because
+  // REDUCE / WASTE and IMPROVE / WASTE are not the same request and leaving
+  // the old selection behind would silently answer a question nobody asked.
+  const chooseVerb = (next: Verb) => {
+    const same = verb === next
+    setVerb(same ? null : next)
+    setPicked([])
+  }
 
   const matches = useMemo(() => {
     if (picked.length === 0 && !sector) return []
@@ -47,40 +58,75 @@ export default function ProblemExplorer() {
         <SectionLabel index="06">Problem-First Explorer</SectionLabel>
         <div>
           <Reveal as="h2" className="section-type max-w-[16ch]">
-            What are you trying to improve?
+            What are you trying to change?
           </Reveal>
 
           <Reveal delay={80}>
             <p className="body-type measure-prose mt-6" style={{ color: 'var(--color-muted)' }}>
-              Select one or more outcomes. This is the same structure a submitted
-              challenge is broken down into before the portfolio is searched.
+              Start with the verb. This is the same structure a submitted challenge is
+              broken down into before the portfolio is searched.
             </p>
           </Reveal>
 
+          {/* Step one: the verb. Seven choices instead of fifteen sentences —
+              industry knows it wants to reduce something before it knows what. */}
           <Reveal delay={120}>
-            <ul className="mt-10 flex flex-wrap gap-2">
-              {outcomes.map((outcome) => {
-                const on = picked.includes(outcome.id)
+            <ul className="mt-10 flex flex-wrap gap-2.5">
+              {VERBS.map((v) => {
+                const on = verb === v
                 return (
-                  <li key={outcome.id}>
+                  <li key={v}>
                     <button
                       type="button"
-                      onClick={() => toggle(outcome.id)}
+                      onClick={() => chooseVerb(v)}
                       aria-pressed={on}
-                      className="tap px-3.5 py-2 text-[0.875rem] transition-colors duration-250"
+                      aria-controls="outcome-objects"
+                      className="tap px-4 py-2.5 font-display text-[1.0625rem] font-medium tracking-[-0.02em] transition-colors duration-250"
                       style={{
                         border: `1px solid ${on ? 'var(--color-accent)' : 'var(--rule-strong)'}`,
                         background: on ? 'var(--color-accent)' : 'transparent',
-                        color: on ? '#fff' : 'var(--color-muted)',
+                        color: on ? '#fff' : 'var(--color-ink)',
                       }}
                     >
-                      {outcome.label}
+                      {v}
                     </button>
                   </li>
                 )
               })}
             </ul>
           </Reveal>
+
+          {/* Step two: what the verb acts on. Only ever rendered for a chosen
+              verb, so the second question cannot be answered before the first. */}
+          <div id="outcome-objects" aria-live="polite">
+            {verb && (
+              <div className="mt-6 pt-6" style={{ borderTop: '1px solid var(--rule)' }}>
+                <p className="label" style={{ color: 'var(--color-faint)' }}>{verb} — WHAT?</p>
+                <ul className="mt-4 flex flex-wrap gap-2">
+                  {objectsFor(verb).map((outcome) => {
+                    const on = picked.includes(outcome.id)
+                    return (
+                      <li key={outcome.id}>
+                        <button
+                          type="button"
+                          onClick={() => toggle(outcome.id)}
+                          aria-pressed={on}
+                          className="tap px-3.5 py-2 text-[0.875rem] transition-colors duration-250"
+                          style={{
+                            border: `1px solid ${on ? 'var(--color-accent)' : 'var(--rule-strong)'}`,
+                            background: on ? 'var(--color-accent)' : 'transparent',
+                            color: on ? '#fff' : 'var(--color-muted)',
+                          }}
+                        >
+                          {outcome.object}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )}
+          </div>
 
           <Reveal delay={160}>
             <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-3">
@@ -112,7 +158,7 @@ export default function ProblemExplorer() {
           <div className="mt-12" style={{ borderTop: '1px solid var(--rule)' }}>
             {!engaged ? (
               <p className="label py-10" style={{ color: 'var(--color-faint)' }}>
-                SELECT AN OUTCOME TO SEE RELEVANT TECHNOLOGY AREAS
+                {verb ? `${verb} — CHOOSE WHAT` : 'CHOOSE WHAT YOU ARE TRYING TO CHANGE'}
               </p>
             ) : matches.length === 0 ? (
               <div className="py-10">
