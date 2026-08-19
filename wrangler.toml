@@ -3,9 +3,10 @@
 #   npx wrangler login
 #   npx wrangler deploy
 #
-# The storage bindings below are ON, so this config needs a D1 database and an
-# R2 bucket to exist on the account before it will deploy at all — and the
-# database_id is still a placeholder. See the block below, and README.md.
+# The storage bindings and the custom domain below are ON, so this config needs
+# a D1 database, an R2 bucket and the inthinks.com zone to exist on the account
+# before it will deploy at all — and the database_id is still a placeholder.
+# See the blocks below, and README.md.
 name = "inthinks"
 compatibility_date = "2026-08-18"
 main = "worker/index.ts"
@@ -71,9 +72,15 @@ migrations_dir = "migrations"
 binding = "EVIDENCE"
 bucket_name = "inthinks-evidence"
 
-# Custom domain — uncomment once inthinks.com is a zone on this Cloudflare
-# account. Deploying with a route the account doesn't own will fail, so it
-# stays off until the zone exists.
-# [[routes]]
-# pattern = "inthinks.com"
-# custom_domain = true
+# Custom domain — ON. inthinks.com must be a zone on this Cloudflare account
+# before this deploys; a route the account does not own fails the deploy the
+# same way a missing binding does.
+#
+# `custom_domain = true` makes Cloudflare create and manage the DNS record and
+# the certificate for the apex. It covers the apex only — www.inthinks.com
+# needs its own entry, either a second [[routes]] block or a redirect rule.
+#
+# Comment this block out again to deploy to the workers.dev subdomain instead.
+[[routes]]
+pattern = "inthinks.com"
+custom_domain = true
