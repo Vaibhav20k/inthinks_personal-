@@ -3,11 +3,12 @@ import type { Env, Result } from './types'
 import {
   CHALLENGE_SCHEMA,
   INNOVATION_SCHEMA,
+  MESSAGE_SCHEMA,
   REQUIRED_DECLARATIONS,
   validate,
 } from './validation'
 import type { Clean } from './validation'
-import { insertChallenge, insertInnovation, nextReference, notify, recordEvidence } from './storage'
+import { insertChallenge, insertInnovation, insertMessage, nextReference, notify, recordEvidence } from './storage'
 import { SUBMISSION_CEILING, chargeSubmission, checkRequest, submissionsUsed } from './ratelimit'
 import { handleAdmin } from './admin'
 import { handleTechnologies } from './technologies'
@@ -95,6 +96,79 @@ async function guard(env: Env, request: Request): Promise<Result<Gate>> {
     return err(429, TOO_MANY)
   }
   return ok({ db: env.DB, ip, salt })
+}
+
+/**
+ * The topics the contact form offers.
+ *
+ * Checked server-side rather than accepted as free text: the admin list filters
+ * on this column, and one submission with a topic nobody chose turns a filter
+ * into a guess. The client sends one of these or the request is refused.
+ */
+const MESSAGE_TOPICS = [
+  'General enquiry',
+  'Technology transfer or licensing',
+  'Partnership or collaboration',
+  'Working with InThinks',
+  'Press or media',
+  'Something else',
+]
+
+async function handleMessage(request: Request, env: Env): Promise<Response> {
+  const gate = await guard(env, request)
+  if (!gate.ok) return fail(gate)
+
+  const body = await readJson(request)
+  if (!body.ok) return fail(body)
+
+  const parsed = validate(MESSAGE_SCHEMA, body.value)
+  if (!parsed.ok) return fail(parsed)
+
+  const data = parsed.value
+
+  /**
+   * The honeypot.
+   *
+   * `website` is rendered off-screen and left empty by anyone who can see the
+   * page; a bot filling every input it finds fills this one too. Answering 201
+   * with a plausible reference rather than an error is deliberate — a rejection
+   * tells the author which field gave them away, and they simply stop filling
+   * it. Nothing is stored, and no rate-limit budget is spent on them.
+   *
+   * A person never trips this: the field is not in the tab order, is marked
+   * aria-hidden, and has autocomplete off, so neither a screen reader nor a
+   * password manager will put anything in it.
+   */
+  const honeypot = Array.isArray(data.website) ? data.website[0] : data.website
+  if (typeof honeypot === 'string' && honeypot.trim() !== '') {
+    return json({ reference: `MSG-${new Date().getUTCFullYear()}-0000` }, 201)
+  }
+
+  const topic = Array.isArray(data.topic) ? data.topic[0] : data.topic
+  if (!MESSAGE_TOPICS.includes(String(topic))) {
+    return fail(err(422, 'Choose what your message is about', { topic: 'Required' }))
+  }
+
+  const message = String(Array.isArray(data.message) ? data.message[0] : data.message ?? '')
+  if (message.trim().length < 10) {
+    return fail(err(422, 'Tell us a little more', { message: 'Please write a little more' }))
+  }
+
+  const { db, ip, salt } = gate.value
+  const reference = await nextReference(db, 'MSG', new Date().getUTCFullYear())
+  await insertMessage(db, reference, data)
+  await chargeSubmission(db, ip, salt)
+
+  // The webhook is what makes a contact form answerable in hours rather than
+  // whenever somebody next opens the admin. It never fails the request.
+  await notify(env, {
+    kind: 'message',
+    reference,
+    topic: String(topic ?? ''),
+    from: String(Array.isArray(data.email) ? data.email[0] : data.email ?? ''),
+  })
+
+  return json({ reference }, 201)
 }
 
 async function handleChallenge(request: Request, env: Env): Promise<Response> {
@@ -295,6 +369,7 @@ export default {
     }
 
     try {
+      if (url.pathname === '/api/contact') return await handleMessage(request, env)
       if (url.pathname === '/api/challenges') return await handleChallenge(request, env)
       if (url.pathname === '/api/innovations') return await handleInnovation(request, env)
     } catch (cause) {

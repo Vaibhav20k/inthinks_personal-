@@ -65,6 +65,25 @@ export const CHALLENGE_SCHEMA: Schema = {
   website: { max: 300 },
 }
 
+/**
+ * A contact message.
+ *
+ * Short by design. The two real intakes ask thirty questions because an
+ * assessment needs the answers; this asks five because anything longer stops
+ * being a way to get in touch and starts being a form people abandon.
+ *
+ * `website` is the honeypot — see the handler. It is declared here so the
+ * validator does not drop it before the handler can look at it.
+ */
+export const MESSAGE_SCHEMA: Schema = {
+  name: { max: 160, required: true },
+  email: { max: 254, required: true, email: true },
+  organisation: { max: 200 },
+  topic: { max: 80, required: true },
+  message: { max: 6000, required: true },
+  website: { max: 300 },
+}
+
 export const INNOVATION_SCHEMA: Schema = {
   title: { max: 200, required: true },
   summary: { max: 400, required: true },
