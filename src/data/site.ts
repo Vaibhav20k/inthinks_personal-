@@ -8,38 +8,64 @@ export const site = {
 } as const
 
 /**
- * The registered office.
+ * Where InThinks is.
  *
- * Held in parts rather than as two lines of text, because the same address has
- * to be rendered three ways: as the two lines a reader sees, as a maps query,
- * and as the PostalAddress in the page's structured data. Three hand-written
- * copies would disagree the first time a single one of them was corrected.
+ * A list rather than a single record, because there is more than one and the
+ * page has to be able to say so. Order is meaning: the first is the primary
+ * office and is the one that becomes the PostalAddress in the page's
+ * structured data, so reordering this array changes what a search engine
+ * shows beside the name.
+ *
+ * Held in parts rather than as lines of text, because the same address is
+ * rendered three ways — the lines a reader sees, a maps query, and the
+ * structured data — and three hand-written copies disagree the first time a
+ * single one of them is corrected.
  */
-export const office = {
-  street: '352, MG Road, Sultanpur',
-  locality: 'New Delhi',
-  postalCode: '110030',
-  country: 'India',
-  countryCode: 'IN',
-} as const
+export interface Office {
+  street: string
+  locality: string
+  postalCode: string
+  country: string
+  countryCode: string
+}
 
-/** How the address reads on the page: street, then city, code and country. */
-export const officeLines = [
-  office.street,
-  `${office.locality} \u2014 ${office.postalCode}, ${office.country}`,
-] as const
+export const offices: Office[] = [
+  {
+    street: '237, 1st Floor, Gujranwala Town, Part-3',
+    locality: 'New Delhi',
+    postalCode: '110009',
+    country: 'India',
+    countryCode: 'IN',
+  },
+  {
+    street: '352, MG Road, Sultanpur',
+    locality: 'New Delhi',
+    postalCode: '110030',
+    country: 'India',
+    countryCode: 'IN',
+  },
+]
+
+/** The primary office, for anywhere that has room for exactly one. */
+export const office = offices[0]
+
+/** How an address reads on the page: street, then city, code and country. */
+export const officeLines = (o: Office) => [
+  o.street,
+  `${o.locality} \u2014 ${o.postalCode}, ${o.country}`,
+]
 
 /** One line, for a maps query and for anything that needs it flattened. */
-export const officeOneLine =
-  `${office.street}, ${office.locality} ${office.postalCode}, ${office.country}`
+export const officeOneLine = (o: Office) =>
+  `${o.street}, ${o.locality} ${o.postalCode}, ${o.country}`
 
 /**
  * Opens the address in whatever map app the visitor has. The universal Google
  * Maps URL rather than a place ID: no key, no embed, and it hands off to the
  * native app on a phone instead of loading a second map inside the page.
  */
-export const officeMapUrl =
-  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(officeOneLine)}`
+export const officeMapUrl = (o: Office) =>
+  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(officeOneLine(o))}`
 
 /**
  * Technologies, Problems and Matches sit together and in that order: what has

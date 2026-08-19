@@ -2,7 +2,8 @@ import Button from '../components/primitives/Button'
 import Reveal from '../components/primitives/Reveal'
 import SectionLabel from '../components/primitives/SectionLabel'
 import PageHero from '../components/layout/PageHero'
-import { officeLines, officeMapUrl, site } from '../data/site'
+import { offices, site } from '../data/site'
+import OfficeList from '../components/primitives/OfficeList'
 
 const haveLack = [
   {
@@ -138,31 +139,11 @@ export default function About() {
                 </Reveal>
 
                 <Reveal delay={90} className="min-w-0">
-                  <dt className="label" style={{ color: 'var(--color-faint)' }}>OFFICE</dt>
+                  <dt className="label" style={{ color: 'var(--color-faint)' }}>
+                    {offices.length === 1 ? 'OFFICE' : 'OFFICES'}
+                  </dt>
                   <dd className="mt-4 pt-5" style={{ borderTop: '1px solid var(--rule)' }}>
-                    <address className="not-italic text-[1.0625rem] font-medium leading-relaxed">
-                      {officeLines.map((line) => (
-                        <span key={line} className="block">{line}</span>
-                      ))}
-                    </address>
-                    <a
-                      href={officeMapUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="tap group mt-2 inline-flex min-h-11 items-center gap-2 text-[0.9375rem] font-medium"
-                    >
-                      <span className="border-b border-transparent pb-0.5 transition-colors duration-250 group-hover:border-current">
-                        View on map
-                      </span>
-                      <span
-                        aria-hidden="true"
-                        className="transition-transform duration-300 group-hover:translate-x-0.5"
-                        style={{ color: 'var(--color-accent)' }}
-                      >
-                        ↗
-                      </span>
-                      <span className="sr-only">(opens in a new tab)</span>
-                    </a>
+                    <OfficeList />
                   </dd>
                 </Reveal>
               </dl>
