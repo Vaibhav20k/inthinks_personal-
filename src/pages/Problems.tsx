@@ -146,7 +146,7 @@ export default function Problems() {
                 )}
               </div>
 
-              <div className="pt-5">
+              <div className="py-5">
                 <SearchField
                   label="Search"
                   value={query}

@@ -41,7 +41,14 @@ function MatchCount({ slug }: { slug: string }) {
  * columns aligned, the ID leading — the same information, at a different
  * reading speed.
  */
-function TechnologyIndex({ rows }: { rows: Technology[] }) {
+function TechnologyIndex({
+  rows,
+  onPreview,
+}: {
+  rows: Technology[]
+  /** Which row the pointer or keyboard is on, or null when neither is on one. */
+  onPreview: (t: Technology | null) => void
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full" style={{ borderCollapse: 'collapse' }}>
@@ -60,9 +67,19 @@ function TechnologyIndex({ rows }: { rows: Technology[] }) {
             ))}
           </tr>
         </thead>
-        <tbody>
+        {/* Clearing on the body rather than per row: moving between two rows
+            fires leave-then-enter, and clearing on each leave makes the panel
+            blink on its way down the table. */}
+        <tbody onMouseLeave={() => onPreview(null)}>
           {rows.map((tech) => (
-            <tr key={tech.slug} className="group">
+            <tr
+              key={tech.slug}
+              className="group"
+              onMouseEnter={() => onPreview(tech)}
+              // Focus, not just hover: a keyboard reader tabs the reference
+              // links down the column and should get the same panel.
+              onFocus={() => onPreview(tech)}
+            >
               <td className="px-3 py-4 pl-0 align-baseline" style={{ borderBottom: '1px solid var(--rule)' }}>
                 <Link to={`/technologies/${tech.slug}`} className="ident whitespace-nowrap" style={{ color: 'var(--color-accent)' }}>
                   {tech.id}
@@ -91,6 +108,44 @@ function TechnologyIndex({ rows }: { rows: Technology[] }) {
           ))}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+/**
+ * What the row under the pointer addresses.
+ *
+ * Sits directly above the table rather than in the sidebar. The panel is only
+ * useful while the rows are on screen, and the filter column is long enough
+ * that anything below it is usually scrolled past by the time you are reading
+ * the table — a preview you cannot see beside what it previews is decoration.
+ *
+ * It shows one fact: the problem the technology addresses. TRL, transfer
+ * status and match count are already columns in the row, and repeating a cell
+ * two inches above itself tells a reader nothing they are not already looking
+ * at.
+ *
+ * Height is fixed so filling it cannot move the table underneath.
+ */
+function RowPreview({ tech }: { tech: Technology | null }) {
+  return (
+    <div
+      className="mb-4 hidden min-h-[3.25rem] items-baseline gap-4 px-3 py-2.5 lg:flex"
+      style={{ background: 'var(--color-paper-sunk)' }}
+      aria-live="polite"
+    >
+      {tech === null ? (
+        <p className="label" style={{ color: 'var(--color-faint)' }}>
+          POINT AT A ROW FOR THE PROBLEM IT ADDRESSES
+        </p>
+      ) : (
+        <>
+          <span className="ident shrink-0" style={{ color: 'var(--color-accent)' }}>{tech.id}</span>
+          <span className="text-[0.875rem] leading-snug" style={{ color: 'var(--color-muted)' }}>
+            {tech.thesis}
+          </span>
+        </>
+      )}
     </div>
   )
 }
@@ -156,6 +211,7 @@ export default function Technologies() {
   const query = text('q')
 
   const [technologies, setTechnologies] = useState<Technology[] | null>(null)
+  const [preview, setPreview] = useState<Technology | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Index is the default on desktop: the spec's point is that this is a
   // technical register first and a set of cards second.
@@ -232,7 +288,9 @@ export default function Technologies() {
                 )}
               </div>
 
-              <div className="pt-5">
+              {/* pb matches the filter groups' rhythm below: with top padding
+                  only, the input's lower edge sat exactly on the first legend. */}
+              <div className="py-5">
                 <SearchField
                   label="Search"
                   value={query}
@@ -320,7 +378,10 @@ export default function Technologies() {
                 </button>
               </div>
             ) : view === 'index' ? (
-              <PointerLabel label="VIEW"><TechnologyIndex rows={results} /></PointerLabel>
+              <>
+                <RowPreview tech={preview} />
+                <PointerLabel label="VIEW"><TechnologyIndex rows={results} onPreview={setPreview} /></PointerLabel>
+              </>
             ) : (
               <ul>
                 {results.map((tech, i) => (
