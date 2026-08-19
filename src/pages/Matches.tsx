@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import PageHero from '../components/layout/PageHero'
 import Notice from '../components/primitives/Notice'
 import Reveal from '../components/primitives/Reveal'
-import { exampleProblems, exampleTechnologies } from '../data/examples'
+import { exampleProblems, exampleTechnologies, matchSlug } from '../data/examples'
 import { loadMatches } from '../data/portfolio'
+import { searchMatches, useExplorerState } from '../lib/explorer'
+import SearchField from '../components/primitives/SearchField'
 import type { PublicMatch } from '../data/models'
 
 /** Furthest along first — a reader scanning wants the live ones at the top. */
@@ -32,9 +34,54 @@ const RATING_TONE: Record<string, string> = {
  * is a sale rather than an assessment, and an innovator or an operator reading
  * this needs to know what would have to be true before it goes further.
  */
+const KEYS = ['industry', 'domain', 'class', 'status'] as const
+
+/** One filter group. Same control as the other two explorers. */
+function FilterRow({
+  legend, options, selected, onToggle,
+}: {
+  legend: string
+  options: readonly string[]
+  selected: string[]
+  onToggle: (value: string) => void
+}) {
+  if (options.length === 0) return null
+  return (
+    <fieldset className="py-5" style={{ borderTop: '1px solid var(--rule)' }}>
+      <legend className="label" style={{ color: 'var(--color-faint)' }}>{legend.toUpperCase()}</legend>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {options.map((o) => {
+          const on = selected.includes(o)
+          return (
+            <button
+              key={o}
+              type="button"
+              onClick={() => onToggle(o)}
+              aria-pressed={on}
+              className="tap label px-2.5 py-1.5 transition-colors duration-250"
+              style={{
+                border: `1px solid ${on ? 'var(--color-accent)' : 'var(--rule)'}`,
+                color: on ? 'var(--color-accent)' : 'var(--color-muted)',
+              }}
+            >
+              {o.toUpperCase()}
+            </button>
+          )
+        })}
+      </div>
+    </fieldset>
+  )
+}
+
 export default function Matches() {
   const [matches, setMatches] = useState<PublicMatch[] | null>(null)
   const [examples, setExamples] = useState(false)
+  const { list, text, toggle, setText, clear, activeCount } = useExplorerState(KEYS)
+  const industry = list('industry')
+  const domain = list('domain')
+  const matchClass = list('class')
+  const status = list('status')
+  const query = text('q')
 
   useEffect(() => {
     let live = true
@@ -46,8 +93,58 @@ export default function Matches() {
     return () => { live = false }
   }, [])
 
-  const sorted = [...(matches ?? [])].sort(
-    (a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status),
+  /**
+   * Each match resolved to its two records once, here.
+   *
+   * Filtering a match by industry means filtering by the *problem's* sector
+   * and by the *technology's* domain — neither of which lives on the match
+   * itself. Resolving inside the filter callback would look them up again for
+   * every predicate on every keystroke.
+   */
+  const resolved = useMemo(
+    () =>
+      (matches ?? []).flatMap((m) => {
+        const problem = exampleProblems.find((p) => p.slug === m.problemSlug)
+        const tech = exampleTechnologies.find((t) => t.slug === m.technologySlug)
+        return problem && tech ? [{ m, problem, tech }] : []
+      }),
+    [matches],
+  )
+
+  const industries = useMemo(
+    () => [...new Set(resolved.map((r) => r.problem.sector))].sort(),
+    [resolved],
+  )
+  const domains = useMemo(
+    () => [...new Set(resolved.map((r) => r.tech.domain))].sort(),
+    [resolved],
+  )
+  const classes = useMemo(
+    () => [...new Set(resolved.map((r) => r.m.matchClass))].sort(),
+    [resolved],
+  )
+  const statuses = useMemo(
+    () => STATUS_ORDER.filter((s) => resolved.some((r) => r.m.status === s)),
+    [resolved],
+  )
+
+  const sorted = useMemo(
+    () =>
+      resolved
+        .filter(({ m, problem, tech }) => {
+          const byIndustry = !industry.length || industry.includes(problem.sector)
+          const byDomain = !domain.length || domain.includes(tech.domain)
+          const byClass = !matchClass.length || matchClass.includes(m.matchClass)
+          const byStatus = !status.length || status.includes(m.status)
+          const found = searchMatches(query, [
+            m.id, m.rationale, m.nextStep, m.matchClass, m.status,
+            problem.id, problem.title, problem.sector,
+            tech.id, tech.name, tech.domain,
+          ])
+          return byIndustry && byDomain && byClass && byStatus && found
+        })
+        .sort((a, b) => STATUS_ORDER.indexOf(a.m.status) - STATUS_ORDER.indexOf(b.m.status)),
+    [resolved, industry, domain, matchClass, status, query],
   )
 
   return (
@@ -63,14 +160,71 @@ export default function Matches() {
       </PageHero>
 
       <section className="container-grid pb-28">
-        {matches === null ? (
-          <span className="signal-line" aria-hidden="true" />
-        ) : (
+        <div className="grid gap-12 lg:grid-cols-12 lg:gap-16">
+          {/* Filters sit beside the records here as they do on the other two
+              explorers, so the three pages are one system rather than three
+              designs that happen to share a palette. */}
+          <div className="lg:col-span-3">
+            <div className="lg:sticky lg:top-28">
+              <div className="flex items-baseline justify-between gap-4">
+                <h2 className="label" style={{ color: 'var(--color-ink)' }}>FILTER</h2>
+                {(activeCount > 0 || query !== '') && (
+                  <button
+                    type="button"
+                    onClick={() => { clear(); setText('q', '') }}
+                    className="tap label transition-colors duration-250 hover:text-accent"
+                    style={{ color: 'var(--color-muted)' }}
+                  >
+                    CLEAR{activeCount > 0 ? ` ${activeCount}` : ''}
+                  </button>
+                )}
+              </div>
+
+              <div className="pt-5">
+                <SearchField
+                  label="Search"
+                  value={query}
+                  onChange={(v) => setText('q', v)}
+                  placeholder="Reference, challenge, technology…"
+                />
+              </div>
+
+              <FilterRow legend="Industry" options={industries} selected={industry} onToggle={(v) => toggle('industry', v)} />
+              <FilterRow legend="Technology domain" options={domains} selected={domain} onToggle={(v) => toggle('domain', v)} />
+              <FilterRow legend="Match class" options={classes} selected={matchClass} onToggle={(v) => toggle('class', v)} />
+              <FilterRow legend="Status" options={statuses} selected={status} onToggle={(v) => toggle('status', v)} />
+            </div>
+          </div>
+
+          <div className="min-w-0 lg:col-span-9">
+            <p className="label pb-4" style={{ color: 'var(--color-muted)' }} aria-live="polite">
+              {matches === null
+                ? 'LOADING…'
+                : `${sorted.length} OF ${resolved.length} ${resolved.length === 1 ? 'MATCH' : 'MATCHES'}`}
+            </p>
+
+            {matches === null ? (
+              <span className="signal-line" aria-hidden="true" />
+            ) : sorted.length === 0 ? (
+              <div className="py-16" style={{ borderTop: '1px solid var(--rule)' }}>
+                <p className="font-display text-[1.5rem] font-medium tracking-[-0.02em]">
+                  No qualified public matches yet.
+                </p>
+                <p className="body-type measure-prose mt-5" style={{ color: 'var(--color-muted)' }}>
+                  Candidate relationships remain private until technical review is complete.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { clear(); setText('q', '') }}
+                  className="tap mt-7 inline-flex items-baseline gap-2.5 text-[0.9375rem] font-medium"
+                >
+                  <span className="border-b border-current pb-0.5">Clear filters</span>
+                  <span aria-hidden="true" style={{ color: 'var(--color-accent)' }}>→</span>
+                </button>
+              </div>
+            ) : (
           <ul className="space-y-0">
-            {sorted.map((m, i) => {
-              const problem = exampleProblems.find((p) => p.slug === m.problemSlug)
-              const tech = exampleTechnologies.find((t) => t.slug === m.technologySlug)
-              if (!problem || !tech) return null
+            {sorted.map(({ m, problem, tech }, i) => {
               return (
                 <li key={`${m.problemSlug}-${m.technologySlug}`} style={{ borderTop: '1px solid var(--rule)' }}>
                   <Reveal delay={i * 60}>
@@ -118,7 +272,13 @@ export default function Matches() {
                       </div>
 
                       <div className="lg:col-span-3">
-                        <p className="ident" style={{ color: 'var(--color-faint)' }}>{m.id}</p>
+                        <Link to={`/matches/${matchSlug(m)}`} className="tap group block">
+                          <p className="ident" style={{ color: 'var(--color-accent)' }}>
+                            <span className="border-b border-transparent transition-colors duration-250 group-hover:border-current">
+                              {m.id}
+                            </span>
+                          </p>
+                        </Link>
                         <p className="label mt-3" style={{ color: 'var(--color-accent)' }}>
                           {m.matchClass.toUpperCase()}
                         </p>
@@ -127,17 +287,13 @@ export default function Matches() {
                         </p>
                       </div>
 
+                      {/* Fit and a way into the record. The reasoning, the
+                          constraints and the open questions live on the match
+                          page: eight of them here ran to a page of prose that
+                          could not be scanned, which is the one thing a list
+                          has to do. */}
                       <div className="lg:col-span-9 lg:col-start-1">
-                        <p className="label" style={{ color: 'var(--color-faint)' }}>WHY THESE TWO</p>
-                        <p className="body-type measure-prose mt-3" style={{ color: 'var(--color-muted)' }}>
-                          {m.rationale}
-                        </p>
-
-                        {/* Fit, dimension by dimension. Deliberately words:
-                            averaging a strong mechanism against a moderate TRL
-                            gives a number that describes neither, and the
-                            moderate part is the useful half of the answer. */}
-                        <dl className="mt-7 flex flex-wrap gap-x-8 gap-y-3">
+                        <dl className="flex flex-wrap gap-x-8 gap-y-3">
                           {m.fit.map((f) => (
                             <div key={f.dimension}>
                               <dt className="label" style={{ color: 'var(--color-faint)' }}>
@@ -156,20 +312,13 @@ export default function Matches() {
                           </div>
                         </dl>
 
-                        <p className="label mt-7" style={{ color: 'var(--color-faint)' }}>NEXT STEP</p>
-                        <p className="body-type measure-prose mt-2" style={{ color: 'var(--color-muted)' }}>
-                          {m.nextStep}
-                        </p>
-
-                        <p className="label mt-7" style={{ color: 'var(--color-faint)' }}>STILL OPEN</p>
-                        <ul className="mt-3 space-y-2.5">
-                          {m.openQuestions.map((q) => (
-                            <li key={q} className="flex items-baseline gap-3 text-[0.9375rem]" style={{ color: 'var(--color-muted)' }}>
-                              <span aria-hidden="true" className="h-px w-3 shrink-0" style={{ background: 'var(--rule-strong)' }} />
-                              {q}
-                            </li>
-                          ))}
-                        </ul>
+                        <Link
+                          to={`/matches/${matchSlug(m)}`}
+                          className="tap group mt-7 inline-flex items-baseline gap-2.5 text-[0.9375rem] font-medium"
+                        >
+                          <span className="border-b border-current pb-0.5">Open the match record</span>
+                          <span aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1" style={{ color: 'var(--color-accent)' }}>→</span>
+                        </Link>
                       </div>
                     </div>
                   </Reveal>
@@ -178,7 +327,9 @@ export default function Matches() {
             })}
             <li style={{ borderTop: '1px solid var(--rule)' }} />
           </ul>
-        )}
+            )}
+          </div>
+        </div>
 
         <p className="label mt-10 measure-prose" style={{ color: 'var(--color-faint)' }}>
           NO MATCH IS PRESENTED ON THE SIGNALS ALONE. THE ENGINE SHORTLISTS; A REVIEWER QUALIFIES,

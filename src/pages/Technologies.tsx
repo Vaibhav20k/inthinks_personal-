@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { searchMatches, useExplorerState } from '../lib/explorer'
+import SearchField from '../components/primitives/SearchField'
 import PointerLabel from '../components/primitives/PointerLabel'
 import { Link } from 'react-router-dom'
 import PageHero from '../components/layout/PageHero'
@@ -139,10 +141,20 @@ function FilterRow({
   )
 }
 
+/** The filter keys, in the order they appear, and the search key alongside. */
+const KEYS = ['problem', 'industry', 'domain', 'trl', 'transfer'] as const
+
 export default function Technologies() {
-  const [filters, setFilters] = useState<Record<FilterKey, string[]>>({
-    problem: [], industry: [], domain: [], trl: [], transfer: [],
-  })
+  // Filters and search live in the URL so a filtered view is a link someone
+  // can send, and so the back button undoes a filter rather than leaving the
+  // page.
+  const { list, text, toggle, setText, clear, activeCount } = useExplorerState(KEYS)
+  const filters = useMemo(
+    () => Object.fromEntries(KEYS.map((k) => [k, list(k)])) as Record<FilterKey, string[]>,
+    [list],
+  )
+  const query = text('q')
+
   const [technologies, setTechnologies] = useState<Technology[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Index is the default on desktop: the spec's point is that this is a
@@ -159,15 +171,6 @@ export default function Technologies() {
     return () => { live = false }
   }, [])
 
-  const toggle = (key: FilterKey, id: string) =>
-    setFilters((f) => ({
-      ...f,
-      [key]: f[key].includes(id) ? f[key].filter((x) => x !== id) : [...f[key], id],
-    }))
-
-  const clear = () => setFilters({ problem: [], industry: [], domain: [], trl: [], transfer: [] })
-  const activeCount = Object.values(filters).reduce((n, v) => n + v.length, 0)
-
   const results = useMemo(
     () =>
       (technologies ?? []).filter((tech) => {
@@ -179,9 +182,16 @@ export default function Technologies() {
           filters.trl.some((b) => TRL_BANDS.find((x) => x.id === b)?.test(tech.currentTrl))
         const transfer =
           !filters.transfer.length || filters.transfer.includes(tech.transferStatus)
-        return problem && industry && domain && trl && transfer
+        // Searches what the spec asks for: the name, the problem it addresses,
+        // its applications and its domain — plus the reference, because
+        // someone holding an ID wants that record and nothing else.
+        const found = searchMatches(query, [
+          tech.id, tech.name, tech.thesis, tech.problem, tech.domain,
+          ...tech.applications, ...tech.sectors,
+        ])
+        return problem && industry && domain && trl && transfer && found
       }),
-    [filters, technologies],
+    [filters, technologies, query],
   )
 
   return (
@@ -210,16 +220,25 @@ export default function Technologies() {
             <div className="lg:sticky lg:top-28">
               <div className="flex items-baseline justify-between gap-4">
                 <h2 className="label" style={{ color: 'var(--color-ink)' }}>FILTER</h2>
-                {activeCount > 0 && (
+                {(activeCount > 0 || query !== '') && (
                   <button
                     type="button"
-                    onClick={clear}
+                    onClick={() => { clear(); setText('q', '') }}
                     className="tap label transition-colors duration-250 hover:text-accent"
                     style={{ color: 'var(--color-muted)' }}
                   >
-                    CLEAR {activeCount}
+                    CLEAR{activeCount > 0 ? ` ${activeCount}` : ''}
                   </button>
                 )}
+              </div>
+
+              <div className="pt-5">
+                <SearchField
+                  label="Search"
+                  value={query}
+                  onChange={(v) => setText('q', v)}
+                  placeholder="Reference, technology, application…"
+                />
               </div>
 
               <FilterRow legend="Problem" options={outcomes.map((o) => ({ id: o.id, label: o.label }))} selected={filters.problem} onToggle={(id) => toggle('problem', id)} />
@@ -285,11 +304,15 @@ export default function Technologies() {
             ) : results.length === 0 ? (
               <div className="py-16" style={{ borderTop: '1px solid var(--rule)' }}>
                 <p className="font-display text-[1.5rem] font-medium tracking-[-0.02em]">
-                  No technology in the portfolio matches those filters.
+                  No technologies match these filters.
+                </p>
+                <p className="body-type measure-prose mt-5" style={{ color: 'var(--color-muted)' }}>
+                  Adjust the filters, or submit an industry challenge and let InThinks search
+                  more broadly than what is published here.
                 </p>
                 <button
                   type="button"
-                  onClick={clear}
+                  onClick={() => { clear(); setText('q', '') }}
                   className="tap mt-5 inline-flex items-baseline gap-2.5 text-[0.9375rem] font-medium"
                 >
                   <span className="border-b border-current pb-0.5">Clear filters</span>

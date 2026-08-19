@@ -6,6 +6,7 @@ import Technologies from './pages/Technologies'
 import Problems from './pages/Problems'
 import ProblemDetail from './pages/ProblemDetail'
 import Matches from './pages/Matches'
+import MatchDetail from './pages/MatchDetail'
 import TechnologyDetail from './pages/TechnologyDetail'
 import ForIndustry from './pages/ForIndustry'
 import ForInnovators from './pages/ForInnovators'
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="/problems" element={<Problems />} />
           <Route path="/problems/:slug" element={<ProblemDetail />} />
           <Route path="/matches" element={<Matches />} />
+          <Route path="/matches/:slug" element={<MatchDetail />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/for-industry" element={<ForIndustry />} />
           <Route path="/for-innovators" element={<ForInnovators />} />
