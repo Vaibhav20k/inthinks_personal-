@@ -8,6 +8,7 @@ import Overview from './Overview'
 import Innovations from './Innovations'
 import InnovationDetail from './InnovationDetail'
 import Challenges from './Challenges'
+import Messages from './Messages'
 import ChallengeDetail from './ChallengeDetail'
 import Matches from './Matches'
 import MatchRoom from './MatchRoom'
@@ -78,6 +79,10 @@ export default function AdminApp() {
         <Route path="innovations/:reference" element={<InnovationDetail me={me} />} />
         <Route path="challenges" element={<Challenges me={me} />} />
         <Route path="challenges/:reference" element={<ChallengeDetail me={me} />} />
+        {/* Same gate as the server: a role that may not read a challenge
+            contact may not read correspondence either. Routing on the
+            capability keeps the link and the route from disagreeing. */}
+        {me.can.viewChallengeContacts && <Route path="messages" element={<Messages />} />}
         <Route path="matches" element={<Matches />} />
         <Route path="matches/:reference" element={<MatchRoom me={me} />} />
         <Route path="development" element={<Development />} />

@@ -81,6 +81,7 @@ export const footerGroups = [
     title: 'Studio',
     links: [
       { label: 'About', to: '/about' },
+      { label: 'Contact', to: '/contact' },
       { label: 'Confidentiality', to: '/confidentiality' },
     ],
   },

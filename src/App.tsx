@@ -13,6 +13,7 @@ import HowItWorks from './pages/HowItWorks'
 import TechnologyTransfer from './pages/TechnologyTransfer'
 import About from './pages/About'
 import ConfidentialityPage from './pages/Confidentiality'
+import Contact from './pages/Contact'
 import SubmitChallenge from './pages/SubmitChallenge'
 import SubmitInnovation from './pages/SubmitInnovation'
 import NotFound from './pages/NotFound'
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/problems" element={<Problems />} />
           <Route path="/problems/:slug" element={<ProblemDetail />} />
           <Route path="/matches" element={<Matches />} />
+          <Route path="/contact" element={<Contact />} />
           <Route path="/for-industry" element={<ForIndustry />} />
           <Route path="/for-innovators" element={<ForInnovators />} />
           <Route path="/how-it-works" element={<HowItWorks />} />

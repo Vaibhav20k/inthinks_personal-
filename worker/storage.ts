@@ -20,7 +20,7 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? (v[0] ?? '
  * two submissions landing at once — which matters, because a duplicated
  * reference is the one error a submitter would actually notice.
  */
-export async function nextReference(db: D1Database, stream: 'CH' | 'INT', year: number) {
+export async function nextReference(db: D1Database, stream: 'CH' | 'INT' | 'MSG', year: number) {
   const name = `${stream}:${year}`
   const row = await db
     .prepare(
@@ -32,6 +32,33 @@ export async function nextReference(db: D1Database, stream: 'CH' | 'INT', year: 
     .first<{ value: number }>()
   const seq = String(row?.value ?? 1).padStart(4, '0')
   return `${stream}-${year}-${seq}`
+}
+
+/**
+ * Stores a contact message.
+ *
+ * Every field is a real column, so there is no payload blob and nothing to
+ * parse on read. The honeypot never reaches here — the handler rejects on it
+ * before this is called — so there is no column for it and no way for it to
+ * be stored and later mistaken for a real website field.
+ */
+export async function insertMessage(db: D1Database, reference: string, data: Clean) {
+  await db
+    .prepare(
+      `INSERT INTO messages
+         (reference, created_at, status, name, email, organisation, topic, message)
+       VALUES (?, ?, 'New', ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      reference,
+      new Date().toISOString(),
+      one(data.name),
+      one(data.email),
+      one(data.organisation),
+      one(data.topic),
+      one(data.message),
+    )
+    .run()
 }
 
 export async function insertChallenge(db: D1Database, reference: string, data: Clean) {

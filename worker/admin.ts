@@ -42,6 +42,13 @@ const oneOf = <T extends readonly string[]>(list: T, value: unknown): value is T
 
 const clip = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
+/**
+ * What can happen to a contact message. Three states, because a message is
+ * either untouched, dealt with, or not worth dealing with — anything finer
+ * belongs to one of the two real intakes, which have their own pipelines.
+ */
+const MESSAGE_STATUSES = ['New', 'Replied', 'Closed'] as const
+
 /** Today in UTC as YYYY-MM-DD. Overdue is a date comparison, not a timestamp one. */
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -413,6 +420,62 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
   }
 
   /* ------------------------------------------------------------ challenges */
+
+  /* ------------------------------------------------------------- messages */
+
+  /**
+   * Contact messages.
+   *
+   * Gated on `viewChallengeContacts` rather than on `viewSubmissions`. A
+   * message is somebody's name, address and question — the same class of thing
+   * as a challenge contact — and an R&D reviewer assesses technologies, not
+   * correspondence. The same roles that may see who submitted a challenge may
+   * see who wrote in; nobody else receives the rows at all.
+   */
+  if (path === '/messages' && request.method === 'GET') {
+    if (!can.viewChallengeContacts) return json({ error: 'Not permitted' }, 403)
+    const status = url.searchParams.get('status')
+    const filtered = status !== null && oneOf(MESSAGE_STATUSES, status)
+    const rows = await db
+      .prepare(
+        `SELECT reference, created_at, status, name, email, organisation, topic,
+                message, handled_at, handled_by, note
+           FROM messages ${filtered ? 'WHERE status = ?' : ''}
+          ORDER BY created_at DESC LIMIT 200`,
+      )
+      .bind(...(filtered ? [status] : []))
+      .all<Record<string, unknown>>()
+    await audit(db, actor, 'messages.list', undefined, { count: rows.results.length }, ip)
+    return json({ items: rows.results, statuses: MESSAGE_STATUSES })
+  }
+
+  const messageMatch = path.match(/^\/messages\/([A-Za-z0-9-]{1,32})$/)
+  if (messageMatch && request.method === 'PATCH') {
+    if (!can.viewChallengeContacts) return json({ error: 'Not permitted' }, 403)
+    const reference = messageMatch[1]
+    const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
+    if (!body) return json({ error: 'Could not parse the request' }, 400)
+
+    const status = body.status
+    if (!oneOf(MESSAGE_STATUSES, status)) return json({ error: 'Unknown status' }, 422)
+    const note = clip(body.note, 2000)
+
+    // Who dealt with it and when, stamped server-side. A client-supplied
+    // handler is a client-supplied claim about who did the work.
+    const handled = status === 'New' ? null : new Date().toISOString()
+    const result = await db
+      .prepare(
+        `UPDATE messages
+            SET status = ?, note = ?, handled_at = ?, handled_by = ?
+          WHERE reference = ?`,
+      )
+      .bind(status, note, handled, handled ? actor.email : null, reference)
+      .run()
+    if (!result.meta.changes) return json({ error: 'Not found' }, 404)
+
+    await audit(db, actor, 'message.update', reference, { status }, ip)
+    return json({ ok: true })
+  }
 
   if (path === '/challenges' && request.method === 'GET') {
     const status = url.searchParams.get('status')

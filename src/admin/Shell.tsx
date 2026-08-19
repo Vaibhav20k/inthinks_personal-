@@ -18,6 +18,7 @@ export default function Shell({ me, onSignedOut, children }: { me: Me; onSignedO
     { to: '/admin', label: 'Overview', end: true },
     { to: '/admin/innovations', label: 'Innovations' },
     { to: '/admin/challenges', label: 'Challenges' },
+    ...(me.can.viewChallengeContacts ? [{ to: '/admin/messages', label: 'Messages' }] : []),
     { to: '/admin/matches', label: 'Matches' },
     { to: '/admin/development', label: 'R&D' },
     { to: '/admin/opportunities', label: 'Opportunities' },

@@ -63,6 +63,15 @@ export async function submissionStatus(): Promise<{ submissions: boolean; upload
   }
 }
 
+export async function submitMessage(record: Record<string, unknown>) {
+  const response = await fetch('/api/contact', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(record),
+  })
+  return unwrap(response)
+}
+
 export async function submitChallenge(record: Record<string, unknown>) {
   const response = await fetch('/api/challenges', {
     method: 'POST',

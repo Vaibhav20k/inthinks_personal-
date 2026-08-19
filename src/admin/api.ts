@@ -203,6 +203,28 @@ export interface ChallengeDetail extends ChallengeSummary {
   notes: Note[]
 }
 
+export interface Message {
+  reference: string
+  created_at: string
+  status: string
+  name: string
+  email: string
+  organisation: string | null
+  topic: string
+  message: string
+  handled_at: string | null
+  handled_by: string | null
+  note: string | null
+}
+
+export const messages = (params: Record<string, string> = {}) => {
+  const q = new URLSearchParams(params).toString()
+  return call<{ items: Message[]; statuses: string[] }>(`/messages${q ? `?${q}` : ''}`)
+}
+
+export const patchMessage = (reference: string, patch: Record<string, unknown>) =>
+  call<{ ok: true }>(`/messages/${reference}`, { method: 'PATCH', body: JSON.stringify(patch) })
+
 export const challenges = (params: Record<string, string> = {}) => {
   const q = new URLSearchParams(params).toString()
   return call<{ items: ChallengeSummary[] }>(`/challenges${q ? `?${q}` : ''}`)
