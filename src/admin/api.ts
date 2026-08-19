@@ -94,6 +94,10 @@ export interface Meta {
   documentKinds: string[]
   documentStatuses: string[]
   dealEligibleStages: string[]
+  royaltyTypes: string[]
+  reportingPeriods: string[]
+  royaltyStatuses: string[]
+  periodStatuses: string[]
   roles: Role[]
 }
 export const meta = () => call<Meta>('/meta')
@@ -590,6 +594,8 @@ export interface DealDetail {
   payments: DealPayment[]
   documents: DealDocument[]
   notes: Note[]
+  royalty: { reference: string; status: string } | null
+  royaltyEligible: boolean
 }
 
 export const deals = (params: Record<string, string> = {}) => {
@@ -641,3 +647,123 @@ export const money = (minor: number | null | undefined, currency: string) =>
 /** Basis points back to a readable percentage: 525 → "5.25%". */
 export const rate = (bp: number | null | undefined) =>
   bp === null || bp === undefined ? '—' : `${(bp / 100).toFixed(2).replace(/\.00$/, '')}%`
+
+/* --------------------------------------------------------------- royalties */
+
+export interface RoyaltySummary {
+  reference: string
+  createdAt: string
+  updatedAt: string
+  dealRef: string
+  royaltyType: string
+  currency: string
+  rateBp: number | null
+  perUnitMinor: number | null
+  basis: string | null
+  minimumAnnualMinor: number | null
+  reportingPeriod: string
+  status: string
+  owner: string | null
+  challengeRef: string
+  challengeTitle: string | null
+  company: string | null
+  technologyRef: string
+  technologyTitle: string | null
+  dueMinor: number
+  paidMinor: number
+  overdueCount: number
+}
+
+export interface RoyaltyPeriod {
+  id: number
+  seq: number
+  periodStart: string
+  periodEnd: string
+  reportedMinor: number | null
+  reportedUnits: number | null
+  statementReceived: string | null
+  dueMinor: number
+  adjustmentMinor: number
+  adjustmentNote: string | null
+  paidMinor: number
+  paidOn: string | null
+  status: string
+  note: string | null
+  settlement: 'Unpaid' | 'Part paid' | 'Settled' | 'Overpaid' | 'Nothing due'
+}
+
+export interface RoyaltyYear {
+  year: number
+  from: string
+  to: string
+  dueMinor: number
+  paidMinor: number
+  minimumMinor: number
+  shortfallMinor: number
+  complete: boolean
+}
+
+export interface RoyaltyDetail {
+  reference: string
+  createdAt: string
+  updatedAt: string
+  dealRef: string
+  dealType: string | null
+  opportunityRef: string | null
+  royaltyType: string
+  currency: string
+  rateBp: number | null
+  perUnitMinor: number | null
+  basis: string | null
+  minimumAnnualMinor: number | null
+  reportingPeriod: string
+  termMonths: number | null
+  termStart: string | null
+  territory: string | null
+  fieldOfUse: string | null
+  status: string
+  endedReason: string | null
+  owner: string | null
+  challenge: {
+    reference: string
+    title: string | null
+    sector: string | null
+    company: string | null
+    contactName: string | null
+    contactEmail: string | null
+  }
+  contactsWithheld: boolean
+  technology: { reference: string; title: string | null }
+  periods: RoyaltyPeriod[]
+  years: RoyaltyYear[]
+  nextReporting: { date: string | null; overdue: boolean; overdueCount: number }
+  totals: { dueMinor: number; paidMinor: number }
+  notes: Note[]
+}
+
+export const royalties = () => call<{ items: RoyaltySummary[] }>('/royalties')
+
+export const royalty = (reference: string) => call<RoyaltyDetail>(`/royalties/${reference}`)
+
+export const openRoyalty = (deal: string) =>
+  call<{ ok: true; royalty: string; created: boolean; periods: number }>('/royalties', {
+    method: 'POST',
+    body: JSON.stringify({ deal }),
+  })
+
+export const patchRoyalty = (reference: string, patch: Record<string, unknown>) =>
+  call<{ ok: true; periodsAdded: number }>(`/royalties/${reference}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+
+export const patchRoyaltyPeriod = (reference: string, id: number, patch: Record<string, unknown>) =>
+  call<{ ok: true }>(`/royalties/${reference}/periods/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+
+export const regenerateRoyaltySchedule = (reference: string) =>
+  call<{ ok: true; added: number; mode: 'add' | 'replace' }>(
+    `/royalties/${reference}/schedule`, { method: 'POST' },
+  )

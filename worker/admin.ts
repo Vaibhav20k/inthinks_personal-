@@ -19,6 +19,12 @@ import {
   PAYMENT_STATUSES, RIGHTS_POSITIONS, ROYALTY_BASES, TRANSFER_STAGE,
   isCurrency, openFromOpportunity, parseAmountMinor, parseRateBp,
 } from './deals'
+import {
+  AGREEMENT_STATUSES as ROYALTY_AGREEMENT_STATUSES, PERIOD_STATUSES,
+  REPORTING_PERIOD_NAMES, ROYALTY_TYPES, dueFor, isIsoDate, nextReporting,
+  hasReportedActivity, openFromDeal, regenerateSchedule, royaltyYears, settlementOf,
+} from './royalties'
+import type { RoyaltyType } from './royalties'
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
@@ -30,6 +36,9 @@ const oneOf = <T extends readonly string[]>(list: T, value: unknown): value is T
   typeof value === 'string' && (list as readonly string[]).includes(value)
 
 const clip = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
+
+/** Today in UTC as YYYY-MM-DD. Overdue is a date comparison, not a timestamp one. */
+const today = () => new Date().toISOString().slice(0, 10)
 
 /* ------------------------------------------------------------- serializers */
 
@@ -230,6 +239,10 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
       documentKinds: DOCUMENT_KINDS,
       documentStatuses: DOCUMENT_STATUSES,
       dealEligibleStages: DEAL_ELIGIBLE_STAGES,
+      royaltyTypes: ROYALTY_TYPES,
+      reportingPeriods: REPORTING_PERIOD_NAMES,
+      royaltyStatuses: ROYALTY_AGREEMENT_STATUSES,
+      periodStatuses: PERIOD_STATUSES,
       innovationStatuses: INNOVATION_STATUSES,
       roles: ROLES,
     })
@@ -1072,7 +1085,7 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
       .first<Record<string, unknown>>()
     if (!row) return json({ error: 'Not found' }, 404)
 
-    const [milestones, payments, documents, notes] = await Promise.all([
+    const [milestones, payments, documents, notes, royalty] = await Promise.all([
       db.prepare('SELECT id, label, due, status, note FROM deal_milestones WHERE deal_ref = ? ORDER BY COALESCE(due, \'9999\'), id')
         .bind(reference).all(),
       db.prepare('SELECT id, label, due, amount_minor, status, note FROM deal_payments WHERE deal_ref = ? ORDER BY COALESCE(due, \'9999\'), id')
@@ -1081,6 +1094,8 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
         .bind(reference).all(),
       db.prepare('SELECT id, body, author, created_at FROM notes WHERE reference = ? ORDER BY created_at DESC')
         .bind(reference).all(),
+      db.prepare('SELECT reference, status FROM royalty_agreements WHERE deal_ref = ?')
+        .bind(reference).first<{ reference: string; status: string }>(),
     ])
 
     // Opening a deal room is a sensitive read; it is logged like every other.
@@ -1135,6 +1150,9 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
       payments: payments.results,
       documents: documents.results,
       notes: notes.results,
+      royalty: royalty ? { reference: royalty.reference, status: royalty.status } : null,
+      // Royalties are monitored once a deal with a rate is executed.
+      royaltyEligible: row.closing_status === 'Executed' && Boolean(row.royalty_bp),
     })
   }
 
@@ -1306,6 +1324,385 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
     await db.prepare('UPDATE deals SET updated_at = ? WHERE reference = ?')
       .bind(new Date().toISOString(), reference).run()
     await audit(db, actor, `deal.${kind}.update`, reference, { id, status: body.status }, ip)
+    return json({ ok: true })
+  }
+
+  /* ---------------------------------------------------------------- royalties */
+
+  // Royalties sit behind the same gate as the deal room, and for the same
+  // reason: what a technology earns is commercial information.
+  if (path === '/royalties' || path.startsWith('/royalties/')) {
+    if (!can.viewCommercialTerms) {
+      return json({ error: 'Royalty management is limited to admins and business development.' }, 403)
+    }
+  }
+
+  if (path === '/royalties' && request.method === 'GET') {
+    const rows = await db
+      .prepare(
+        `SELECT r.reference, r.created_at, r.updated_at, r.deal_ref, r.royalty_type,
+                r.currency, r.rate_bp, r.per_unit_minor, r.basis, r.minimum_annual_minor,
+                r.reporting_period, r.status, r.owner, r.challenge_ref, r.technology_ref,
+                c.company AS company, c.title AS challenge_title,
+                i.title AS technology_title, i.internal_title AS technology_internal_title,
+                (SELECT COALESCE(SUM(p.due_minor + p.adjustment_minor), 0)
+                   FROM royalty_periods p WHERE p.agreement_ref = r.reference) AS due_minor,
+                (SELECT COALESCE(SUM(p.paid_minor), 0)
+                   FROM royalty_periods p WHERE p.agreement_ref = r.reference) AS paid_minor,
+                -- Same predicate as nextReporting(): a period has reported if a
+                -- statement date or a figure is against it, or it was waived.
+                (SELECT COUNT(*) FROM royalty_periods p
+                   WHERE p.agreement_ref = r.reference
+                     AND p.statement_received IS NULL AND p.reported_minor IS NULL
+                     AND p.reported_units IS NULL AND p.status <> 'Waived'
+                     AND p.period_end < ?) AS overdue
+         FROM royalty_agreements r
+         LEFT JOIN challenges c ON c.reference = r.challenge_ref
+         LEFT JOIN innovations i ON i.reference = r.technology_ref
+         ORDER BY r.updated_at DESC LIMIT 200`,
+      )
+      .bind(today())
+      .all<Record<string, unknown>>()
+
+    return json({
+      items: rows.results.map((r) => ({
+        reference: r.reference,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+        dealRef: r.deal_ref,
+        royaltyType: r.royalty_type,
+        currency: r.currency,
+        rateBp: r.rate_bp,
+        perUnitMinor: r.per_unit_minor,
+        basis: r.basis,
+        minimumAnnualMinor: r.minimum_annual_minor,
+        reportingPeriod: r.reporting_period,
+        status: r.status,
+        owner: r.owner,
+        challengeRef: r.challenge_ref,
+        challengeTitle: r.challenge_title,
+        company: can.viewChallengeContacts ? r.company : null,
+        technologyRef: r.technology_ref,
+        technologyTitle: r.technology_internal_title || r.technology_title,
+        // Reported and settled to date. Both are recorded facts, not estimates.
+        dueMinor: r.due_minor,
+        paidMinor: r.paid_minor,
+        overdueCount: r.overdue,
+      })),
+    })
+  }
+
+  if (path === '/royalties' && request.method === 'POST') {
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+    const dealRef = clip(body.deal, 32)
+    if (!dealRef) return json({ error: 'A deal reference is required' }, 422)
+    const outcome = await openFromDeal(ctx, dealRef, ip)
+    if (!outcome.ok) return json({ error: outcome.error }, outcome.status)
+
+    // A live royalty is the last stage of the pipeline. Moving the opportunity
+    // here keeps the funnel describing what is actually happening.
+    if (outcome.created) {
+      const deal = await db
+        .prepare('SELECT opportunity_ref FROM deals WHERE reference = ?')
+        .bind(dealRef)
+        .first<{ opportunity_ref: string | null }>()
+      if (deal?.opportunity_ref) {
+        await db
+          .prepare(
+            `UPDATE opportunities SET stage = 'Post-Transfer Royalty Monitoring', updated_at = ?
+             WHERE reference = ? AND stage = 'Technology Transfer'`,
+          )
+          .bind(new Date().toISOString(), deal.opportunity_ref)
+          .run()
+      }
+    }
+    return json({ ok: true, royalty: outcome.reference, created: outcome.created, periods: outcome.periods })
+  }
+
+  const royaltyMatch = path.match(/^\/royalties\/([A-Za-z0-9-]{1,32})$/)
+  if (royaltyMatch && request.method === 'GET') {
+    const reference = royaltyMatch[1]
+    const row = await db
+      .prepare(
+        `SELECT r.*, c.title AS challenge_title, c.sector AS challenge_sector,
+                c.company AS company, c.contact_name AS contact_name, c.email AS contact_email,
+                i.title AS technology_title, i.internal_title AS technology_internal_title,
+                d.deal_type AS deal_type
+         FROM royalty_agreements r
+         LEFT JOIN challenges c ON c.reference = r.challenge_ref
+         LEFT JOIN innovations i ON i.reference = r.technology_ref
+         LEFT JOIN deals d ON d.reference = r.deal_ref
+         WHERE r.reference = ?`,
+      )
+      .bind(reference)
+      .first<Record<string, unknown>>()
+    if (!row) return json({ error: 'Not found' }, 404)
+
+    const [periodRows, notes] = await Promise.all([
+      db.prepare(
+        `SELECT id, seq, period_start, period_end, reported_minor, reported_units,
+                statement_received, due_minor, adjustment_minor, adjustment_note,
+                paid_minor, paid_on, status, note
+         FROM royalty_periods WHERE agreement_ref = ? ORDER BY seq`,
+      ).bind(reference).all<Record<string, unknown>>(),
+      db.prepare('SELECT id, body, author, created_at FROM notes WHERE reference = ? ORDER BY created_at DESC')
+        .bind(reference).all(),
+    ])
+
+    const periods = periodRows.results as unknown as {
+      period_start: string; period_end: string; due_minor: number; adjustment_minor: number
+      paid_minor: number; statement_received: string | null; status: string
+      reported_minor: number | null; reported_units: number | null
+    }[]
+
+    await audit(db, actor, 'royalty.view', reference, undefined, ip)
+
+    return json({
+      reference: row.reference,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      dealRef: row.deal_ref,
+      dealType: row.deal_type,
+      opportunityRef: row.opportunity_ref,
+      royaltyType: row.royalty_type,
+      currency: row.currency,
+      rateBp: row.rate_bp,
+      perUnitMinor: row.per_unit_minor,
+      basis: row.basis,
+      minimumAnnualMinor: row.minimum_annual_minor,
+      reportingPeriod: row.reporting_period,
+      termMonths: row.term_months,
+      termStart: row.term_start,
+      territory: row.territory,
+      fieldOfUse: row.field_of_use,
+      status: row.status,
+      endedReason: row.ended_reason,
+      owner: row.owner,
+      challenge: {
+        reference: row.challenge_ref,
+        title: row.challenge_title,
+        sector: row.challenge_sector,
+        company: can.viewChallengeContacts ? row.company : null,
+        contactName: can.viewChallengeContacts ? row.contact_name : null,
+        contactEmail: can.viewChallengeContacts ? row.contact_email : null,
+      },
+      contactsWithheld: !can.viewChallengeContacts,
+      technology: {
+        reference: row.technology_ref,
+        title: row.technology_internal_title || row.technology_title,
+      },
+      periods: periodRows.results.map((p) => ({
+        id: p.id,
+        seq: p.seq,
+        periodStart: p.period_start,
+        periodEnd: p.period_end,
+        reportedMinor: p.reported_minor,
+        reportedUnits: p.reported_units,
+        statementReceived: p.statement_received,
+        dueMinor: p.due_minor,
+        adjustmentMinor: p.adjustment_minor,
+        adjustmentNote: p.adjustment_note,
+        paidMinor: p.paid_minor,
+        paidOn: p.paid_on,
+        status: p.status,
+        note: p.note,
+        // Derived, so it can never contradict the amounts beside it.
+        settlement: settlementOf(Number(p.due_minor), Number(p.adjustment_minor), Number(p.paid_minor)),
+      })),
+      years: row.term_start
+        ? royaltyYears(String(row.term_start), row.minimum_annual_minor as number | null, periods)
+        : [],
+      nextReporting: nextReporting(periods, today()),
+      totals: {
+        dueMinor: periods.reduce((n, p) => n + p.due_minor + p.adjustment_minor, 0),
+        paidMinor: periods.reduce((n, p) => n + p.paid_minor, 0),
+      },
+      notes: notes.results,
+    })
+  }
+
+  if (royaltyMatch && request.method === 'PATCH') {
+    const reference = royaltyMatch[1]
+    const current = await db
+      .prepare('SELECT reporting_period FROM royalty_agreements WHERE reference = ?')
+      .bind(reference)
+      .first<{ reporting_period: string }>()
+    if (!current) return json({ error: 'Not found' }, 404)
+
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+    const sets: string[] = []
+    const binds: unknown[] = []
+    let rescheduleNeeded = false
+
+    if (body.royaltyType !== undefined) {
+      if (!oneOf(ROYALTY_TYPES, body.royaltyType)) return json({ error: 'Unknown royalty type' }, 422)
+      sets.push('royalty_type = ?'); binds.push(body.royaltyType)
+    }
+    if (body.reportingPeriod !== undefined) {
+      if (!oneOf(REPORTING_PERIOD_NAMES, body.reportingPeriod)) {
+        return json({ error: 'Unknown reporting period' }, 422)
+      }
+      // The frequency decides what a period *is*, so changing it rebuilds the
+      // schedule — and a schedule that has been reported against cannot be
+      // rebuilt. Reporting frequency is a term of the licence; varying it once
+      // statements exist is a contract variation, not a settings change.
+      if (body.reportingPeriod !== current.reporting_period && await hasReportedActivity(db, reference)) {
+        return json({
+          error: 'Statements have already been recorded on this schedule. The reporting frequency cannot be changed without varying the agreement.',
+        }, 409)
+      }
+      sets.push('reporting_period = ?'); binds.push(body.reportingPeriod)
+      rescheduleNeeded = body.reportingPeriod !== current.reporting_period
+    }
+    if (body.status !== undefined) {
+      if (!oneOf(ROYALTY_AGREEMENT_STATUSES, body.status)) return json({ error: 'Unknown status' }, 422)
+      sets.push('status = ?'); binds.push(body.status)
+    }
+    for (const [field, column] of [
+      ['ratePercent', 'rate_bp'],
+    ] as const) {
+      if (body[field] === undefined) continue
+      const bp = parseRateBp(body[field])
+      if (bp === 'invalid') return json({ error: 'A royalty rate must be between 0 and 100 per cent' }, 422)
+      sets.push(`${column} = ?`); binds.push(bp)
+    }
+    for (const [field, column] of [
+      ['perUnit', 'per_unit_minor'],
+      ['minimumAnnual', 'minimum_annual_minor'],
+    ] as const) {
+      if (body[field] === undefined) continue
+      const minor = parseAmountMinor(body[field])
+      if (minor === 'invalid') return json({ error: `${field} must be a positive amount` }, 422)
+      sets.push(`${column} = ?`); binds.push(minor)
+    }
+    for (const [field, column, max] of [
+      ['owner', 'owner', 200],
+      ['endedReason', 'ended_reason', 500],
+    ] as const) {
+      if (typeof body[field] === 'string') {
+        sets.push(`${column} = ?`); binds.push(clip(body[field], max))
+      }
+    }
+    if (sets.length === 0) return json({ error: 'Nothing to update' }, 400)
+
+    sets.push('updated_at = ?'); binds.push(new Date().toISOString())
+    binds.push(reference)
+    const result = await db
+      .prepare(`UPDATE royalty_agreements SET ${sets.join(', ')} WHERE reference = ?`)
+      .bind(...binds)
+      .run()
+    if (!result.meta.changes) return json({ error: 'Not found' }, 404)
+
+    // A frequency change rebuilds the schedule outright, which is safe only
+    // because the check above proved nothing has been reported against it.
+    const added = rescheduleNeeded ? await regenerateSchedule(db, reference, 'replace') : 0
+    await audit(db, actor, 'royalty.update', reference, body, ip)
+    return json({ ok: true, periodsAdded: added })
+  }
+
+  const royaltyScheduleMatch = path.match(/^\/royalties\/([A-Za-z0-9-]{1,32})\/schedule$/)
+  if (royaltyScheduleMatch && request.method === 'POST') {
+    const reference = royaltyScheduleMatch[1]
+    const exists = await db.prepare('SELECT 1 FROM royalty_agreements WHERE reference = ?').bind(reference).first()
+    if (!exists) return json({ error: 'Not found' }, 404)
+    // Untouched, a rebuild picks up a corrected term start from the deal. Once
+    // statements exist, the most that can happen is filling in the tail an
+    // extended term added.
+    const mode = (await hasReportedActivity(db, reference)) ? 'add' : 'replace'
+    const added = await regenerateSchedule(db, reference, mode)
+    await audit(db, actor, 'royalty.schedule', reference, { added, mode }, ip)
+    return json({ ok: true, added, mode })
+  }
+
+  const royaltyPeriodMatch = path.match(/^\/royalties\/([A-Za-z0-9-]{1,32})\/periods\/(\d{1,12})$/)
+  if (royaltyPeriodMatch && request.method === 'PATCH') {
+    const [, reference, id] = royaltyPeriodMatch
+    const agreement = await db
+      .prepare('SELECT royalty_type, rate_bp, per_unit_minor FROM royalty_agreements WHERE reference = ?')
+      .bind(reference)
+      .first<{ royalty_type: string; rate_bp: number | null; per_unit_minor: number | null }>()
+    if (!agreement) return json({ error: 'Not found' }, 404)
+    const period = await db
+      .prepare('SELECT * FROM royalty_periods WHERE id = ? AND agreement_ref = ?')
+      .bind(Number(id), reference)
+      .first<Record<string, unknown>>()
+    if (!period) return json({ error: 'Not found' }, 404)
+
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+    const sets: string[] = []
+    const binds: unknown[] = []
+
+    let reportedMinor = period.reported_minor as number | null
+    let reportedUnits = period.reported_units as number | null
+    let reported = false
+
+    if (body.reported !== undefined) {
+      const minor = parseAmountMinor(body.reported)
+      if (minor === 'invalid') return json({ error: 'A reported amount must be a positive number' }, 422)
+      reportedMinor = minor
+      reported = true
+      sets.push('reported_minor = ?'); binds.push(minor)
+    }
+    if (body.reportedUnits !== undefined) {
+      const units = body.reportedUnits === null || body.reportedUnits === '' ? null : Number(body.reportedUnits)
+      if (units !== null && (!Number.isSafeInteger(units) || units < 0)) {
+        return json({ error: 'Reported units must be a whole number' }, 422)
+      }
+      reportedUnits = units
+      reported = true
+      sets.push('reported_units = ?'); binds.push(units)
+    }
+    if (body.statementReceived !== undefined) {
+      const date = clip(body.statementReceived, 20)
+      if (date && !isIsoDate(date)) return json({ error: 'A statement date must be YYYY-MM-DD' }, 422)
+      sets.push('statement_received = ?'); binds.push(date || null)
+      if (date && body.status === undefined) { sets.push('status = ?'); binds.push('Statement received') }
+    }
+    if (body.paid !== undefined) {
+      const minor = parseAmountMinor(body.paid)
+      if (minor === 'invalid') return json({ error: 'A paid amount must be a positive number' }, 422)
+      sets.push('paid_minor = ?'); binds.push(minor ?? 0)
+    }
+    if (body.paidOn !== undefined) {
+      const date = clip(body.paidOn, 20)
+      if (date && !isIsoDate(date)) return json({ error: 'A payment date must be YYYY-MM-DD' }, 422)
+      sets.push('paid_on = ?'); binds.push(date || null)
+    }
+    if (body.adjustment !== undefined) {
+      const minor = parseAmountMinor(body.adjustment)
+      if (minor === 'invalid') return json({ error: 'An adjustment must be a positive amount' }, 422)
+      // An adjustment always says why. An unexplained one is indistinguishable
+      // from an error a year later.
+      const why = clip(body.adjustmentNote, 500)
+      if (minor && !why) return json({ error: 'An adjustment needs a reason' }, 422)
+      sets.push('adjustment_minor = ?'); binds.push(minor ?? 0)
+      sets.push('adjustment_note = ?'); binds.push(why || null)
+    }
+    if (body.status !== undefined) {
+      if (!oneOf(PERIOD_STATUSES, body.status)) return json({ error: 'Unknown period status' }, 422)
+      sets.push('status = ?'); binds.push(body.status)
+    }
+    if (typeof body.note === 'string') { sets.push('note = ?'); binds.push(clip(body.note, 1000)) }
+
+    // What is owed is computed here and nowhere else. The client cannot send it.
+    if (reported) {
+      const due = dueFor(
+        agreement.royalty_type as RoyaltyType,
+        agreement.rate_bp, agreement.per_unit_minor,
+        reportedMinor, reportedUnits,
+      )
+      sets.push('due_minor = ?'); binds.push(due)
+    }
+
+    if (sets.length === 0) return json({ error: 'Nothing to update' }, 400)
+    binds.push(Number(id), reference)
+    await db
+      .prepare(`UPDATE royalty_periods SET ${sets.join(', ')} WHERE id = ? AND agreement_ref = ?`)
+      .bind(...binds)
+      .run()
+    await db.prepare('UPDATE royalty_agreements SET updated_at = ? WHERE reference = ?')
+      .bind(new Date().toISOString(), reference).run()
+    await audit(db, actor, 'royalty.period', reference, { id, ...body }, ip)
     return json({ ok: true })
   }
 
