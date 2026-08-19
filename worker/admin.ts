@@ -25,6 +25,11 @@ import {
   hasReportedActivity, openFromDeal, regenerateSchedule, royaltyYears, settlementOf,
 } from './royalties'
 import type { RoyaltyType } from './royalties'
+import {
+  IP_STATUSES, OUTCOMES, PUBLISHABLE_STAGES, SECTORS,
+  TRANSFER_STATUSES as PUBLIC_TRANSFER_STATUSES, domainFor, identityLeak,
+  isSlug, parseList, profileProse, publicStage, toSlug,
+} from './portfolio'
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
@@ -1704,6 +1709,214 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
       .bind(new Date().toISOString(), reference).run()
     await audit(db, actor, 'royalty.period', reference, { id, ...body }, ip)
     return json({ ok: true })
+  }
+
+  /* -------------------------------------------------------- public profiles */
+
+  const profileMatch = path.match(/^\/profiles\/([A-Za-z0-9-]{1,32})$/)
+  if (profileMatch && request.method === 'GET') {
+    const reference = profileMatch[1]
+    const row = await db
+      .prepare(
+        `SELECT i.category, i.title, i.internal_title, i.entry_trl, i.current_trl,
+                i.target_trl, i.development_stage, i.acquisition_stage,
+                p.slug, p.name, p.thesis, p.problem, p.principle, p.why_it_matters,
+                p.validation, p.applications, p.sectors, p.outcomes, p.next_milestones,
+                p.ip_status, p.transfer_status, p.published, p.published_at, p.published_by
+         FROM innovations i
+         LEFT JOIN technology_profiles p ON p.reference = i.reference
+         WHERE i.reference = ?`,
+      )
+      .bind(reference)
+      .first<Record<string, unknown>>()
+    if (!row) return json({ error: 'Not found' }, 404)
+
+    const has = row.slug !== null && row.slug !== undefined
+    return json({
+      reference,
+      exists: has,
+      // Suggested rather than applied: the public name is a choice, and a slug
+      // that follows an edited name silently breaks shared links.
+      suggestedSlug: toSlug(String(row.internal_title || row.title || reference)),
+      publishable: (PUBLISHABLE_STAGES as readonly string[]).includes(String(row.acquisition_stage)),
+      acquisitionStage: row.acquisition_stage,
+      profile: has
+        ? {
+            slug: row.slug,
+            name: row.name,
+            thesis: row.thesis,
+            problem: row.problem,
+            principle: row.principle,
+            whyItMatters: row.why_it_matters,
+            validation: row.validation,
+            applications: parseList(row.applications as string),
+            sectors: parseList(row.sectors as string),
+            outcomes: parseList(row.outcomes as string),
+            nextMilestones: parseList(row.next_milestones as string),
+            ipStatus: row.ip_status,
+            transferStatus: row.transfer_status,
+            published: Boolean(row.published),
+            publishedAt: row.published_at,
+            publishedBy: row.published_by,
+          }
+        : null,
+      // What the public page will show without anyone typing it.
+      derived: {
+        domain: domainFor(row.category as string).name,
+        domainCode: domainFor(row.category as string).code,
+        entryTrl: row.entry_trl,
+        currentTrl: row.current_trl ?? row.entry_trl,
+        targetTrl: row.target_trl ?? row.entry_trl,
+        stage: publicStage(row.development_stage as string),
+      },
+    })
+  }
+
+  if (profileMatch && request.method === 'PUT') {
+    // Authoring a public page is a commercial and editorial act, not a review
+    // one — the same capability that publishes a development entry.
+    if (!can.moveAcquisitionStage) {
+      return json({ error: 'Only admins and business development can edit a public profile.' }, 403)
+    }
+    const reference = profileMatch[1]
+    const innovation = await db
+      .prepare('SELECT reference FROM innovations WHERE reference = ?')
+      .bind(reference)
+      .first()
+    if (!innovation) return json({ error: 'Not found' }, 404)
+
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+
+    const slug = clip(body.slug, 80).toLowerCase()
+    if (!isSlug(slug)) {
+      return json({ error: 'A slug is lowercase letters, numbers and single hyphens' }, 422)
+    }
+    const taken = await db
+      .prepare('SELECT reference FROM technology_profiles WHERE slug = ? AND reference <> ?')
+      .bind(slug, reference)
+      .first<{ reference: string }>()
+    if (taken) return json({ error: `That slug is already used by ${taken.reference}` }, 409)
+
+    const name = clip(body.name, 160)
+    if (!name) return json({ error: 'A public name is required' }, 422)
+
+    for (const [field, list] of [
+      ['ipStatus', IP_STATUSES],
+      ['transferStatus', PUBLIC_TRANSFER_STATUSES],
+    ] as const) {
+      if (body[field] !== undefined && !oneOf(list, body[field])) {
+        return json({ error: `Unknown ${field}` }, 422)
+      }
+    }
+
+    // Filter and sector terms come from the site's own vocabularies, so a
+    // profile cannot invent a facet the explorer has no filter for.
+    const list = (value: unknown, allowed: readonly string[] | null, max: number) => {
+      const raw = Array.isArray(value) ? value : []
+      const cleaned = raw
+        .filter((v): v is string => typeof v === 'string')
+        .map((v) => v.trim())
+        .filter(Boolean)
+        .slice(0, max)
+      return allowed ? cleaned.filter((v) => allowed.includes(v)) : cleaned.map((v) => v.slice(0, 200))
+    }
+
+    const now = new Date().toISOString()
+    await db
+      .prepare(
+        `INSERT INTO technology_profiles
+           (reference, created_at, updated_at, slug, name, thesis, problem, principle,
+            why_it_matters, validation, applications, sectors, outcomes, next_milestones,
+            ip_status, transfer_status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(reference) DO UPDATE SET
+           updated_at = excluded.updated_at, slug = excluded.slug, name = excluded.name,
+           thesis = excluded.thesis, problem = excluded.problem, principle = excluded.principle,
+           why_it_matters = excluded.why_it_matters, validation = excluded.validation,
+           applications = excluded.applications, sectors = excluded.sectors,
+           outcomes = excluded.outcomes, next_milestones = excluded.next_milestones,
+           ip_status = excluded.ip_status, transfer_status = excluded.transfer_status`,
+      )
+      .bind(
+        reference, now, now, slug, name,
+        clip(body.thesis, 600), clip(body.problem, 4000), clip(body.principle, 4000),
+        clip(body.whyItMatters, 4000), clip(body.validation, 4000),
+        JSON.stringify(list(body.applications, null, 12)),
+        JSON.stringify(list(body.sectors, SECTORS, 8)),
+        JSON.stringify(list(body.outcomes, OUTCOMES, 8)),
+        JSON.stringify(list(body.nextMilestones, null, 8)),
+        body.ipStatus ?? 'To Be Confirmed',
+        body.transferStatus ?? 'Under Development',
+      )
+      .run()
+
+    await audit(db, actor, 'profile.save', reference, { slug }, ip)
+    return json({ ok: true, slug })
+  }
+
+  const publishProfileMatch = path.match(/^\/profiles\/([A-Za-z0-9-]{1,32})\/publish$/)
+  if (publishProfileMatch && request.method === 'POST') {
+    if (!can.moveAcquisitionStage) {
+      return json({ error: 'Only admins and business development can publish a technology page.' }, 403)
+    }
+    const reference = publishProfileMatch[1]
+    const body = (await request.json().catch(() => ({}))) as { published?: unknown }
+    const publish = body.published === true
+
+    const row = await db
+      .prepare(
+        `SELECT p.name, p.thesis, p.problem, p.principle, p.why_it_matters, p.validation,
+                p.applications, p.sectors, p.outcomes, p.next_milestones,
+                i.acquisition_stage, i.innovator_name, i.innovator_email, i.institution
+         FROM technology_profiles p
+         JOIN innovations i ON i.reference = p.reference
+         WHERE p.reference = ?`,
+      )
+      .bind(reference)
+      .first<Record<string, unknown>>()
+    if (!row) return json({ error: 'Write the profile before publishing it' }, 404)
+
+    if (publish) {
+      // Rights first. A page that presents a technology as available to
+      // develop, when InThinks holds no rights to it, is a claim it cannot make.
+      if (!(PUBLISHABLE_STAGES as readonly string[]).includes(String(row.acquisition_stage))) {
+        return json({
+          error: `A technology is published once rights are held. This one is at ${row.acquisition_stage}.`,
+        }, 409)
+      }
+      for (const [field, label] of [
+        ['name', 'a public name'], ['thesis', 'a thesis'], ['problem', 'the industrial problem'],
+        ['principle', 'how it works'], ['why_it_matters', 'why it matters'],
+      ] as const) {
+        if (!String(row[field] ?? '').trim()) {
+          return json({ error: `A published page needs ${label}.` }, 422)
+        }
+      }
+      // The promise to innovators, enforced at the moment of publication.
+      const leak = identityLeak(profileProse(row as never), {
+        innovator_name: (row.innovator_name as string) ?? null,
+        innovator_email: (row.innovator_email as string) ?? null,
+        institution: (row.institution as string) ?? null,
+      })
+      if (leak) {
+        return json({
+          error: `This draft contains ${leak}. A technology page never identifies the innovator or the source institution.`,
+        }, 422)
+      }
+    }
+
+    const now = new Date().toISOString()
+    await db
+      .prepare(
+        `UPDATE technology_profiles
+         SET published = ?, published_at = ?, published_by = ?, updated_at = ?
+         WHERE reference = ?`,
+      )
+      .bind(publish ? 1 : 0, publish ? now : null, publish ? actor.email : null, now, reference)
+      .run()
+
+    await audit(db, actor, publish ? 'profile.publish' : 'profile.unpublish', reference, undefined, ip)
+    return json({ ok: true, published: publish })
   }
 
   /* ----------------------------------------------------------------- audit */

@@ -1,10 +1,19 @@
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Button from '../components/primitives/Button'
 import MetaList from '../components/primitives/MetaList'
-import Notice from '../components/primitives/Notice'
 import Reveal from '../components/primitives/Reveal'
 import TrlScale from '../components/primitives/TrlScale'
-import { findTechnology } from '../data/technologies'
+import { fetchTechnology } from '../data/portfolio'
+import type { TechnologyDetail as Detail } from '../data/portfolio'
+
+/** A published log entry, dated to the month. Days are working detail. */
+const asMonth = (iso: string | null) =>
+  iso
+    ? new Date(`${iso.slice(0, 7)}-01T00:00:00Z`)
+        .toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' })
+        .toUpperCase()
+    : '—'
 
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -26,14 +35,33 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
  */
 export default function TechnologyDetail() {
   const { slug } = useParams()
-  const tech = slug ? findTechnology(slug) : undefined
+  const [data, setData] = useState<Detail | null>(null)
+  const [state, setState] = useState<'loading' | 'ready' | 'missing'>('loading')
 
-  if (!tech) {
+  useEffect(() => {
+    if (!slug) return setState('missing')
+    let live = true
+    setState('loading')
+    fetchTechnology(slug)
+      .then((result) => { if (live) { setData(result); setState('ready') } })
+      .catch(() => { if (live) setState('missing') })
+    return () => { live = false }
+  }, [slug])
+
+  if (state === 'loading') {
+    return (
+      <section className="container-grid pb-28 pt-36 sm:pt-44">
+        <p className="label" style={{ color: 'var(--color-muted)' }} aria-live="polite">LOADING…</p>
+      </section>
+    )
+  }
+
+  if (state === 'missing' || !data) {
     return (
       <section className="container-grid pb-28 pt-36 sm:pt-44">
         <h1 className="statement-type">Technology not found.</h1>
         <p className="body-type mt-6" style={{ color: 'var(--color-muted)' }}>
-          That reference is not in the current portfolio.
+          That reference is not in the published portfolio.
         </p>
         <div className="mt-8">
           <Button to="/technologies">Back to the Technology Explorer</Button>
@@ -41,6 +69,8 @@ export default function TechnologyDetail() {
       </section>
     )
   }
+
+  const { technology: tech, timeline } = data
 
   return (
     <>
@@ -59,13 +89,6 @@ export default function TechnologyDetail() {
           </p>
         </Reveal>
 
-        {tech.placeholder && (
-          <Reveal delay={120}>
-            <div className="mt-8">
-              <Notice>Placeholder record — narrative fields are development copy, not claims</Notice>
-            </div>
-          </Reveal>
-        )}
       </section>
 
       <section className="container-grid pb-28">
@@ -109,7 +132,8 @@ export default function TechnologyDetail() {
           {/* Brief */}
           <div className="lg:order-1 lg:col-span-8">
             <Block title="Industrial problem">{tech.problem}</Block>
-            <Block title="Technology overview">{tech.thesis}</Block>
+            {/* The thesis is already the lede under the title; repeating it as
+                an overview block reads as padding. */}
             <Block title="How it works">{tech.principle}</Block>
             <Block title="Why it matters">{tech.whyItMatters}</Block>
 
@@ -122,14 +146,34 @@ export default function TechnologyDetail() {
 
             <section className="py-9" style={{ borderTop: '1px solid var(--rule)' }}>
               <h2 className="label" style={{ color: 'var(--color-faint)' }}>DEVELOPMENT UNDERTAKEN BY INTHINKS</h2>
-              <ul className="mt-4 space-y-3">
-                {tech.developmentByInThinks.map((item) => (
-                  <li key={item} className="flex items-baseline gap-3 text-[0.9375rem]" style={{ color: 'var(--color-muted)' }}>
-                    <span aria-hidden="true" className="h-px w-3 shrink-0" style={{ background: 'var(--color-accent)' }} />
-                    {item}
-                  </li>
-                ))}
-              </ul>
+              {timeline.length === 0 ? (
+                <p className="body-type measure-prose mt-4" style={{ color: 'var(--color-muted)' }}>
+                  No development steps have been published for this technology yet.
+                </p>
+              ) : (
+                <ol className="mt-4 space-y-3">
+                  {timeline.map((entry, i) => (
+                    <li
+                      key={`${entry.on}-${entry.title}-${i}`}
+                      className="grid grid-cols-[5.5rem_1fr] items-baseline gap-x-4 gap-y-1 text-[0.9375rem]"
+                      style={{ color: 'var(--color-muted)' }}
+                    >
+                      <span className="label tabular-nums" style={{ color: 'var(--color-accent)' }}>
+                        {asMonth(entry.on)}
+                      </span>
+                      <span>
+                        {entry.title}
+                        <span className="label ml-2" style={{ color: 'var(--color-faint)' }}>
+                          {entry.kind.toUpperCase()}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              <p className="label mt-5" style={{ color: 'var(--color-faint)' }}>
+                PUBLISHED DEVELOPMENT RECORD — THE WORKING LOG IS NOT PUBLIC
+              </p>
             </section>
 
             <Block title="Validation status">{tech.validation}</Block>

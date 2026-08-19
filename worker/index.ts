@@ -10,6 +10,7 @@ import type { Clean } from './validation'
 import { insertChallenge, insertInnovation, nextReference, notify, recordEvidence } from './storage'
 import { SUBMISSION_CEILING, chargeSubmission, checkRequest, submissionsUsed } from './ratelimit'
 import { handleAdmin } from './admin'
+import { handleTechnologies } from './technologies'
 
 const MAX_JSON_BYTES = 256 * 1024
 const MAX_TOTAL_UPLOAD = 60 * 1024 * 1024
@@ -221,6 +222,17 @@ export default {
     // say so up front instead of failing at the end of an eight-step form.
     if (url.pathname === '/api/status' && request.method === 'GET') {
       return json({ submissions: Boolean(env.DB), uploads: Boolean(env.EVIDENCE) })
+    }
+
+    // The public portfolio. Read-only, unauthenticated, and served before the
+    // rate limiter reads an IP — nobody is identified to browse the site.
+    if (url.pathname === '/api/technologies' || url.pathname.startsWith('/api/technologies/')) {
+      try {
+        return await handleTechnologies(request, env, url)
+      } catch (cause) {
+        console.error('portfolio request failed', cause instanceof Error ? cause.message : 'unknown')
+        return json({ error: 'Something went wrong.' }, 500)
+      }
     }
 
     const ip = request.headers.get('cf-connecting-ip') ?? '0.0.0.0'

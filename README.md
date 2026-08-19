@@ -119,10 +119,11 @@ The brief's legal and trust rules are enforced in the UI, not just intended:
   can leak one into the other.
 - **No commercial detail.** Transfer *structures* are named; consideration,
   margin and negotiation terms live only in `InternalDealRecord`.
-- **No fabricated evidence.** Every portfolio and narrative field in
-  `src/data/technologies.ts` is a labelled placeholder, surfaced as such on the
-  cards, the explorer and every brief. No patents, results, partners or clients
-  are asserted.
+- **No fabricated evidence.** The portfolio is whatever has actually been
+  published — there is no placeholder data in the bundle any more, so an empty
+  portfolio renders as empty rather than as invented records. No patents,
+  results, partners or clients are asserted anywhere the platform generates
+  text.
 - **No claimed receipt.** Submissions are stored and the reference is
   issued by the server, so the confirmation is only reached once the record
   exists. Where the bindings are absent, the form says so up front rather than
@@ -217,8 +218,8 @@ keep the long-form answers in a `payload` JSON column, so the question set can
 change without a migration. `evidence` is the manifest pointing at R2 objects.
 Schema is in `migrations/`, applied in order: `0001_init.sql` (intake),
 `0002_admin.sql` (accounts, audit, scoring), `0003_matches.sql`,
-`0004_development.sql`, `0005_opportunities.sql`, `0006_deals.sql` and
-`0007_royalties.sql`.
+`0004_development.sql`, `0005_opportunities.sql`, `0006_deals.sql`,
+`0007_royalties.sql` and `0008_public_profiles.sql`.
 
 ## Admin dashboard
 
@@ -311,6 +312,55 @@ The match engine, the Match Room, the R&D development workspace, the industry
 opportunity pipeline, the commercial deal room and royalty management are
 described in their own sections below.
 
+## The public portfolio
+
+The technology pages read published records, not a file in the bundle.
+`GET /api/technologies` and `GET /api/technologies/:slug` are unauthenticated
+and cacheable; `published = 1` is in every `WHERE` clause, and no parameter,
+header or path reaches a draft.
+
+**A submission cannot be published.** An innovator writes for assessors, under
+confidence, about their own work; a public brief is written by InThinks, about
+the technology, for an industrial reader. So the narrative is authored in the
+R&D workspace on a blank form rather than pre-filled from the submission — the
+one design decision the rest of this module follows from.
+
+What is *not* authored is anything the internal record already knows. TRL,
+public stage and domain are derived on read, so a page cannot advertise a
+maturity the workspace disagrees with. The nine working stages collapse into
+the seven public ones: outside the lab, `Optimisation` and `Engineering` are
+both simply development.
+
+Transfer status is the deliberate exception — stated, not read off the
+opportunity pipeline. A derived one would let a reader infer that a technology
+is in negotiation, which is exactly what the pipeline is private to avoid.
+
+### The identity guard
+
+The promise to innovators is enforced at the moment of publication, and again
+on the way out. `identityLeak` refuses a draft that contains this record's
+innovator, their email or the source institution, plus the shapes identity
+takes when it slips into prose — any email address, a phone number, a profile
+link. Names match whole-word, so an innovator called Rose does not blacklist
+the word *prose*; `npm test` holds the guard to both halves of that job.
+
+At serve time the same check runs again. A record that fails it is dropped from
+the list and 404s on its own URL, with the reason logged — a public leak is
+worse than a missing card, and nobody outside learns that the record exists.
+
+### Publishing
+
+Publishing needs the commercial capability, not the review one, and needs
+development rights: a page presenting a technology as available to develop,
+when InThinks holds none, is a claim it cannot make. It also needs the five
+narrative sections actually written. Publishing and withdrawal are separate
+audited actions, and withdrawal takes the page down immediately.
+
+Filter facets — industries and outcomes — are validated against the explorer's
+own vocabularies, so a profile cannot invent a facet nothing can filter on.
+Slugs are chosen rather than derived from the name, because a slug that follows
+an edited title silently breaks every link anyone has shared.
+
 ## Match engine
 
 Connects the challenge database to the technology portfolio. Two layers, then a
@@ -392,10 +442,9 @@ review one — an R&D reviewer can log freely but cannot publish — and is audi
 under its own action. The workspace shows the resulting public timeline beside
 the working log, so it is always visible what an outsider would see.
 
-> The public technology pages still read the placeholder portfolio in
-> `src/data/technologies.ts`, so published entries are not yet rendered
-> publicly. The flag, the gate and the serializer are in place; connecting them
-> is the step that comes with real portfolio records.
+Published entries are what the public technology page shows under
+*Development undertaken by InThinks* — dated to the month, with the working log
+staying internal. See **The public portfolio** below.
 
 ### Industry opportunity pipeline
 
@@ -523,8 +572,10 @@ platform is unaffected.
 
 `npm test` covers the deterministic half — ranking, exclusion, readiness
 reporting, affinity bounds, all four identity-guard cases, the deal room's money
-and rate parsers, and the royalty schedule, due calculation and annual close,
-all against exact integers. It runs as part of `npm run build`, so a regression
+and rate parsers, the royalty schedule, due calculation and annual close, and
+the portfolio's identity guard, slug rules and public serialiser — the last of
+these asserting that an innovator's name, email, institution and raw submission
+payload do not survive the trip to the public shape. It runs as part of `npm run build`, so a regression
 fails the deploy.
 
 ## Deployment
@@ -562,14 +613,13 @@ engine shortlists and a person decides, an approved match opens an opportunity,
 a negotiated opportunity opens a deal, and an executed deal opens the royalty
 record that outlives it.
 
-Two things named in the brief are still placeholders rather than gaps in the
-platform. The public technology pages read `src/data/technologies.ts` instead of
-the portfolio, so R&D timeline entries published through the workspace are not
-yet rendered publicly — the flag, the gate and the serializer are in place, and
-connecting them is what real portfolio records will need. And the live call to
-the Claude API in the match engine has never run here, because this environment
-has no `ANTHROPIC_API_KEY`; the deterministic layers around it are tested, the
-model call is not.
+One thing in the brief has never actually run here: the live call to the Claude
+API in the match engine, because this environment has no `ANTHROPIC_API_KEY`.
+The deterministic layers around it are tested; the model call is not.
+
+Nothing else is stubbed. The public portfolio reads published records, so the
+site shows whatever has been written and published and nothing otherwise —
+which on a fresh database is an empty explorer, stating so.
 
 `src/data/models.ts` types the innovation and challenge records, the fifteen
 `MatchSignals` dimensions, the `MatchRecord` whose `humanReview` field is

@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import PageHero from '../components/layout/PageHero'
 import Notice from '../components/primitives/Notice'
 import TechnologyRow from '../components/tech/TechnologyRow'
-import { technologies } from '../data/technologies'
+import { fetchTechnologies } from '../data/portfolio'
 import { TRANSFER_STATUSES } from '../data/models'
-import type { TransferStatus } from '../data/models'
+import type { Technology, TransferStatus } from '../data/models'
 import { domains, outcomes, sectors } from '../data/taxonomy'
 
 type FilterKey = 'problem' | 'industry' | 'domain' | 'trl' | 'transfer'
@@ -59,6 +59,16 @@ export default function Technologies() {
   const [filters, setFilters] = useState<Record<FilterKey, string[]>>({
     problem: [], industry: [], domain: [], trl: [], transfer: [],
   })
+  const [technologies, setTechnologies] = useState<Technology[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let live = true
+    fetchTechnologies()
+      .then((items) => { if (live) setTechnologies(items) })
+      .catch(() => { if (live) { setTechnologies([]); setError('The portfolio could not be loaded just now.') } })
+    return () => { live = false }
+  }, [])
 
   const toggle = (key: FilterKey, id: string) =>
     setFilters((f) => ({
@@ -71,7 +81,7 @@ export default function Technologies() {
 
   const results = useMemo(
     () =>
-      technologies.filter((tech) => {
+      (technologies ?? []).filter((tech) => {
         const problem = !filters.problem.length || filters.problem.some((o) => tech.outcomes.includes(o))
         const industry = !filters.industry.length || filters.industry.some((s) => tech.sectors.includes(s))
         const domain = !filters.domain.length || filters.domain.includes(tech.domainCode)
@@ -82,7 +92,7 @@ export default function Technologies() {
           !filters.transfer.length || filters.transfer.includes(tech.transferStatus)
         return problem && industry && domain && trl && transfer
       }),
-    [filters],
+    [filters, technologies],
   )
 
   return (
@@ -92,7 +102,7 @@ export default function Technologies() {
         title="Technology Explorer"
         lede="Technologies in the InThinks development portfolio, shown as industrial opportunities. Every profile is anonymised — the technology is public, the innovator is not."
       >
-        <Notice>Placeholder records — awaiting real portfolio data</Notice>
+        {error && <Notice>{error}</Notice>}
       </PageHero>
 
       <section className="container-grid pb-28">
@@ -123,10 +133,23 @@ export default function Technologies() {
 
           <div className="lg:col-span-8 xl:col-span-9">
             <p className="label pb-4" style={{ color: 'var(--color-muted)' }} aria-live="polite">
-              {results.length} OF {technologies.length} TECHNOLOGIES
+              {technologies === null
+                ? 'LOADING…'
+                : `${results.length} OF ${technologies.length} ${technologies.length === 1 ? 'TECHNOLOGY' : 'TECHNOLOGIES'}`}
             </p>
 
-            {results.length === 0 ? (
+            {technologies === null ? null : technologies.length === 0 ? (
+              <div className="py-16" style={{ borderTop: '1px solid var(--rule)' }}>
+                <p className="font-display text-[1.5rem] font-medium tracking-[-0.02em]">
+                  No technologies are published yet.
+                </p>
+                <p className="body-type measure-prose mt-5" style={{ color: 'var(--color-muted)' }}>
+                  A technology appears here once InThinks holds development rights and a
+                  profile has been written for it. Nothing is listed in the meantime —
+                  an empty portfolio reads as empty rather than as placeholder records.
+                </p>
+              </div>
+            ) : results.length === 0 ? (
               <div className="py-16" style={{ borderTop: '1px solid var(--rule)' }}>
                 <p className="font-display text-[1.5rem] font-medium tracking-[-0.02em]">
                   No technology in the portfolio matches those filters.

@@ -62,6 +62,12 @@ export const TRANSFER_STATUSES: TransferStatus[] = [
  * Deliberately excludes innovator identity, source institution, acquisition
  * terms, margins, unpublished patent detail and confidential implementation.
  * Those belong to `InternalInnovationRecord` and never reach the client.
+ *
+ * The narrative fields are authored by InThinks for an industrial reader, not
+ * copied from a submission — a submission is written for assessors and is
+ * confidential. `entryTrl`, `currentTrl`, `targetTrl` and `stage` are derived
+ * server-side from the internal record, so a public page cannot claim a
+ * maturity the development workspace disagrees with.
  */
 export interface Technology {
   id: string
@@ -73,7 +79,6 @@ export interface Technology {
   problem: string
   principle: string
   whyItMatters: string
-  developmentByInThinks: string[]
   validation: string
   applications: string[]
   sectors: string[]
@@ -85,8 +90,19 @@ export interface Technology {
   ipStatus: IpStatus
   transferStatus: TransferStatus
   nextMilestones: string[]
-  /** True while this is structural placeholder content, shown as such in the UI. */
-  placeholder: boolean
+}
+
+/**
+ * One published step in a technology's development.
+ *
+ * Comes from the R&D workspace's log, and only from entries someone approved
+ * for publication. The working log — failures, cost estimates, internal test
+ * results — never crosses this line.
+ */
+export interface TimelineEntry {
+  on: string | null
+  title: string
+  kind: string
 }
 
 /**
