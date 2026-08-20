@@ -31,7 +31,7 @@ export interface Office {
 
 export const offices: Office[] = [
   {
-    street: '237, 1st Floor, Gujranwala Town, Part-3',
+    street: '237, Gujranwala Town, Part-3',
     locality: 'New Delhi',
     postalCode: '110009',
     country: 'India',
