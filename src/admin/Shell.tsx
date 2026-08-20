@@ -21,6 +21,7 @@ export default function Shell({ me, onSignedOut, children }: { me: Me; onSignedO
     ...(me.can.viewChallengeContacts ? [{ to: '/admin/messages', label: 'Messages' }] : []),
     ...(me.can.moveAcquisitionStage ? [{ to: '/admin/public', label: 'Public records' }] : []),
     { to: '/admin/matches', label: 'Matches' },
+    { to: '/admin/engine', label: 'Engine' },
     { to: '/admin/development', label: 'R&D' },
     { to: '/admin/opportunities', label: 'Opportunities' },
     ...(me.can.viewCommercialTerms

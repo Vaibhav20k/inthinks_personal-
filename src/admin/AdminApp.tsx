@@ -10,6 +10,7 @@ import InnovationDetail from './InnovationDetail'
 import Challenges from './Challenges'
 import Messages from './Messages'
 import PublicRecords from './PublicRecords'
+import Engine from './Engine'
 import ChallengeDetail from './ChallengeDetail'
 import Matches from './Matches'
 import MatchRoom from './MatchRoom'
@@ -87,6 +88,7 @@ export default function AdminApp() {
         {/* Same gate the server enforces: authoring what the public site shows
             is an editorial and commercial act, not a review one. */}
         {me.can.moveAcquisitionStage && <Route path="public" element={<PublicRecords />} />}
+        <Route path="engine" element={<Engine me={me} />} />
         <Route path="matches" element={<Matches />} />
         <Route path="matches/:reference" element={<MatchRoom me={me} />} />
         <Route path="development" element={<Development />} />
