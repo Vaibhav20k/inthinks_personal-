@@ -39,24 +39,64 @@ const parse = (raw: unknown): Record<string, unknown> => {
   }
 }
 
+/**
+ * The challenge the engine reasons about.
+ *
+ * Two sources, because there are two kinds of challenge. A submitted one lives
+ * on `challenges` and the engine reads its confidential payload — that is
+ * fine, the analysis stays internal. An InThinks-authored one exists only as a
+ * public profile, and running matching against it was impossible until this
+ * looked in both places: the illustrative set and anything InThinks structures
+ * itself were invisible to the engine.
+ */
 export async function loadChallenge(db: D1Database, reference: string): Promise<ChallengeRecord | null> {
   const row = await db
     .prepare('SELECT reference, title, sector, payload FROM challenges WHERE reference = ?')
     .bind(reference)
     .first<Record<string, unknown>>()
-  if (!row) return null
-  const p = parse(row.payload)
+  if (row) {
+    const p = parse(row.payload)
+    return {
+      reference: String(row.reference),
+      title: String(row.title),
+      sector: String(row.sector),
+      statement: one(p.statement),
+      currentSolution: one(p.currentSolution),
+      success: one(p.success),
+      performance: one(p.performance),
+      constraints: one(p.constraints),
+      impacts: list(p.impacts),
+      desiredTrl: one(p.desiredTrl),
+    }
+  }
+
+  const profile = await db
+    .prepare(
+      `SELECT reference, title, sector, problem, current_approach, target_outcome,
+              target, constraints, impact, minimum_trl
+         FROM challenge_profiles WHERE reference = ?`,
+    )
+    .bind(reference)
+    .first<Record<string, unknown>>()
+  if (!profile) return null
+
+  const arr = (v: unknown): string[] => {
+    try {
+      const parsed = JSON.parse(String(v ?? '[]'))
+      return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : []
+    } catch { return [] }
+  }
   return {
-    reference: String(row.reference),
-    title: String(row.title),
-    sector: String(row.sector),
-    statement: one(p.statement),
-    currentSolution: one(p.currentSolution),
-    success: one(p.success),
-    performance: one(p.performance),
-    constraints: one(p.constraints),
-    impacts: list(p.impacts),
-    desiredTrl: one(p.desiredTrl),
+    reference: String(profile.reference),
+    title: String(profile.title),
+    sector: String(profile.sector ?? ''),
+    statement: String(profile.problem ?? ''),
+    currentSolution: String(profile.current_approach ?? ''),
+    success: String(profile.target_outcome ?? ''),
+    performance: String(profile.target ?? ''),
+    constraints: arr(profile.constraints).join('; '),
+    impacts: arr(profile.impact),
+    desiredTrl: `TRL ${Number(profile.minimum_trl ?? 4)}`,
   }
 }
 
@@ -77,7 +117,7 @@ export async function loadTechnologies(db: D1Database): Promise<TechnologyRecord
     )
     .all<Record<string, unknown>>()
 
-  return rows.results.map((row) => {
+  const submitted = rows.results.map((row) => {
     const p = parse(row.payload)
     return {
       reference: String(row.reference),
@@ -95,6 +135,54 @@ export async function loadTechnologies(db: D1Database): Promise<TechnologyRecord
       industries: list(p.industries),
     }
   })
+
+  /**
+   * Technologies InThinks wrote up itself.
+   *
+   * They have no innovation row, so the query above cannot see them — which
+   * meant an authored technology could never be a candidate for anything, and
+   * the whole illustrative set was invisible to matching.
+   *
+   * `acquisitionStage` is empty rather than invented: it is a soft affinity
+   * bonus for being in the active development portfolio, and an authored
+   * record has no acquisition to be at a stage of. Claiming one would score it
+   * above submissions on a fact that does not exist.
+   */
+  const authoredRows = await db
+    .prepare(
+      `SELECT reference, name, thesis, problem, principle, applications, sectors,
+              authored_domain_code, authored_entry_trl, authored_current_trl,
+              authored_target_trl, published
+         FROM technology_profiles
+        WHERE origin = 'authored'`,
+    )
+    .all<Record<string, unknown>>()
+
+  const authored = authoredRows.results.map((row) => {
+    const arr = (v: unknown): string[] => {
+      try {
+        const parsed = JSON.parse(String(v ?? '[]'))
+        return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : []
+      } catch { return [] }
+    }
+    return {
+      reference: String(row.reference),
+      title: String(row.name),
+      category: String(row.authored_domain_code ?? ''),
+      entryTrl: Number(row.authored_entry_trl ?? 1) || 1,
+      currentTrl: Number(row.authored_current_trl ?? row.authored_entry_trl ?? 1) || 1,
+      targetTrl: Number(row.authored_target_trl ?? 9) || 9,
+      status: row.published === 1 ? 'Published' : 'Draft',
+      acquisitionStage: '',
+      summary: String(row.thesis ?? ''),
+      problem: String(row.problem ?? ''),
+      principle: String(row.principle ?? ''),
+      applications: arr(row.applications).join(', '),
+      industries: arr(row.sectors),
+    }
+  })
+
+  return [...submitted, ...authored]
 }
 
 async function nextMatchReference(db: D1Database, year: number) {

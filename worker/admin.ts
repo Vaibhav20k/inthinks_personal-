@@ -777,11 +777,22 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
 
     const rows = await db
       .prepare(
-        `SELECT m.*, c.title AS challenge_title, c.sector AS challenge_sector,
-                i.title AS technology_title, i.category AS technology_category
+        // Both ends can be authored records with no submission behind them,
+        // so the titles fall back to the profile tables. Without this an
+        // authored technology appeared in the engine's list as a bare
+        // reference with no name against it.
+        `SELECT m.*,
+                COALESCE(c.title, cp.title) AS challenge_title,
+                COALESCE(c.sector, cp.sector) AS challenge_sector,
+                COALESCE(i.title, tp.name) AS technology_title,
+                COALESCE(i.category, tp.authored_domain_code) AS technology_category,
+                mp.reference AS promoted_as
          FROM matches m
          LEFT JOIN challenges c ON c.reference = m.challenge_ref
+         LEFT JOIN challenge_profiles cp ON cp.reference = m.challenge_ref
          LEFT JOIN innovations i ON i.reference = m.technology_ref
+         LEFT JOIN technology_profiles tp ON tp.reference = m.technology_ref
+         LEFT JOIN match_profiles mp ON mp.source_match_ref = m.reference
          ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
          ORDER BY m.created_at DESC LIMIT 200`,
       )
@@ -802,7 +813,51 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
         decision: r.decision,
         trlGap: r.trl_gap,
         ipRisk: r.ip_risk,
+        /** The public match this became, if it has been promoted. */
+        promotedAs: r.promoted_as ?? null,
       })),
+      decisions: MATCH_DECISIONS,
+      releasingDecision: RELEASING_DECISION,
+    })
+  }
+
+  /**
+   * What the engine can be run against.
+   *
+   * Both kinds of challenge: submitted ones and profiles InThinks authored.
+   * Listing them here rather than making the operator know a reference means
+   * "run matching" is a choice from a menu instead of a typed guess.
+   */
+  if (path === '/match-targets' && request.method === 'GET') {
+    // No extra gate, matching `/matches` above: this returns the same class of
+    // thing that route already returns to any signed-in user. Gating it on
+    // `editReviewState` locked business development out of the list they need
+    // in order to promote a match — running the engine is theirs to be
+    // refused, reading what it ran against is not.
+    const submitted = await db
+      .prepare('SELECT reference, title, sector FROM challenges ORDER BY created_at DESC LIMIT 100')
+      .all<Record<string, unknown>>()
+    const authored = await db
+      .prepare("SELECT reference, title, sector FROM challenge_profiles WHERE origin = 'authored' ORDER BY updated_at DESC LIMIT 100")
+      .all<Record<string, unknown>>()
+    const counts = await db
+      .prepare('SELECT challenge_ref, COUNT(*) AS n FROM matches GROUP BY challenge_ref')
+      .all<Record<string, unknown>>()
+    const byRef = new Map(counts.results.map((r) => [String(r.challenge_ref), Number(r.n)]))
+    const shape = (r: Record<string, unknown>, origin: string) => ({
+      reference: r.reference,
+      title: r.title,
+      sector: r.sector,
+      origin,
+      candidates: byRef.get(String(r.reference)) ?? 0,
+    })
+    return json({
+      items: [
+        ...submitted.results.map((r) => shape(r, 'submission')),
+        ...authored.results.map((r) => shape(r, 'authored')),
+      ],
+      /** Whether the engine can actually run on this deployment. */
+      configured: Boolean(env.ANTHROPIC_API_KEY),
     })
   }
 
@@ -1901,6 +1956,114 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
 
     await audit(db, actor, 'match-profile.create', reference, { problemRef, technologyRef, sourceRef }, ip)
     return json({ reference, slug }, 201)
+  }
+
+  /**
+   * Promotes a decided engine candidate to a public match.
+   *
+   * The alternative was linking the two ends by hand in the public register
+   * and retyping the reasoning the engine already produced — which is how the
+   * public record ends up saying something the internal analysis does not.
+   *
+   * It refuses on the same two conditions publication does, checked here so
+   * the failure names what is missing rather than creating a record that can
+   * never go out. The result is a draft: promotion moves the analysis across,
+   * it does not publish anything.
+   */
+  const promoteMatch = path.match(/^\/matches\/([A-Za-z0-9-]{1,32})\/promote$/)
+  if (promoteMatch && request.method === 'POST') {
+    if (!can.moveAcquisitionStage) return json({ error: 'Not permitted' }, 403)
+    const sourceRef = promoteMatch[1]
+
+    const source = await db
+      .prepare(
+        `SELECT reference, challenge_ref, technology_ref, classification, decision,
+                mechanism_fit, application_fit, trl_fit, constraint_fit,
+                development_effort, analysis
+           FROM matches WHERE reference = ?`,
+      )
+      .bind(sourceRef).first<Record<string, unknown>>()
+    if (!source) return json({ error: 'Not found' }, 404)
+
+    if (source.decision !== RELEASING_DECISION) {
+      return json({
+        error: `That match is at "${source.decision}". Approve it for industry discussion before promoting it.`,
+      }, 409)
+    }
+
+    // Both ends need a public profile. The engine pairs internal records; a
+    // public match joins the pages written about them, and one may not exist.
+    const problem = await db.prepare('SELECT reference FROM challenge_profiles WHERE reference = ?')
+      .bind(source.challenge_ref).first<{ reference: string }>()
+    const tech = await db.prepare('SELECT reference FROM technology_profiles WHERE reference = ?')
+      .bind(source.technology_ref).first<{ reference: string }>()
+    const missing = [
+      problem ? null : `the challenge ${source.challenge_ref}`,
+      tech ? null : `the technology ${source.technology_ref}`,
+    ].filter(Boolean)
+    if (missing.length > 0) {
+      return json({
+        error: `Write a public profile for ${missing.join(' and ')} first — a public match joins two public records.`,
+      }, 409)
+    }
+
+    const existing = await db
+      .prepare('SELECT reference FROM match_profiles WHERE problem_ref = ? AND technology_ref = ?')
+      .bind(source.challenge_ref, source.technology_ref).first<{ reference: string }>()
+    if (existing) return json({ error: `Already promoted as ${existing.reference}` }, 409)
+
+    // The engine's own words, carried across rather than retyped. Its
+    // vocabulary is not the site's, so the ratings are mapped and the class is
+    // translated; what it cannot supply is left blank for a person to write.
+    let analysis: Record<string, unknown> = {}
+    try { analysis = JSON.parse(String(source.analysis ?? '{}')) } catch { /* leave it empty */ }
+
+    const rating = (v: unknown) => {
+      const key = String(v ?? '').toLowerCase()
+      return key === 'strong' ? 'Strong'
+        : key === 'moderate' ? 'Moderate'
+        : key === 'limited' ? 'Limited'
+        : 'Unknown'
+    }
+    const fit = [
+      { dimension: 'Mechanism', rating: rating(source.mechanism_fit) },
+      { dimension: 'Application', rating: rating(source.application_fit) },
+      { dimension: 'TRL', rating: rating(source.trl_fit) },
+      { dimension: 'Implementation', rating: rating(source.constraint_fit) },
+    ]
+    const classification = String(source.classification ?? '').toLowerCase()
+    const matchClass = classification.includes('strong') ? 'Strong candidate'
+      : classification.includes('promis') ? 'Promising match'
+      : 'Candidate match'
+    const effort = String(source.development_effort ?? '').toLowerCase()
+    const development = effort.includes('low') ? 'Low' : effort.includes('high') ? 'High' : 'Medium'
+
+    const questions = [
+      ...(Array.isArray(analysis.missingEvidence) ? analysis.missingEvidence : []),
+      ...(Array.isArray(analysis.technicalConflicts) ? analysis.technicalConflicts : []),
+    ].filter((q): q is string => typeof q === 'string').map((q) => q.slice(0, 300)).slice(0, 8)
+
+    const reference = await nextReference(db, 'MTC', new Date().getUTCFullYear())
+    const now = new Date().toISOString()
+    await db
+      .prepare(
+        `INSERT INTO match_profiles
+           (reference, created_at, updated_at, record_type, problem_ref, technology_ref,
+            source_match_ref, slug, match_class, status, rationale, next_step,
+            open_questions, fit, development_required)
+         VALUES (?, ?, ?, 'live', ?, ?, ?, ?, ?, 'Technical review', ?, ?, ?, ?, ?)`,
+      )
+      .bind(
+        reference, now, now, source.challenge_ref, source.technology_ref, sourceRef,
+        reference.toLowerCase(), matchClass,
+        typeof analysis.whyTheyMatch === 'string' ? analysis.whyTheyMatch.slice(0, 4000) : '',
+        typeof analysis.requiredDevelopment === 'string' ? analysis.requiredDevelopment.slice(0, 600) : '',
+        JSON.stringify(questions), JSON.stringify(fit), development,
+      )
+      .run()
+
+    await audit(db, actor, 'match.promote', sourceRef, { profile: reference }, ip)
+    return json({ reference, slug: reference.toLowerCase() }, 201)
   }
 
   const matchProfileMatch = path.match(/^\/match-profiles\/([A-Za-z0-9-]{1,32})$/)

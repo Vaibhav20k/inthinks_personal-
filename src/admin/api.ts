@@ -283,6 +283,20 @@ export const setRecordType = (kind: 'tech' | 'problem' | 'match', reference: str
     method: 'POST', body: JSON.stringify({ recordType }),
   })
 
+export interface MatchTarget {
+  reference: string
+  title: string
+  sector: string
+  origin: 'submission' | 'authored'
+  candidates: number
+}
+
+export const matchTargets = () =>
+  call<{ items: MatchTarget[]; configured: boolean }>('/match-targets')
+
+export const promoteMatch = (reference: string) =>
+  call<{ reference: string; slug: string }>(`/matches/${reference}/promote`, { method: 'POST' })
+
 export interface MatchProfile {
   reference: string
   recordType: 'demo' | 'live'
@@ -414,6 +428,8 @@ export interface MatchSummary {
   decision: MatchDecision
   trlGap: number | null
   ipRisk: string | null
+  /** The public match this became, if it has been promoted. */
+  promotedAs: string | null
 }
 
 export interface MatchAnalysis {
@@ -461,7 +477,9 @@ export interface MatchDetail {
 
 export const matches = (params: Record<string, string> = {}) => {
   const q = new URLSearchParams(params).toString()
-  return call<{ items: MatchSummary[] }>(`/matches${q ? `?${q}` : ''}`)
+  return call<{ items: MatchSummary[]; decisions: MatchDecision[]; releasingDecision: MatchDecision }>(
+    `/matches${q ? `?${q}` : ''}`,
+  )
 }
 
 export const match = (reference: string) => call<MatchDetail>(`/matches/${reference}`)
