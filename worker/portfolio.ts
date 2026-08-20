@@ -87,6 +87,46 @@ export const domainFor = (category: string | null | undefined) =>
   DOMAINS.find((d) => d.name === category) ?? { code: 'MAT', name: category ?? 'Advanced Materials' }
 
 /** A technology may be published once InThinks holds rights to develop it. */
+/**
+ * Where a public record came from.
+ *
+ * A submission-derived profile reads TRL, domain and stage from the workspace
+ * record behind it, so a public page cannot outrun what the reviewers know. An
+ * authored one has no such record, so those facts are written on the profile —
+ * which is only safe precisely because there is nothing for it to contradict.
+ */
+export const ORIGINS = ['submission', 'authored'] as const
+
+/** Demo records exist so the platform does not launch empty. Labelled, always. */
+export const RECORD_TYPES = ['demo', 'live'] as const
+
+/** What a published industrial challenge can say about its own progress. */
+export const PROBLEM_STATUSES = [
+  'Open challenge',
+  'Technology search',
+  'Candidate technologies identified',
+  'Match identified',
+  'Technical review',
+  'Closed',
+] as const
+
+/**
+ * Priority areas a challenge can be filed under.
+ *
+ * A closed vocabulary because the Problem Explorer filters on it, and one
+ * challenge filed under a value nobody else uses turns a filter into a guess.
+ */
+export const PRIORITY_AREAS = [
+  'Energy',
+  'Emissions',
+  'Asset life',
+  'Yield',
+  'Water',
+  'Waste',
+  'Safety',
+  'Cost',
+] as const
+
 export const PUBLISHABLE_STAGES = ['Rights Secured', 'Development Portfolio'] as const
 
 /* -------------------------------------------------------------------- slugs */
@@ -152,6 +192,56 @@ export function identityLeak(text: string, identity: Identity): string | null {
   return null
 }
 
+/**
+ * Named parties that must never appear on a public record.
+ *
+ * `identityLeak` compares prose against the identity on the submission behind
+ * it. An authored record has no submission, so that guard has nothing to
+ * compare and passes everything — which is how a draft naming an institution
+ * published cleanly in testing.
+ *
+ * This is the other half: patterns that are wrong on any public record,
+ * whatever it came from. A published technology never names the innovator or
+ * their institution; a published challenge never names the company. Both
+ * promises are the platform's, not the author's to remember.
+ *
+ * Deliberately narrow. Every entry is a proper noun in practice, so "validated
+ * in a university laboratory" passes and "validated at IIT Bombay" does not —
+ * a guard that fires on ordinary technical prose is one people learn to route
+ * around.
+ */
+const NAMED_PARTIES: [RegExp, string][] = [
+  [/\b(?:IIT|IISc|NIT|IISER|NISER|BITS)\b/, 'a named institution'],
+  [/\bIndian Institute of\b/i, 'a named institution'],
+  [/\bUniversity of [A-Z]/, 'a named university'],
+  [/\b[A-Z][a-z]{2,} University\b/, 'a named university'],
+  [/\b(?:Tata|Reliance|Adani|JSW|Mahindra|Infosys|Wipro)\b/, 'a named company'],
+  [/\bL&T\b/, 'a named company'],
+  // "Limited" is an ordinary English word — "Limited adhesion data" is normal
+  // technical writing and was flagged as a company until this required a
+  // proper noun in front of the suffix. Inc./LLC/GmbH are distinctive enough
+  // to stand alone.
+  [/\b[A-Z][A-Za-z]{2,}\s+(?:Pvt\.?\s+)?(?:Private\s+)?(?:Limited|Ltd\.?)\b/, 'a company suffix'],
+  [/\b(?:Inc\.|LLC|GmbH|S\.A\.|N\.V\.)\b/, 'a company suffix'],
+]
+
+/**
+ * What is wrong with this text for publication, or null if nothing is.
+ *
+ * Runs on every public record regardless of origin, alongside `identityLeak`
+ * rather than instead of it: that one knows who the actual innovator is, this
+ * one knows what a public record may never say about anybody.
+ */
+export function namedPartyLeak(text: string): string | null {
+  for (const [pattern, label] of NAMED_PARTIES) {
+    if (pattern.test(text)) return label
+  }
+  if (/[\w.+-]+@[\w-]+\.[\w.-]+/.test(text)) return 'an email address'
+  if (/(?:\+\d[\d\s-]{7,}|\b\d{10}\b)/.test(text)) return 'a phone number'
+  if (/\b(?:linkedin|orcid|researchgate|scholar\.google)\b/i.test(text)) return 'a personal profile link'
+  return null
+}
+
 /** Every free-text field of a profile, as one string, for the guard to read. */
 export const profileProse = (p: {
   name: string; thesis: string; problem: string; principle: string
@@ -181,7 +271,19 @@ export const parseList = (json: string | null | undefined): string[] => {
  * appear on the site by accident.
  */
 export function publicTechnology(row: Record<string, unknown>) {
-  const domain = domainFor(row.category as string)
+  /**
+   * An authored record carries its own facts; a submission-derived one reads
+   * them from the innovation behind it. The row shape is the same either way —
+   * the query supplies both sets of columns and this picks the right pair —
+   * so nothing downstream has to know which kind it is holding.
+   */
+  const authored = row.origin === 'authored'
+  const domain = authored
+    ? (DOMAINS.find((d) => d.code === row.authored_domain_code) ?? DOMAINS[DOMAINS.length - 1])
+    : domainFor(row.category as string)
+  const entry = Number((authored ? row.authored_entry_trl : row.entry_trl) ?? 1)
+  const current = Number((authored ? row.authored_current_trl : row.current_trl) ?? entry)
+  const target = Number((authored ? row.authored_target_trl : row.target_trl) ?? entry)
   return {
     id: String(row.reference),
     slug: String(row.slug),
@@ -197,11 +299,16 @@ export function publicTechnology(row: Record<string, unknown>) {
     sectors: parseList(row.sectors as string),
     outcomes: parseList(row.outcomes as string),
     nextMilestones: parseList(row.next_milestones as string),
-    // Derived from the internal record, never authored twice.
-    entryTrl: Number(row.entry_trl ?? 1),
-    currentTrl: Number(row.current_trl ?? row.entry_trl ?? 1),
-    targetTrl: Number(row.target_trl ?? row.entry_trl ?? 1),
-    stage: publicStage(row.development_stage as string),
+    // Derived from the internal record wherever there is one, so a public page
+    // can never claim a maturity the workspace disagrees with.
+    entryTrl: entry,
+    currentTrl: current,
+    targetTrl: target,
+    stage: authored
+      ? String(row.authored_stage ?? 'Under Evaluation')
+      : publicStage(row.development_stage as string),
+    /** Illustrative records say so, wherever they are rendered. */
+    demo: row.record_type === 'demo',
     ipStatus: String(row.ip_status),
     transferStatus: String(row.transfer_status),
   }

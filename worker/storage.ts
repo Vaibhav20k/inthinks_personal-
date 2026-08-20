@@ -20,7 +20,17 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? (v[0] ?? '
  * two submissions landing at once — which matters, because a duplicated
  * reference is the one error a submitter would actually notice.
  */
-export async function nextReference(db: D1Database, stream: 'CH' | 'INT' | 'MSG', year: number) {
+/**
+ * Streams, and why they are separate.
+ *
+ * `CH` and `INT` belong to submissions; `TEC` and `PRB` to records InThinks
+ * authors itself. Sharing a stream would let an authored profile take a
+ * reference a real submission is going to be issued, and the collision would
+ * surface as one record silently overwriting another.
+ */
+export type ReferenceStream = 'CH' | 'INT' | 'MSG' | 'TEC' | 'PRB'
+
+export async function nextReference(db: D1Database, stream: ReferenceStream, year: number) {
   const name = `${stream}:${year}`
   const row = await db
     .prepare(

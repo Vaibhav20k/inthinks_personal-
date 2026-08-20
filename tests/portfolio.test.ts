@@ -8,7 +8,7 @@
  */
 import {
   DOMAINS, PUBLIC_STAGES, STAGE_TO_PUBLIC, domainFor, identityLeak, isSlug,
-  parseList, publicStage, publicTechnology, toSlug,
+  namedPartyLeak, parseList, publicStage, publicTechnology, toSlug,
 } from '../worker/portfolio'
 import { DEVELOPMENT_STAGES } from '../worker/development'
 
@@ -116,8 +116,56 @@ check('TRLs come through as numbers',
 check('the domain is resolved from the category',
   serialised.domain === 'Energy' && serialised.domainCode === 'ENR')
 
+/* ------------------------------------------------------- named-party guard */
+
+/**
+ * The guard that works without a submission behind the record.
+ *
+ * It exists because the identity check compares prose against the innovator on
+ * the submission, and an authored record has none — so a draft naming an
+ * institution published cleanly until this was added. It has the same two jobs
+ * as its sibling: catch a named party, and leave ordinary technical writing
+ * alone.
+ */
+console.log('\nwhat no public record may say')
+
+for (const [text, expected] of [
+  ['Developed by a team at IIT Bombay.', 'a named institution'],
+  ['Originated at the Indian Institute of Science.', 'a named institution'],
+  ['Work carried out at Coastal University.', 'a named university'],
+  ['A collaboration with the University of Madras.', 'a named university'],
+  ['Piloted with Tata Steel at their works.', 'a named company'],
+  ['Supplied under contract to L&T.', 'a named company'],
+  ['Held by Meridian Alloys Pvt Ltd.', 'a company suffix'],
+  ['Write to priya@example.org for the data.', 'an email address'],
+  ['Reach the team on +91 98765 43210.', 'a phone number'],
+  ['Background on the inventor: linkedin.com/in/example', 'a personal profile link'],
+] as const) {
+  check(`catches ${expected} — "${text.slice(0, 34)}…"`, namedPartyLeak(text) === expected,
+    `got ${String(namedPartyLeak(text))}`)
+}
+
+for (const text of [
+  'Validated in a university laboratory at coupon scale.',
+  'The institute of a continuous process is not relevant here.',
+  'A layered barrier applied to the outer surface of the shell.',
+  'Operating temperature above 1,100 °C, measured across a full campaign.',
+  'Limited adhesion data; further testing required before industrial use.',
+  'Recovery of dissolved metals from process water at pH 3 to 5.',
+]) {
+  check(`allows ordinary prose — "${text.slice(0, 34)}…"`, namedPartyLeak(text) === null,
+    `flagged ${String(namedPartyLeak(text))}`)
+}
+
+// A ten-digit run inside a technical figure must not read as a phone number.
+check('a long number in prose is not a phone number',
+  namedPartyLeak('Throughput of 250000 tonnes per annum.') === null)
+
+
 if (failures > 0) {
   console.log(`\n${failures} portfolio test(s) failed.`)
+
+
   process.exit(1)
 }
 console.log('\nAll portfolio unit tests passed.')

@@ -9,6 +9,7 @@ import Innovations from './Innovations'
 import InnovationDetail from './InnovationDetail'
 import Challenges from './Challenges'
 import Messages from './Messages'
+import PublicRecords from './PublicRecords'
 import ChallengeDetail from './ChallengeDetail'
 import Matches from './Matches'
 import MatchRoom from './MatchRoom'
@@ -83,6 +84,9 @@ export default function AdminApp() {
             contact may not read correspondence either. Routing on the
             capability keeps the link and the route from disagreeing. */}
         {me.can.viewChallengeContacts && <Route path="messages" element={<Messages />} />}
+        {/* Same gate the server enforces: authoring what the public site shows
+            is an editorial and commercial act, not a review one. */}
+        {me.can.moveAcquisitionStage && <Route path="public" element={<PublicRecords />} />}
         <Route path="matches" element={<Matches />} />
         <Route path="matches/:reference" element={<MatchRoom me={me} />} />
         <Route path="development" element={<Development />} />

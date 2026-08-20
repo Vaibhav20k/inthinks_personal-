@@ -203,6 +203,86 @@ export interface ChallengeDetail extends ChallengeSummary {
   notes: Note[]
 }
 
+export interface TechProfileRow {
+  reference: string
+  origin: 'submission' | 'authored'
+  recordType: 'demo' | 'live'
+  slug: string
+  name: string
+  currentTrl: number | null
+  targetTrl: number | null
+  domain: string | null
+  transferStatus: string
+  ipStatus: string
+  acquisitionStage: string | null
+  published: boolean
+  publishedAt: string | null
+  updatedAt: string
+}
+
+export interface ProblemProfile {
+  reference: string
+  origin: 'submission' | 'authored'
+  recordType: 'demo' | 'live'
+  slug: string
+  title: string
+  sector: string
+  priorityArea: string
+  target: string
+  summary: string
+  problem: string
+  currentApproach: string
+  targetOutcome: string
+  constraints: string[]
+  environment: string[]
+  impact: string[]
+  outcomes: string[]
+  minimumTrl: number
+  status: string
+  published: boolean
+  publishedAt: string | null
+  publishedBy: string | null
+  updatedAt: string
+}
+
+export const techProfiles = () =>
+  call<{ items: TechProfileRow[]; recordTypes: string[] }>('/tech-profiles')
+
+export const createTechProfile = (body: Record<string, unknown>) =>
+  call<{ reference: string; slug: string }>('/tech-profiles', { method: 'POST', body: JSON.stringify(body) })
+
+export const patchTechFacts = (reference: string, body: Record<string, unknown>) =>
+  call<{ ok: true }>(`/tech-profiles/${reference}/facts`, { method: 'PATCH', body: JSON.stringify(body) })
+
+export const problemProfiles = () =>
+  call<{
+    items: ProblemProfile[]
+    statuses: string[]
+    priorityAreas: string[]
+    sectors: string[]
+    recordTypes: string[]
+  }>('/problem-profiles')
+
+export const problemProfile = (reference: string) =>
+  call<ProblemProfile>(`/problem-profiles/${reference}`)
+
+export const createProblemProfile = (body: Record<string, unknown>) =>
+  call<{ reference: string; slug: string }>('/problem-profiles', { method: 'POST', body: JSON.stringify(body) })
+
+export const saveProblemProfile = (reference: string, body: Record<string, unknown>) =>
+  call<{ ok: true; slug: string }>(`/problem-profiles/${reference}`, { method: 'PUT', body: JSON.stringify(body) })
+
+export const publishProblemProfile = (reference: string, published: boolean) =>
+  call<{ ok: true; published: boolean }>(`/problem-profiles/${reference}/publish`, {
+    method: 'POST', body: JSON.stringify({ published }),
+  })
+
+/** Demo or live, on either kind of record — one endpoint, one audit action. */
+export const setRecordType = (kind: 'tech' | 'problem', reference: string, recordType: 'demo' | 'live') =>
+  call<{ ok: true; recordType: string }>(`/${kind}-profiles/${reference}/record-type`, {
+    method: 'POST', body: JSON.stringify({ recordType }),
+  })
+
 export interface Message {
   reference: string
   created_at: string

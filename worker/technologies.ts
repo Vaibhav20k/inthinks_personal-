@@ -28,7 +28,9 @@ const json = (body: unknown, status = 200, cache = 'public, max-age=60, s-maxage
 const PROFILE_COLUMNS = `
   p.reference, p.slug, p.name, p.thesis, p.problem, p.principle, p.why_it_matters,
   p.validation, p.applications, p.sectors, p.outcomes, p.next_milestones,
-  p.ip_status, p.transfer_status, p.published_at,
+  p.ip_status, p.transfer_status, p.published_at, p.origin, p.record_type,
+  p.authored_domain_code, p.authored_entry_trl, p.authored_current_trl,
+  p.authored_target_trl, p.authored_stage,
   i.category, i.entry_trl, i.current_trl, i.target_trl, i.development_stage,
   i.innovator_name, i.innovator_email, i.institution`
 
@@ -80,7 +82,7 @@ export async function handleTechnologies(request: Request, env: Env, url: URL): 
       .prepare(
         `SELECT ${PROFILE_COLUMNS}
          FROM technology_profiles p
-         JOIN innovations i ON i.reference = p.reference
+         LEFT JOIN innovations i ON i.reference = p.reference
          WHERE p.slug = ? AND p.published = 1`,
       )
       .bind(detail[1])
@@ -113,7 +115,7 @@ export async function handleTechnologies(request: Request, env: Env, url: URL): 
     .prepare(
       `SELECT ${PROFILE_COLUMNS}
        FROM technology_profiles p
-       JOIN innovations i ON i.reference = p.reference
+       LEFT JOIN innovations i ON i.reference = p.reference
        WHERE p.published = 1
        ORDER BY p.published_at DESC, p.updated_at DESC
        LIMIT 200`,
