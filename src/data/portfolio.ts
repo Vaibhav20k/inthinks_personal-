@@ -77,8 +77,21 @@ export const loadProblems = async (): Promise<{ problems: IndustrialProblem[]; u
     : { problems: exampleProblems, usingExamples: true }
 }
 
-export const loadMatches = async (): Promise<{ matches: PublicMatch[]; usingExamples: boolean }> =>
-  ({ matches: exampleMatches, usingExamples: true })
+export const fetchPublicMatches = () =>
+  get<{ items: PublicMatch[] }>('/api/matches').then((r) => r.items)
+
+/**
+ * Qualified matches.
+ *
+ * Same rule as the other two registers: published records if there are any,
+ * the examples if there are none, never mixed.
+ */
+export const loadMatches = async (): Promise<{ matches: PublicMatch[]; usingExamples: boolean }> => {
+  const items = await fetchPublicMatches().catch(() => [] as PublicMatch[])
+  return items.length > 0
+    ? { matches: items, usingExamples: false }
+    : { matches: exampleMatches, usingExamples: true }
+}
 
 export const findExampleProblem = (slug: string) => exampleProblems.find((p) => p.slug === slug)
 export const findExampleTechnology = (slug: string) => exampleTechnologies.find((t) => t.slug === slug)

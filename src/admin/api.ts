@@ -278,9 +278,60 @@ export const publishProblemProfile = (reference: string, published: boolean) =>
   })
 
 /** Demo or live, on either kind of record — one endpoint, one audit action. */
-export const setRecordType = (kind: 'tech' | 'problem', reference: string, recordType: 'demo' | 'live') =>
+export const setRecordType = (kind: 'tech' | 'problem' | 'match', reference: string, recordType: 'demo' | 'live') =>
   call<{ ok: true; recordType: string }>(`/${kind}-profiles/${reference}/record-type`, {
     method: 'POST', body: JSON.stringify({ recordType }),
+  })
+
+export interface MatchProfile {
+  reference: string
+  recordType: 'demo' | 'live'
+  slug: string
+  problemRef: string
+  problemTitle: string | null
+  problemSlug: string | null
+  problemPublished: boolean
+  technologyRef: string
+  technologyName: string | null
+  technologySlug: string | null
+  technologyPublished: boolean
+  sourceMatchRef: string | null
+  sourceDecision: string | null
+  matchClass: string
+  status: string
+  rationale: string
+  nextStep: string
+  openQuestions: string[]
+  fit: { dimension: string; rating: string }[]
+  developmentRequired: string
+  published: boolean
+  publishedAt: string | null
+  updatedAt: string
+}
+
+export interface MatchProfileMeta {
+  items: MatchProfile[]
+  problems: { reference: string; title: string; published: boolean }[]
+  technologies: { reference: string; name: string; published: boolean }[]
+  classes: string[]
+  statuses: string[]
+  dimensions: string[]
+  ratings: string[]
+  developmentLevels: string[]
+  recordTypes: string[]
+}
+
+export const matchProfiles = () => call<MatchProfileMeta>('/match-profiles')
+
+export const createMatchProfile = (body: Record<string, unknown>) =>
+  call<{ reference: string; slug: string }>('/match-profiles', { method: 'POST', body: JSON.stringify(body) })
+
+export const saveMatchProfile = (reference: string, body: Record<string, unknown>) =>
+  call<{ ok: true }>(`/match-profiles/${reference}`, { method: 'PUT', body: JSON.stringify(body) })
+
+export const publishMatchProfile = (reference: string, published: boolean) =>
+  call<{ ok: true; published: boolean }>(`/match-profiles/${reference}/publish`, {
+    method: 'POST', body: JSON.stringify({ published }),
   })
 
 export interface Message {

@@ -13,6 +13,7 @@ import { SUBMISSION_CEILING, chargeSubmission, checkRequest, submissionsUsed } f
 import { handleAdmin } from './admin'
 import { handleTechnologies } from './technologies'
 import { handleProblems } from './problems'
+import { handlePublicMatches } from './public-matches'
 import { coarse, isDaylight, sunTimes } from './daylight'
 
 const MAX_JSON_BYTES = 256 * 1024
@@ -302,6 +303,10 @@ export default {
 
     // The public portfolio. Read-only, unauthenticated, and served before the
     // rate limiter reads an IP — nobody is identified to browse the site.
+    if (url.pathname === '/api/matches' || url.pathname.startsWith('/api/matches/')) {
+      return await handlePublicMatches(request, env, url)
+    }
+
     if (url.pathname === '/api/problems' || url.pathname.startsWith('/api/problems/')) {
       return await handleProblems(request, env, url)
     }

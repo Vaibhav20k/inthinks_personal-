@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import * as api from './api'
 import { Chip, Empty, shortDate } from './ui'
+import MatchRecords from './MatchRecords'
 
-type Kind = 'tech' | 'problem'
+type Kind = 'tech' | 'problem' | 'match'
 
 /** Two words the operator has to be able to tell apart at a glance. */
 function TypeChip({ recordType }: { recordType: 'demo' | 'live' }) {
@@ -40,25 +41,26 @@ export default function PublicRecords() {
       <div className="flex flex-wrap items-baseline justify-between gap-4">
         <h1 className="section-type">Public records</h1>
         <div className="flex" role="group" aria-label="Register">
-          {(['tech', 'problem'] as Kind[]).map((k) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setKind(k)}
-              aria-pressed={kind === k}
-              className="tap label px-3 py-1.5 transition-colors duration-250"
-              style={{
-                border: `1px solid ${kind === k ? 'var(--color-accent)' : 'var(--rule-strong)'}`,
-                marginLeft: k === 'problem' ? '-1px' : 0,
-                color: kind === k ? 'var(--color-accent)' : 'var(--color-muted)',
-              }}
-            >
-              {k === 'tech' ? 'TECHNOLOGIES' : 'INDUSTRIAL PROBLEMS'}
-            </button>
-          ))}
+          {([['tech', 'TECHNOLOGIES'], ['problem', 'INDUSTRIAL PROBLEMS'], ['match', 'MATCHES']] as [Kind, string][])
+            .map(([k, label], i) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setKind(k)}
+                aria-pressed={kind === k}
+                className="tap label px-3 py-1.5 transition-colors duration-250"
+                style={{
+                  border: `1px solid ${kind === k ? 'var(--color-accent)' : 'var(--rule-strong)'}`,
+                  marginLeft: i > 0 ? '-1px' : 0,
+                  color: kind === k ? 'var(--color-accent)' : 'var(--color-muted)',
+                }}
+              >
+                {label}
+              </button>
+            ))}
         </div>
       </div>
-      {kind === 'tech' ? <Technologies /> : <Problems />}
+      {kind === 'tech' ? <Technologies /> : kind === 'problem' ? <Problems /> : <MatchRecords />}
     </div>
   )
 }

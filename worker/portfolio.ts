@@ -127,6 +127,35 @@ export const PRIORITY_AREAS = [
   'Cost',
 ] as const
 
+/** What the public site calls a match. Words, never a percentage. */
+export const MATCH_CLASSES = [
+  'Strong candidate',
+  'Promising match',
+  'Candidate match',
+] as const
+
+/**
+ * How far a public match has travelled.
+ *
+ * `AI candidate` is absent on purpose. It is a real internal state and it is
+ * the one thing that must never reach the site — publishing raw engine output
+ * would be the platform asserting something no person has checked. A match
+ * becomes publishable by being reviewed, which means by leaving that state.
+ */
+export const MATCH_STATUSES = [
+  'Technical review',
+  'Qualified match',
+  'R&D required',
+  'Industry evaluation',
+  'Pilot',
+  'Commercial discussion',
+  'Transfer',
+] as const
+
+export const FIT_DIMENSIONS = ['Mechanism', 'Application', 'TRL', 'Implementation'] as const
+export const FIT_RATINGS = ['Strong', 'Promising', 'Moderate', 'Limited', 'Unknown'] as const
+export const DEVELOPMENT_LEVELS = ['Low', 'Medium', 'High'] as const
+
 export const PUBLISHABLE_STAGES = ['Rights Secured', 'Development Portfolio'] as const
 
 /* -------------------------------------------------------------------- slugs */

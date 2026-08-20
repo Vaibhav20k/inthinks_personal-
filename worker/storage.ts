@@ -28,7 +28,7 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? (v[0] ?? '
  * reference a real submission is going to be issued, and the collision would
  * surface as one record silently overwriting another.
  */
-export type ReferenceStream = 'CH' | 'INT' | 'MSG' | 'TEC' | 'PRB'
+export type ReferenceStream = 'CH' | 'INT' | 'MSG' | 'TEC' | 'PRB' | 'MTC'
 
 export async function nextReference(db: D1Database, stream: ReferenceStream, year: number) {
   const name = `${stream}:${year}`
