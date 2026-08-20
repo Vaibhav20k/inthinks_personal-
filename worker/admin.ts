@@ -7,7 +7,7 @@ import {
   INNOVATION_STATUSES, SCORING_DIMENSIONS,
 } from './scoring'
 import type { Env } from './types'
-import { MATCH_DECISIONS, decide, generateMatches } from './matches'
+import { MATCH_DECISIONS, RELEASING_DECISION, decide, generateMatches } from './matches'
 import {
   DEVELOPMENT_STAGES, DEVELOPMENT_STAGES_ELIGIBLE, LOG_KINDS,
   READINESS_DIMENSIONS, READINESS_KEYS, READINESS_STATUSES,
@@ -28,6 +28,7 @@ import type { RoyaltyType } from './royalties'
 import { nextReference } from './storage'
 import {
   DOMAINS, IP_STATUSES, OUTCOMES, PRIORITY_AREAS, PROBLEM_STATUSES,
+  DEVELOPMENT_LEVELS, FIT_DIMENSIONS, FIT_RATINGS, MATCH_CLASSES, MATCH_STATUSES,
   PUBLIC_STAGES, PUBLISHABLE_STAGES, RECORD_TYPES, SECTORS, namedPartyLeak,
   TRANSFER_STATUSES as PUBLIC_TRANSFER_STATUSES, domainFor, identityLeak,
   isSlug, parseList, profileProse, publicStage, toSlug,
@@ -1778,6 +1779,262 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
 
   /* -------------------------------------------------------- public profiles */
 
+  /* -------------------------------------------------------- match profiles */
+
+  /**
+   * The public face of a match.
+   *
+   * Separate from `/matches`, which is the engine's register: that one pairs a
+   * submitted challenge with an innovation and most of its rows are candidates
+   * nobody has read. This one joins two records that are already public, and
+   * exists only once somebody has decided the pairing is worth showing.
+   */
+  const matchProfileRow = (row: Record<string, unknown>) => ({
+    reference: row.reference,
+    recordType: row.record_type,
+    slug: row.slug,
+    problemRef: row.problem_ref,
+    problemTitle: row.problem_title ?? null,
+    problemSlug: row.problem_slug ?? null,
+    problemPublished: row.problem_published === 1,
+    technologyRef: row.technology_ref,
+    technologyName: row.technology_name ?? null,
+    technologySlug: row.technology_slug ?? null,
+    technologyPublished: row.technology_published === 1,
+    sourceMatchRef: row.source_match_ref ?? null,
+    sourceDecision: row.source_decision ?? null,
+    matchClass: row.match_class,
+    status: row.status,
+    rationale: row.rationale,
+    nextStep: row.next_step,
+    openQuestions: parseList(row.open_questions as string),
+    fit: (() => {
+      try {
+        const v = JSON.parse(String(row.fit ?? '[]'))
+        return Array.isArray(v) ? v : []
+      } catch { return [] }
+    })(),
+    developmentRequired: row.development_required,
+    published: row.published === 1,
+    publishedAt: row.published_at ?? null,
+    updatedAt: row.updated_at,
+  })
+
+  // Both ends joined in, so the list can say whether a match is publishable
+  // without the client fetching two more records per row.
+  const MATCH_PROFILE_SELECT = `
+    SELECT m.*, c.title AS problem_title, c.slug AS problem_slug, c.published AS problem_published,
+           t.name AS technology_name, t.slug AS technology_slug, t.published AS technology_published,
+           s.decision AS source_decision
+      FROM match_profiles m
+      LEFT JOIN challenge_profiles c ON c.reference = m.problem_ref
+      LEFT JOIN technology_profiles t ON t.reference = m.technology_ref
+      LEFT JOIN matches s ON s.reference = m.source_match_ref`
+
+  if (path === '/match-profiles' && request.method === 'GET') {
+    if (!can.moveAcquisitionStage) return json({ error: 'Not permitted' }, 403)
+    const rows = await db.prepare(`${MATCH_PROFILE_SELECT} ORDER BY m.updated_at DESC LIMIT 200`)
+      .all<Record<string, unknown>>()
+    // The pairs an operator could link next: both ends must already be public
+    // records, because a match is a relationship between two published things.
+    const problems = await db
+      .prepare('SELECT reference, title, published FROM challenge_profiles ORDER BY updated_at DESC LIMIT 200')
+      .all<Record<string, unknown>>()
+    const technologies = await db
+      .prepare('SELECT reference, name, published FROM technology_profiles ORDER BY updated_at DESC LIMIT 200')
+      .all<Record<string, unknown>>()
+    await audit(db, actor, 'match-profiles.list', undefined, { count: rows.results.length }, ip)
+    return json({
+      items: rows.results.map(matchProfileRow),
+      problems: problems.results.map((r) => ({ reference: r.reference, title: r.title, published: r.published === 1 })),
+      technologies: technologies.results.map((r) => ({ reference: r.reference, name: r.name, published: r.published === 1 })),
+      classes: MATCH_CLASSES,
+      statuses: MATCH_STATUSES,
+      dimensions: FIT_DIMENSIONS,
+      ratings: FIT_RATINGS,
+      developmentLevels: DEVELOPMENT_LEVELS,
+      recordTypes: RECORD_TYPES,
+    })
+  }
+
+  /** Links two public records. `sourceMatchRef` ties it back to an engine row. */
+  if (path === '/match-profiles' && request.method === 'POST') {
+    if (!can.moveAcquisitionStage) return json({ error: 'Not permitted' }, 403)
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+    const problemRef = clip(body.problemRef, 32)
+    const technologyRef = clip(body.technologyRef, 32)
+    if (!problemRef || !technologyRef) return json({ error: 'Both ends are required' }, 422)
+
+    const problem = await db.prepare('SELECT reference, slug FROM challenge_profiles WHERE reference = ?')
+      .bind(problemRef).first<{ reference: string; slug: string }>()
+    if (!problem) return json({ error: 'That industrial problem does not exist' }, 404)
+    const tech = await db.prepare('SELECT reference, slug FROM technology_profiles WHERE reference = ?')
+      .bind(technologyRef).first<{ reference: string; slug: string }>()
+    if (!tech) return json({ error: 'That technology does not exist' }, 404)
+
+    const pair = await db
+      .prepare('SELECT reference FROM match_profiles WHERE problem_ref = ? AND technology_ref = ?')
+      .bind(problemRef, technologyRef).first<{ reference: string }>()
+    if (pair) return json({ error: `Those two are already matched as ${pair.reference}` }, 409)
+
+    const sourceRef = clip(body.sourceMatchRef, 32) || null
+    if (sourceRef) {
+      const source = await db.prepare('SELECT reference FROM matches WHERE reference = ?')
+        .bind(sourceRef).first()
+      if (!source) return json({ error: 'That engine match does not exist' }, 404)
+    }
+
+    const reference = await nextReference(db, 'MTC', new Date().getUTCFullYear())
+    const slug = reference.toLowerCase()
+    const now = new Date().toISOString()
+    await db
+      .prepare(
+        `INSERT INTO match_profiles
+           (reference, created_at, updated_at, record_type, problem_ref, technology_ref,
+            source_match_ref, slug)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(reference, now, now,
+            oneOf(RECORD_TYPES, body.recordType) ? body.recordType : 'live',
+            problemRef, technologyRef, sourceRef, slug)
+      .run()
+
+    await audit(db, actor, 'match-profile.create', reference, { problemRef, technologyRef, sourceRef }, ip)
+    return json({ reference, slug }, 201)
+  }
+
+  const matchProfileMatch = path.match(/^\/match-profiles\/([A-Za-z0-9-]{1,32})$/)
+
+  if (matchProfileMatch && request.method === 'PUT') {
+    if (!can.moveAcquisitionStage) return json({ error: 'Not permitted' }, 403)
+    const reference = matchProfileMatch[1]
+    const existing = await db.prepare('SELECT reference FROM match_profiles WHERE reference = ?')
+      .bind(reference).first()
+    if (!existing) return json({ error: 'Not found' }, 404)
+
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+    for (const [field, allowed] of [
+      ['matchClass', MATCH_CLASSES],
+      ['status', MATCH_STATUSES],
+      ['developmentRequired', DEVELOPMENT_LEVELS],
+      ['recordType', RECORD_TYPES],
+    ] as const) {
+      if (body[field] !== undefined && body[field] !== '' && !oneOf(allowed, body[field])) {
+        return json({ error: `Unknown ${field}` }, 422)
+      }
+    }
+
+    // Fit is a fixed set of dimensions with a fixed set of ratings. A free
+    // string here would put a word on the public page that the legend does not
+    // explain and the filters cannot see.
+    const rawFit = Array.isArray(body.fit) ? body.fit : []
+    const fit = rawFit
+      .filter((f): f is { dimension: string; rating: string } =>
+        !!f && typeof f === 'object'
+        && (FIT_DIMENSIONS as readonly string[]).includes((f as { dimension?: string }).dimension ?? '')
+        && (FIT_RATINGS as readonly string[]).includes((f as { rating?: string }).rating ?? ''))
+      .map((f) => ({ dimension: f.dimension, rating: f.rating }))
+      .slice(0, FIT_DIMENSIONS.length)
+
+    const questions = (Array.isArray(body.openQuestions) ? body.openQuestions : [])
+      .filter((q): q is string => typeof q === 'string')
+      .map((q) => q.trim().slice(0, 300)).filter(Boolean).slice(0, 8)
+
+    await db
+      .prepare(
+        `UPDATE match_profiles
+            SET updated_at = ?, record_type = ?, match_class = ?, status = ?,
+                rationale = ?, next_step = ?, open_questions = ?, fit = ?,
+                development_required = ?
+          WHERE reference = ?`,
+      )
+      .bind(
+        new Date().toISOString(),
+        oneOf(RECORD_TYPES, body.recordType) ? body.recordType : 'live',
+        oneOf(MATCH_CLASSES, body.matchClass) ? body.matchClass : 'Candidate match',
+        oneOf(MATCH_STATUSES, body.status) ? body.status : 'Technical review',
+        clip(body.rationale, 4000), clip(body.nextStep, 600),
+        JSON.stringify(questions), JSON.stringify(fit),
+        oneOf(DEVELOPMENT_LEVELS, body.developmentRequired) ? body.developmentRequired : 'Medium',
+        reference,
+      )
+      .run()
+
+    await audit(db, actor, 'match-profile.save', reference, undefined, ip)
+    return json({ ok: true })
+  }
+
+  const publishMatchProfile = path.match(/^\/match-profiles\/([A-Za-z0-9-]{1,32})\/publish$/)
+  if (publishMatchProfile && request.method === 'POST') {
+    if (!can.moveAcquisitionStage) return json({ error: 'Not permitted' }, 403)
+    const reference = publishMatchProfile[1]
+    const body = (await request.json().catch(() => ({}))) as { published?: unknown }
+    const publish = body.published === true
+
+    const row = await db
+      .prepare(
+        `SELECT m.rationale, m.next_step, m.status, m.source_match_ref,
+                c.published AS problem_published, c.title AS problem_title,
+                t.published AS technology_published, t.name AS technology_name,
+                s.decision AS source_decision
+           FROM match_profiles m
+           LEFT JOIN challenge_profiles c ON c.reference = m.problem_ref
+           LEFT JOIN technology_profiles t ON t.reference = m.technology_ref
+           LEFT JOIN matches s ON s.reference = m.source_match_ref
+          WHERE m.reference = ?`,
+      )
+      .bind(reference).first<Record<string, unknown>>()
+    if (!row) return json({ error: 'Not found' }, 404)
+
+    if (publish) {
+      // Both ends first. A match page links to two records; publishing it
+      // while either is a draft puts two dead links on the public site.
+      const unpublished = [
+        row.problem_published === 1 ? null : `the challenge (${row.problem_title ?? 'missing'})`,
+        row.technology_published === 1 ? null : `the technology (${row.technology_name ?? 'missing'})`,
+      ].filter(Boolean)
+      if (unpublished.length > 0) {
+        return json({
+          error: `Publish ${unpublished.join(' and ')} first — a match links to both.`,
+        }, 409)
+      }
+
+      // "AI recommends. InThinks qualifies." Where an engine row is behind
+      // this, its decision has to have reached approval; a candidate nobody
+      // ruled on is exactly what must never reach the site.
+      if (row.source_match_ref && row.source_decision !== RELEASING_DECISION) {
+        return json({
+          error: `That match is still at "${row.source_decision ?? 'Pending'}" internally. A match is published once it is approved for industry discussion.`,
+        }, 409)
+      }
+
+      for (const [field, label] of [['rationale', 'why the two match'], ['next_step', 'a next step']] as const) {
+        if (!String(row[field] ?? '').trim()) {
+          return json({ error: `A published match needs ${label}.` }, 422)
+        }
+      }
+
+      const named = namedPartyLeak([row.rationale, row.next_step].join('\n'))
+      if (named) {
+        return json({
+          error: `This draft contains ${named}. A match never identifies the innovator, the company or either institution.`,
+        }, 422)
+      }
+    }
+
+    await db
+      .prepare(
+        `UPDATE match_profiles SET published = ?, published_at = ?, published_by = ?, updated_at = ?
+          WHERE reference = ?`,
+      )
+      .bind(publish ? 1 : 0, publish ? new Date().toISOString() : null,
+            publish ? actor.email : null, new Date().toISOString(), reference)
+      .run()
+
+    await audit(db, actor, publish ? 'match-profile.publish' : 'match-profile.unpublish', reference, undefined, ip)
+    return json({ ok: true, published: publish })
+  }
+
   /* --------------------------------------------------- technology profiles */
 
   /** Every public technology page, submission-derived and authored alike. */
@@ -1913,10 +2170,12 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
    * One route for both tables: it is the same decision and the same audit
    * action, and two near-identical handlers would drift.
    */
-  const markMatch = path.match(/^\/(tech|problem)-profiles\/([A-Za-z0-9-]{1,32})\/record-type$/)
+  const markMatch = path.match(/^\/(tech|problem|match)-profiles\/([A-Za-z0-9-]{1,32})\/record-type$/)
   if (markMatch && request.method === 'POST') {
     if (!can.moveAcquisitionStage) return json({ error: 'Not permitted' }, 403)
-    const table = markMatch[1] === 'tech' ? 'technology_profiles' : 'challenge_profiles'
+    const table = markMatch[1] === 'tech'
+      ? 'technology_profiles'
+      : markMatch[1] === 'match' ? 'match_profiles' : 'challenge_profiles'
     const reference = markMatch[2]
     const body = (await request.json().catch(() => ({}))) as { recordType?: unknown }
     if (!oneOf(RECORD_TYPES, body.recordType)) return json({ error: 'Unknown record type' }, 422)
