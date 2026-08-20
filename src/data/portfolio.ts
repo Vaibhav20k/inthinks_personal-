@@ -59,15 +59,23 @@ export const loadPortfolio = async (): Promise<Portfolio> => {
     : { technologies: exampleTechnologies, usingExamples: true }
 }
 
+export const fetchProblems = () =>
+  get<{ items: IndustrialProblem[] }>('/api/problems').then((r) => r.items)
+
 /**
  * Industrial problems.
  *
- * There is no published-challenge endpoint yet, so these are the examples
- * only, and the page says so. When the endpoint exists this becomes the same
- * shape as `loadPortfolio` and nothing above it changes.
+ * Same rule as the portfolio: published records if there are any, the examples
+ * if there are none. They are never mixed — one real published challenge
+ * retires the whole example set rather than padding the list out with
+ * invented ones.
  */
-export const loadProblems = async (): Promise<{ problems: IndustrialProblem[]; usingExamples: boolean }> =>
-  ({ problems: exampleProblems, usingExamples: true })
+export const loadProblems = async (): Promise<{ problems: IndustrialProblem[]; usingExamples: boolean }> => {
+  const items = await fetchProblems().catch(() => [] as IndustrialProblem[])
+  return items.length > 0
+    ? { problems: items, usingExamples: false }
+    : { problems: exampleProblems, usingExamples: true }
+}
 
 export const loadMatches = async (): Promise<{ matches: PublicMatch[]; usingExamples: boolean }> =>
   ({ matches: exampleMatches, usingExamples: true })

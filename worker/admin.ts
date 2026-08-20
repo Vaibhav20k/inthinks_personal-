@@ -25,8 +25,10 @@ import {
   hasReportedActivity, openFromDeal, regenerateSchedule, royaltyYears, settlementOf,
 } from './royalties'
 import type { RoyaltyType } from './royalties'
+import { nextReference } from './storage'
 import {
-  IP_STATUSES, OUTCOMES, PUBLISHABLE_STAGES, SECTORS,
+  DOMAINS, IP_STATUSES, OUTCOMES, PRIORITY_AREAS, PROBLEM_STATUSES,
+  PUBLIC_STAGES, PUBLISHABLE_STAGES, RECORD_TYPES, SECTORS, namedPartyLeak,
   TRANSFER_STATUSES as PUBLIC_TRANSFER_STATUSES, domainFor, identityLeak,
   isSlug, parseList, profileProse, publicStage, toSlug,
 } from './portfolio'
@@ -1776,6 +1778,397 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
 
   /* -------------------------------------------------------- public profiles */
 
+  /* --------------------------------------------------- technology profiles */
+
+  /** Every public technology page, submission-derived and authored alike. */
+  if (path === '/tech-profiles' && request.method === 'GET') {
+    if (!can.moveAcquisitionStage) return json({ error: 'Not permitted' }, 403)
+    const rows = await db
+      .prepare(
+        `SELECT p.reference, p.origin, p.record_type, p.slug, p.name, p.transfer_status,
+                p.ip_status, p.published, p.published_at, p.updated_at,
+                p.authored_current_trl, p.authored_target_trl, p.authored_domain_code,
+                i.current_trl, i.target_trl, i.category, i.acquisition_stage
+           FROM technology_profiles p
+           LEFT JOIN innovations i ON i.reference = p.reference
+          ORDER BY p.updated_at DESC LIMIT 200`,
+      )
+      .all<Record<string, unknown>>()
+    await audit(db, actor, 'tech-profiles.list', undefined, { count: rows.results.length }, ip)
+    return json({
+      items: rows.results.map((r) => ({
+        reference: r.reference,
+        origin: r.origin,
+        recordType: r.record_type,
+        slug: r.slug,
+        name: r.name,
+        // Authored records carry their own TRL; submission-derived ones read
+        // it from the workspace, which is the whole point of the distinction.
+        currentTrl: r.origin === 'authored' ? r.authored_current_trl : r.current_trl,
+        targetTrl: r.origin === 'authored' ? r.authored_target_trl : r.target_trl,
+        domain: r.origin === 'authored' ? r.authored_domain_code : domainFor(r.category as string)?.code ?? null,
+        transferStatus: r.transfer_status,
+        ipStatus: r.ip_status,
+        acquisitionStage: r.acquisition_stage ?? null,
+        published: r.published === 1,
+        publishedAt: r.published_at ?? null,
+        updatedAt: r.updated_at,
+      })),
+      recordTypes: RECORD_TYPES,
+    })
+  }
+
+  /** Creates an authored technology page, with its own `TEC` reference. */
+  if (path === '/tech-profiles' && request.method === 'POST') {
+    if (!can.moveAcquisitionStage) return json({ error: 'Not permitted' }, 403)
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+    const name = clip(body.name, 160)
+    if (!name) return json({ error: 'A public name is required' }, 422)
+
+    const slug = clip(body.slug, 80).toLowerCase() || toSlug(name)
+    if (!isSlug(slug)) {
+      return json({ error: 'A slug is lowercase letters, numbers and single hyphens' }, 422)
+    }
+    const taken = await db.prepare('SELECT reference FROM technology_profiles WHERE slug = ?')
+      .bind(slug).first<{ reference: string }>()
+    if (taken) return json({ error: `That slug is already used by ${taken.reference}` }, 409)
+
+    const reference = await nextReference(db, 'TEC', new Date().getUTCFullYear())
+    const now = new Date().toISOString()
+    await db
+      .prepare(
+        `INSERT INTO technology_profiles
+           (reference, created_at, updated_at, slug, name, origin, record_type,
+            authored_entry_trl, authored_current_trl, authored_target_trl, authored_stage)
+         VALUES (?, ?, ?, ?, ?, 'authored', ?, 1, 1, 9, 'Under Evaluation')`,
+      )
+      .bind(reference, now, now, slug, name,
+            oneOf(RECORD_TYPES, body.recordType) ? body.recordType : 'live')
+      .run()
+
+    await audit(db, actor, 'tech-profile.create', reference, { slug }, ip)
+    return json({ reference, slug }, 201)
+  }
+
+  /**
+   * The TRL, domain and stage of an authored technology.
+   *
+   * A separate route from the prose editor because it is a different kind of
+   * claim, and because it must refuse to touch a submission-derived record:
+   * those read their maturity from the workspace, and letting an editor
+   * override it here would reintroduce exactly the contradiction the schema
+   * was shaped to prevent.
+   */
+  const techFactsMatch = path.match(/^\/tech-profiles\/([A-Za-z0-9-]{1,32})\/facts$/)
+  if (techFactsMatch && request.method === 'PATCH') {
+    if (!can.moveAcquisitionStage) return json({ error: 'Not permitted' }, 403)
+    const reference = techFactsMatch[1]
+    const row = await db.prepare('SELECT origin FROM technology_profiles WHERE reference = ?')
+      .bind(reference).first<{ origin: string }>()
+    if (!row) return json({ error: 'Not found' }, 404)
+    if (row.origin !== 'authored') {
+      return json({
+        error: 'This page reads its TRL and stage from the innovation record behind it. Change them there.',
+      }, 409)
+    }
+
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+    const trl = (v: unknown, fallback: number) => {
+      const n = Number(v ?? fallback)
+      return Number.isInteger(n) && n >= 1 && n <= 9 ? n : null
+    }
+    const entry = trl(body.entryTrl, 1)
+    const current = trl(body.currentTrl, 1)
+    const target = trl(body.targetTrl, 9)
+    if (entry === null || current === null || target === null) {
+      return json({ error: 'Each TRL is a whole number from 1 to 9' }, 422)
+    }
+    if (!(entry <= current && current <= target)) {
+      return json({ error: 'TRL must read entry ≤ current ≤ target' }, 422)
+    }
+    const domain = clip(body.domainCode, 8).toUpperCase()
+    if (domain && !DOMAINS.some((d) => d.code === domain)) {
+      return json({ error: 'Unknown domain' }, 422)
+    }
+
+    await db
+      .prepare(
+        `UPDATE technology_profiles
+            SET authored_entry_trl = ?, authored_current_trl = ?, authored_target_trl = ?,
+                authored_domain_code = ?, authored_stage = ?, updated_at = ?
+          WHERE reference = ?`,
+      )
+      .bind(entry, current, target, domain || null,
+            oneOf(PUBLIC_STAGES, body.stage) ? body.stage : 'Under Evaluation',
+            new Date().toISOString(), reference)
+      .run()
+
+    await audit(db, actor, 'tech-profile.facts', reference, { current, target }, ip)
+    return json({ ok: true })
+  }
+
+  /**
+   * Demo or live, on either kind of record.
+   *
+   * One route for both tables: it is the same decision and the same audit
+   * action, and two near-identical handlers would drift.
+   */
+  const markMatch = path.match(/^\/(tech|problem)-profiles\/([A-Za-z0-9-]{1,32})\/record-type$/)
+  if (markMatch && request.method === 'POST') {
+    if (!can.moveAcquisitionStage) return json({ error: 'Not permitted' }, 403)
+    const table = markMatch[1] === 'tech' ? 'technology_profiles' : 'challenge_profiles'
+    const reference = markMatch[2]
+    const body = (await request.json().catch(() => ({}))) as { recordType?: unknown }
+    if (!oneOf(RECORD_TYPES, body.recordType)) return json({ error: 'Unknown record type' }, 422)
+
+    const result = await db
+      .prepare(`UPDATE ${table} SET record_type = ?, updated_at = ? WHERE reference = ?`)
+      .bind(body.recordType, new Date().toISOString(), reference)
+      .run()
+    if (!result.meta.changes) return json({ error: 'Not found' }, 404)
+
+    await audit(db, actor, 'record-type.set', reference, { recordType: body.recordType, table }, ip)
+    return json({ ok: true, recordType: body.recordType })
+  }
+
+  /* ---------------------------------------------------- challenge profiles */
+
+  /**
+   * The public face of an industrial challenge.
+   *
+   * Gated on `moveAcquisitionStage`, like the technology profile it mirrors:
+   * writing what the world reads about a challenge is an editorial and
+   * commercial act, not a review one.
+   *
+   * Nothing here can reach the confidential side. The columns this reads and
+   * writes are the publishable ones; company, contact, plant and commercial
+   * impact live on `challenges` and have no route into this table at all.
+   */
+  const challengeProfileRow = (row: Record<string, unknown>) => ({
+    reference: row.reference,
+    origin: row.origin,
+    recordType: row.record_type,
+    slug: row.slug,
+    title: row.title,
+    sector: row.sector,
+    priorityArea: row.priority_area,
+    target: row.target,
+    summary: row.summary,
+    problem: row.problem,
+    currentApproach: row.current_approach,
+    targetOutcome: row.target_outcome,
+    constraints: parseList(row.constraints as string),
+    environment: parseList(row.environment as string),
+    impact: parseList(row.impact as string),
+    outcomes: parseList(row.outcomes as string),
+    minimumTrl: row.minimum_trl,
+    status: row.status,
+    published: row.published === 1,
+    publishedAt: row.published_at ?? null,
+    publishedBy: row.published_by ?? null,
+    updatedAt: row.updated_at,
+  })
+
+  const CHALLENGE_PROFILE_COLUMNS = `reference, origin, record_type, slug, title, sector,
+    priority_area, target, summary, problem, current_approach, target_outcome,
+    constraints, environment, impact, outcomes, minimum_trl, status,
+    published, published_at, published_by, updated_at`
+
+  if (path === '/problem-profiles' && request.method === 'GET') {
+    if (!can.moveAcquisitionStage) return json({ error: 'Not permitted' }, 403)
+    const rows = await db
+      .prepare(`SELECT ${CHALLENGE_PROFILE_COLUMNS} FROM challenge_profiles ORDER BY updated_at DESC LIMIT 200`)
+      .all<Record<string, unknown>>()
+    await audit(db, actor, 'problem-profiles.list', undefined, { count: rows.results.length }, ip)
+    return json({
+      items: rows.results.map(challengeProfileRow),
+      statuses: PROBLEM_STATUSES,
+      priorityAreas: PRIORITY_AREAS,
+      sectors: SECTORS,
+      recordTypes: RECORD_TYPES,
+    })
+  }
+
+  /**
+   * Creates an authored challenge profile.
+   *
+   * A reference is issued here rather than accepted from the client: it is the
+   * record's identity, and a caller that can choose it can overwrite somebody
+   * else's. `PRB` keeps authored profiles out of the `CH` stream that real
+   * submissions use, so the two can never collide.
+   */
+  if (path === '/problem-profiles' && request.method === 'POST') {
+    if (!can.moveAcquisitionStage) return json({ error: 'Not permitted' }, 403)
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+    const title = clip(body.title, 200)
+    if (!title) return json({ error: 'A title is required' }, 422)
+
+    const slug = clip(body.slug, 80).toLowerCase() || toSlug(title)
+    if (!isSlug(slug)) {
+      return json({ error: 'A slug is lowercase letters, numbers and single hyphens' }, 422)
+    }
+    const taken = await db.prepare('SELECT reference FROM challenge_profiles WHERE slug = ?')
+      .bind(slug).first<{ reference: string }>()
+    if (taken) return json({ error: `That slug is already used by ${taken.reference}` }, 409)
+
+    const reference = await nextReference(db, 'PRB', new Date().getUTCFullYear())
+    const now = new Date().toISOString()
+    await db
+      .prepare(
+        `INSERT INTO challenge_profiles (reference, created_at, updated_at, origin, record_type, slug, title)
+         VALUES (?, ?, ?, 'authored', ?, ?, ?)`,
+      )
+      .bind(reference, now, now, oneOf(RECORD_TYPES, body.recordType) ? body.recordType : 'live', slug, title)
+      .run()
+
+    await audit(db, actor, 'problem-profile.create', reference, { slug }, ip)
+    return json({ reference, slug }, 201)
+  }
+
+  const problemProfileMatch = path.match(/^\/problem-profiles\/([A-Za-z0-9-]{1,32})$/)
+
+  if (problemProfileMatch && request.method === 'GET') {
+    if (!can.moveAcquisitionStage) return json({ error: 'Not permitted' }, 403)
+    const row = await db
+      .prepare(`SELECT ${CHALLENGE_PROFILE_COLUMNS} FROM challenge_profiles WHERE reference = ?`)
+      .bind(problemProfileMatch[1]).first<Record<string, unknown>>()
+    if (!row) return json({ error: 'Not found' }, 404)
+    await audit(db, actor, 'problem-profile.view', problemProfileMatch[1], undefined, ip)
+    return json(challengeProfileRow(row))
+  }
+
+  if (problemProfileMatch && request.method === 'PUT') {
+    if (!can.moveAcquisitionStage) return json({ error: 'Not permitted' }, 403)
+    const reference = problemProfileMatch[1]
+    const existing = await db.prepare('SELECT reference, origin FROM challenge_profiles WHERE reference = ?')
+      .bind(reference).first<{ reference: string; origin: string }>()
+
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+    const title = clip(body.title, 200)
+    if (!title) return json({ error: 'A title is required' }, 422)
+
+    const slug = clip(body.slug, 80).toLowerCase()
+    if (!isSlug(slug)) {
+      return json({ error: 'A slug is lowercase letters, numbers and single hyphens' }, 422)
+    }
+    const taken = await db
+      .prepare('SELECT reference FROM challenge_profiles WHERE slug = ? AND reference <> ?')
+      .bind(slug, reference).first<{ reference: string }>()
+    if (taken) return json({ error: `That slug is already used by ${taken.reference}` }, 409)
+
+    for (const [field, allowed] of [
+      ['sector', SECTORS],
+      ['priorityArea', PRIORITY_AREAS],
+      ['status', PROBLEM_STATUSES],
+      ['recordType', RECORD_TYPES],
+    ] as const) {
+      if (body[field] !== undefined && body[field] !== '' && !oneOf(allowed, body[field])) {
+        return json({ error: `Unknown ${field}` }, 422)
+      }
+    }
+
+    const trl = Number(body.minimumTrl ?? 4)
+    if (!Number.isInteger(trl) || trl < 1 || trl > 9) {
+      return json({ error: 'Minimum TRL is a whole number from 1 to 9' }, 422)
+    }
+
+    const list = (value: unknown, allowed: readonly string[] | null, max: number) => {
+      const raw = Array.isArray(value) ? value : []
+      const cleaned = raw.filter((v): v is string => typeof v === 'string')
+        .map((v) => v.trim()).filter(Boolean).slice(0, max)
+      return allowed ? cleaned.filter((v) => allowed.includes(v)) : cleaned.map((v) => v.slice(0, 300))
+    }
+
+    // A profile that never existed is created here rather than 404ing: a
+    // submitted challenge has a `CH` reference and no profile row until
+    // somebody writes one.
+    const origin = existing?.origin ?? 'submission'
+    const now = new Date().toISOString()
+    await db
+      .prepare(
+        `INSERT INTO challenge_profiles
+           (reference, created_at, updated_at, origin, record_type, slug, title, sector,
+            priority_area, target, summary, problem, current_approach, target_outcome,
+            constraints, environment, impact, outcomes, minimum_trl, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(reference) DO UPDATE SET
+           updated_at = excluded.updated_at, record_type = excluded.record_type,
+           slug = excluded.slug, title = excluded.title, sector = excluded.sector,
+           priority_area = excluded.priority_area, target = excluded.target,
+           summary = excluded.summary, problem = excluded.problem,
+           current_approach = excluded.current_approach, target_outcome = excluded.target_outcome,
+           constraints = excluded.constraints, environment = excluded.environment,
+           impact = excluded.impact, outcomes = excluded.outcomes,
+           minimum_trl = excluded.minimum_trl, status = excluded.status`,
+      )
+      .bind(
+        reference, now, now, origin,
+        oneOf(RECORD_TYPES, body.recordType) ? body.recordType : 'live',
+        slug, title,
+        clip(body.sector, 80), clip(body.priorityArea, 80), clip(body.target, 200),
+        clip(body.summary, 400), clip(body.problem, 6000),
+        clip(body.currentApproach, 4000), clip(body.targetOutcome, 4000),
+        JSON.stringify(list(body.constraints, null, 10)),
+        JSON.stringify(list(body.environment, null, 10)),
+        JSON.stringify(list(body.impact, null, 10)),
+        JSON.stringify(list(body.outcomes, OUTCOMES, 8)),
+        trl,
+        oneOf(PROBLEM_STATUSES, body.status) ? body.status : 'Open challenge',
+      )
+      .run()
+
+    await audit(db, actor, 'problem-profile.save', reference, { slug }, ip)
+    return json({ ok: true, slug })
+  }
+
+  const publishProblemMatch = path.match(/^\/problem-profiles\/([A-Za-z0-9-]{1,32})\/publish$/)
+  if (publishProblemMatch && request.method === 'POST') {
+    if (!can.moveAcquisitionStage) return json({ error: 'Not permitted' }, 403)
+    const reference = publishProblemMatch[1]
+    const body = (await request.json().catch(() => ({}))) as { published?: unknown }
+    const publish = body.published === true
+
+    const row = await db
+      .prepare('SELECT title, summary, problem, current_approach, target_outcome, sector FROM challenge_profiles WHERE reference = ?')
+      .bind(reference).first<Record<string, string>>()
+    if (!row) return json({ error: 'Write the profile before publishing it' }, 404)
+
+    if (publish) {
+      // A published challenge has to be answerable. An innovator reading a
+      // title and nothing else cannot tell whether they can help.
+      const missing = (['summary', 'problem', 'targetOutcome', 'sector'] as const).filter((f) => {
+        const v = f === 'targetOutcome' ? row.target_outcome : row[f]
+        return !String(v ?? '').trim()
+      })
+      if (missing.length > 0) {
+        return json({ error: `Complete these before publishing: ${missing.join(', ')}` }, 422)
+      }
+      // "The problem is public, the company is not" — checked here rather than
+      // trusted to whoever wrote the profile. The confidential columns cannot
+      // reach this table, but prose can still name a company in a sentence.
+      const named = namedPartyLeak(
+        [row.title, row.summary, row.problem, row.current_approach, row.target_outcome].join('\n'),
+      )
+      if (named) {
+        return json({
+          error: `This draft contains ${named}. A published challenge never identifies the company or its site.`,
+        }, 422)
+      }
+    }
+
+    await db
+      .prepare(
+        `UPDATE challenge_profiles
+            SET published = ?, published_at = ?, published_by = ?
+          WHERE reference = ?`,
+      )
+      .bind(publish ? 1 : 0, publish ? new Date().toISOString() : null, publish ? actor.email : null, reference)
+      .run()
+
+    await audit(db, actor, publish ? 'problem-profile.publish' : 'problem-profile.unpublish', reference, undefined, ip)
+    return json({ ok: true, published: publish })
+  }
+
   const profileMatch = path.match(/^\/profiles\/([A-Za-z0-9-]{1,32})$/)
   if (profileMatch && request.method === 'GET') {
     const reference = profileMatch[1]
@@ -1842,11 +2235,17 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
       return json({ error: 'Only admins and business development can edit a public profile.' }, 403)
     }
     const reference = profileMatch[1]
+    // Either a submission to write a page about, or an authored profile that
+    // already exists. Requiring the innovation outright locked authored
+    // records out of their own editor.
     const innovation = await db
       .prepare('SELECT reference FROM innovations WHERE reference = ?')
-      .bind(reference)
-      .first()
-    if (!innovation) return json({ error: 'Not found' }, 404)
+      .bind(reference).first()
+    const authored = innovation
+      ? null
+      : await db.prepare("SELECT reference FROM technology_profiles WHERE reference = ? AND origin = 'authored'")
+          .bind(reference).first()
+    if (!innovation && !authored) return json({ error: 'Not found' }, 404)
 
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
 
@@ -1926,13 +2325,15 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
     const body = (await request.json().catch(() => ({}))) as { published?: unknown }
     const publish = body.published === true
 
+    // LEFT JOIN: an authored profile has no innovation behind it, and the inner
+    // join used to make it unpublishable — the row simply did not come back.
     const row = await db
       .prepare(
-        `SELECT p.name, p.thesis, p.problem, p.principle, p.why_it_matters, p.validation,
+        `SELECT p.origin, p.name, p.thesis, p.problem, p.principle, p.why_it_matters, p.validation,
                 p.applications, p.sectors, p.outcomes, p.next_milestones,
                 i.acquisition_stage, i.innovator_name, i.innovator_email, i.institution
          FROM technology_profiles p
-         JOIN innovations i ON i.reference = p.reference
+         LEFT JOIN innovations i ON i.reference = p.reference
          WHERE p.reference = ?`,
       )
       .bind(reference)
@@ -1940,9 +2341,12 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
     if (!row) return json({ error: 'Write the profile before publishing it' }, 404)
 
     if (publish) {
-      // Rights first. A page that presents a technology as available to
-      // develop, when InThinks holds no rights to it, is a claim it cannot make.
-      if (!(PUBLISHABLE_STAGES as readonly string[]).includes(String(row.acquisition_stage))) {
+      // Rights first — but only where there are rights to hold. An authored
+      // record describes a technology InThinks wrote up itself; there is no
+      // acquisition stage to be at, and demanding one would make the whole
+      // authored set unpublishable.
+      if (row.origin !== 'authored'
+          && !(PUBLISHABLE_STAGES as readonly string[]).includes(String(row.acquisition_stage))) {
         return json({
           error: `A technology is published once rights are held. This one is at ${row.acquisition_stage}.`,
         }, 409)
@@ -1955,6 +2359,16 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
           return json({ error: `A published page needs ${label}.` }, 422)
         }
       }
+      // Wrong on any public record, whatever it came from — and the only
+      // guard an authored record has, since the identity check below compares
+      // against a submission that does not exist for one.
+      const named = namedPartyLeak(profileProse(row as never))
+      if (named) {
+        return json({
+          error: `This draft contains ${named}. A technology page never identifies the innovator, their institution or a company.`,
+        }, 422)
+      }
+
       // The promise to innovators, enforced at the moment of publication.
       const leak = identityLeak(profileProse(row as never), {
         innovator_name: (row.innovator_name as string) ?? null,
