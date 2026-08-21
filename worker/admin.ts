@@ -37,7 +37,12 @@ import {
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...headers },
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+      'x-robots-tag': 'noindex, nofollow',
+      ...headers,
+    },
   })
 
 const oneOf = <T extends readonly string[]>(list: T, value: unknown): value is T[number] =>

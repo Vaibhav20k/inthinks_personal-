@@ -20,7 +20,16 @@ import type { Env } from './types'
 const json = (body: unknown, status = 200, cache = 'public, max-age=60, s-maxage=300') =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': cache },
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': cache,
+      /* An API response is not a page. `_headers` cannot say so — that file
+         applies to static asset responses, and everything under /api is served
+         by this Worker, so the rule written there never reached one. robots.txt
+         disallows /api, but a crawler that fetched anyway would have had
+         nothing telling it not to index what it got. */
+      'x-robots-tag': 'noindex, nofollow',
+    },
   })
 
 /** Columns the public site is allowed to see. Never `SELECT *`. */

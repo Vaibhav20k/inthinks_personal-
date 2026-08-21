@@ -21,7 +21,11 @@ import type { Env } from './types'
 const json = (body: unknown, status = 200, cache = 'public, max-age=60, s-maxage=300') =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': cache },
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': cache,
+      'x-robots-tag': 'noindex, nofollow',
+    },
   })
 
 /** Columns the public site is allowed to see. Never `SELECT p.*`. */

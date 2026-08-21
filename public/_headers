@@ -10,13 +10,14 @@
 # is behind a session, so a crawler sees only the sign-in page — but an indexed
 # sign-in page is still an invitation, and a record ID in a search result is a
 # disclosure even when the page behind it is protected.
+#
+# /api is deliberately absent here: this file applies to static asset responses
+# and everything under /api is served by the Worker, so a rule written here for
+# it never reaches a response. The Worker sets the header itself.
 /admin
   X-Robots-Tag: noindex, nofollow
 
 /admin/*
-  X-Robots-Tag: noindex, nofollow
-
-/api/*
   X-Robots-Tag: noindex, nofollow
 
 # Vite fingerprints these filenames, so they can be cached indefinitely.
