@@ -1,4 +1,5 @@
 import Button from '../components/primitives/Button'
+import PageMeta from '../components/layout/PageMeta'
 import Reveal from '../components/primitives/Reveal'
 import SectionLabel from '../components/primitives/SectionLabel'
 import PageHero from '../components/layout/PageHero'
@@ -16,6 +17,7 @@ const journey = [
 export default function TechnologyTransfer() {
   return (
     <>
+      <PageMeta title="Technology Transfer" description="How InThinks prepares a developed technology for industrial adoption, and what a transfer arrangement involves." />
       <PageHero
         eyebrow="Technology Transfer"
         title="Developed for transfer. Prepared for industry."

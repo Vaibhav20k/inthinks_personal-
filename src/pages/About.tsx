@@ -1,4 +1,5 @@
 import Button from '../components/primitives/Button'
+import PageMeta from '../components/layout/PageMeta'
 import Reveal from '../components/primitives/Reveal'
 import SectionLabel from '../components/primitives/SectionLabel'
 import PageHero from '../components/layout/PageHero'
@@ -34,6 +35,7 @@ const haveLack = [
 export default function About() {
   return (
     <>
+      <PageMeta title="About" description="InThinks operates independently between innovators and industry, developing selected early-stage technologies toward industrial readiness." />
       <PageHero
         eyebrow="About"
         title="A bridge between emerging invention and industrial adoption."

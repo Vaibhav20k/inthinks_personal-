@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import PageMeta from '../components/layout/PageMeta'
 import { Link, useParams } from 'react-router-dom'
 import Button from '../components/primitives/Button'
 import Notice from '../components/primitives/Notice'
@@ -98,6 +99,7 @@ export default function MatchDetail() {
 
   return (
     <>
+      <PageMeta title="Match" description="A qualified relationship between an industrial challenge and an emerging technology." />
       <section className="container-grid pb-16 pt-36 sm:pt-44">
         <Reveal>
           <p className="ident" style={{ color: 'var(--color-accent)' }}>{m.id}</p>

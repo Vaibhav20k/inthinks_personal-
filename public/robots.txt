@@ -1,4 +1,10 @@
+# The public registers are meant to be found. Everything behind the admin
+# session is not, and neither is the API — an indexed /api/technologies is a
+# JSON document in someone's search results with no page around it.
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /admin/
+Disallow: /api/
 
 Sitemap: https://inthinks.com/sitemap.xml

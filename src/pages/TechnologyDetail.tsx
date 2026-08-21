@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import PageMeta from '../components/layout/PageMeta'
 import { Link, useParams } from 'react-router-dom'
 import Button from '../components/primitives/Button'
 import MetaList from '../components/primitives/MetaList'
@@ -86,6 +87,7 @@ export default function TechnologyDetail() {
 
   return (
     <>
+      <PageMeta title="Technology" description="A technology in the InThinks development portfolio." />
       <section className="container-grid pb-12 pt-36 sm:pt-44">
         <Link to="/technologies" className="tap label inline-flex items-center gap-2" style={{ color: 'var(--color-muted)' }}>
           <span aria-hidden="true">←</span> TECHNOLOGY EXPLORER

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import PageMeta from '../components/layout/PageMeta'
 import FormShell from '../components/forms/FormShell'
 import type { Step } from '../components/forms/FormShell'
 import Confirmation from '../components/forms/Confirmation'
@@ -261,6 +262,7 @@ export default function SubmitChallenge() {
 
   return (
     <>
+      <PageMeta title="Submit a Challenge" description="Describe an industrial problem in technical terms. It is structured internally and reviewed before any technology is put in front of you." />
       <PageHero
         eyebrow="For Industry"
         title="Submit an industry challenge."

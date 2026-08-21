@@ -1,4 +1,5 @@
 import Button from '../components/primitives/Button'
+import PageMeta from '../components/layout/PageMeta'
 import Reveal from '../components/primitives/Reveal'
 import SectionLabel from '../components/primitives/SectionLabel'
 import PageHero from '../components/layout/PageHero'
@@ -8,6 +9,7 @@ import { challengeDimensions, pipeline, valueGap } from '../data/pipeline'
 export default function HowItWorks() {
   return (
     <>
+      <PageMeta title="How It Works" description="Evaluate, acquire, develop, match, transfer — how a technology moves from an early result to something an industrial operator can deploy." />
       <PageHero
         eyebrow="How It Works"
         title="Two intakes, one pipeline."

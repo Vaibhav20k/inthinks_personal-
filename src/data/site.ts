@@ -112,4 +112,12 @@ export const footerGroups = [
       { label: 'Confidentiality', to: '/confidentiality' },
     ],
   },
+  {
+    title: 'Legal',
+    links: [
+      { label: 'Privacy', to: '/privacy' },
+      { label: 'Terms of Use', to: '/terms' },
+      { label: 'Submission Terms', to: '/submission-terms' },
+    ],
+  },
 ] as const
