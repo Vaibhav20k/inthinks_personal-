@@ -43,12 +43,43 @@ export default function MatchRoom({ me }: { me: Me }) {
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
+  /** Blank means "leave the engine's reading" rather than "Unknown". */
+  const [review, setReview] = useState({
+    mechanism: '', application: '', trl: '', constraint: '', classification: '', note: '',
+  })
 
   const load = useCallback(() => {
     api.match(reference).then(setData).catch((e) => setError(e.message))
   }, [reference])
 
   useEffect(() => { load() }, [load])
+
+  // Seed the controls from an existing review, so opening the page twice does
+  // not present a blank form over a review that has already been recorded.
+  useEffect(() => {
+    if (!data?.review) return
+    setReview({
+      mechanism: data.review.mechanism ?? '',
+      application: data.review.application ?? '',
+      trl: data.review.trl ?? '',
+      constraint: data.review.constraint ?? '',
+      classification: data.review.classification ?? '',
+      note: data.review.note ?? '',
+    })
+  }, [data?.review])
+
+  const saveReview = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await api.reviewMatch(reference, review)
+      load()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'The review could not be recorded')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const decide = async (decision: api.MatchDecision) => {
     setBusy(true)
@@ -112,7 +143,7 @@ export default function MatchRoom({ me }: { me: Me }) {
         </div>
 
         <div className="grid content-start gap-6">
-          <Panel title="Fit assessment">
+          <Panel title="Engine assessment">
             <div className="grid gap-3 sm:grid-cols-2">
               {[
                 ['Mechanism fit', data.fits.mechanism],
@@ -138,6 +169,101 @@ export default function MatchRoom({ me }: { me: Me }) {
             <p className="label mt-4" style={{ color: 'var(--color-faint)' }}>
               CLASSIFICATIONS, NOT SCORES — THE ENGINE DOES NOT PRODUCE A PERCENTAGE
             </p>
+          </Panel>
+
+          {/* The half the engine cannot supply. Kept as its own panel beside
+              the machine's rather than replacing those values, because where a
+              reviewer disagrees with the model is the most useful thing on the
+              page — and because what gets promoted to the public match is this
+              reading, not the first pass. */}
+          <Panel title="InThinks review">
+            {data.review ? (
+              <p className="label" style={{ color: 'var(--color-accent)' }}>
+                REVIEWED BY {data.review.by.toUpperCase()} · {shortDateTime(data.review.at)}
+              </p>
+            ) : (
+              <p className="label" style={{ color: 'var(--color-faint)' }}>
+                NOT YET REVIEWED — THE ENGINE&rsquo;S READING STANDS UNTIL IT IS
+              </p>
+            )}
+
+            {me.can.editReviewState ? (
+              <>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {([
+                    ['mechanism', 'Mechanism fit', data.fits.mechanism],
+                    ['application', 'Application fit', data.fits.application],
+                    ['trl', 'TRL fit', data.fits.trl],
+                    ['constraint', 'Constraint fit', data.fits.constraint],
+                  ] as const).map(([key, label, engine]) => (
+                    <div key={key}>
+                      <label htmlFor={`rv-${key}`} className="label" style={{ color: 'var(--color-faint)' }}>
+                        {label.toUpperCase()}
+                      </label>
+                      <select
+                        id={`rv-${key}`}
+                        value={review[key]}
+                        onChange={(e) => setReview({ ...review, [key]: e.target.value })}
+                        className="field-input mt-1.5 py-2 text-[0.875rem]"
+                      >
+                        <option value="">— engine says {engine}</option>
+                        {data.ratings.map((r) => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                      {/* Naming the disagreement rather than leaving two chips
+                          for the reader to compare. */}
+                      {review[key] && review[key] !== engine && (
+                        <p className="label mt-1" style={{ color: 'var(--color-accent)' }}>
+                          DIFFERS FROM THE ENGINE
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4">
+                  <label htmlFor="rv-class" className="label" style={{ color: 'var(--color-faint)' }}>
+                    CLASSIFICATION
+                  </label>
+                  <select
+                    id="rv-class"
+                    value={review.classification}
+                    onChange={(e) => setReview({ ...review, classification: e.target.value })}
+                    className="field-input mt-1.5 py-2 text-[0.875rem]"
+                  >
+                    <option value="">— engine says {data.classification}</option>
+                    {data.classes.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+
+                <textarea
+                  value={review.note}
+                  onChange={(e) => setReview({ ...review, note: e.target.value })}
+                  rows={3}
+                  placeholder="What the assessment found"
+                  className="field-input mt-4"
+                />
+
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={saveReview}
+                  className="tap label mt-4 px-4 py-2.5 transition-colors duration-250 disabled:opacity-50"
+                  style={{ border: '1px solid var(--color-accent)', color: 'var(--color-accent)' }}
+                >
+                  RECORD REVIEW
+                </button>
+              </>
+            ) : (
+              <p className="label mt-4" style={{ color: 'var(--color-faint)' }}>
+                A TECHNICAL REVIEW IS RECORDED BY ADMIN AND R&amp;D REVIEWERS
+              </p>
+            )}
+
+            {data.review?.note && (
+              <p className="mt-5 pt-4 text-[0.9375rem] leading-relaxed" style={{ borderTop: '1px solid var(--rule)' }}>
+                {data.review.note}
+              </p>
+            )}
           </Panel>
 
           <Panel title="Analysis">

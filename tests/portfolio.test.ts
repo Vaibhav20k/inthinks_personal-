@@ -8,7 +8,7 @@
  */
 import {
   DOMAINS, PUBLIC_STAGES, STAGE_TO_PUBLIC, domainFor, identityLeak, isSlug,
-  namedPartyLeak, parseList, publicStage, publicTechnology, toSlug,
+  fitRating, namedPartyLeak, parseList, publicStage, publicTechnology, toSlug,
 } from '../worker/portfolio'
 import { DEVELOPMENT_STAGES } from '../worker/development'
 
@@ -160,6 +160,37 @@ for (const text of [
 // A ten-digit run inside a technical figure must not read as a phone number.
 check('a long number in prose is not a phone number',
   namedPartyLeak('Throughput of 250000 tonnes per annum.') === null)
+
+
+/* --------------------------------------------------------- fit vocabularies */
+
+/**
+ * The mapper spans two vocabularies and got one of them wrong.
+ *
+ * The engine emits lowercase strong/moderate/limited and never says
+ * "promising". A reviewer picks from the public set, which does — and the
+ * mapper, written for the engine alone, turned their "Promising" into
+ * "Unknown" the moment a match was promoted. A considered judgement became a
+ * shrug on a published page, silently.
+ */
+console.log('\nfit ratings, from either vocabulary')
+
+// The engine's words, translated.
+for (const [raw, expected] of [
+  ['strong', 'Strong'], ['moderate', 'Moderate'], ['limited', 'Limited'], ['unknown', 'Unknown'],
+] as const) {
+  check(`engine "${raw}" reads as ${expected}`, fitRating(raw) === expected, `got ${fitRating(raw)}`)
+}
+
+// A reviewer's words, untouched. "Promising" is the one that regressed.
+for (const value of ['Strong', 'Promising', 'Moderate', 'Limited', 'Unknown'] as const) {
+  check(`reviewer "${value}" survives`, fitRating(value) === value, `got ${fitRating(value)}`)
+}
+
+check('a reviewer\'s Promising is not downgraded to Unknown', fitRating('Promising') === 'Promising')
+check('lowercase promising is understood too', fitRating('promising') === 'Promising')
+check('an unset rating reads as Unknown', fitRating(null) === 'Unknown')
+check('a word from neither vocabulary reads as Unknown', fitRating('Fantastic') === 'Unknown')
 
 
 if (failures > 0) {
