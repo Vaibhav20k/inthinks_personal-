@@ -371,6 +371,33 @@ body {
 
 /* Form controls share one skin so the two long submission flows feel like
    one system. */
+/*
+ * The theme change itself.
+ *
+ * Applied only while `theme-shifting` is on the root, for the 300ms around an
+ * actual change. A permanent transition on colour would make every hover and
+ * every focus ring fade in, which is a different design and a slower-feeling
+ * one.
+ *
+ * Background, text and borders only. Animating every SVG on the page at once
+ * turns a theme change into a scene change.
+ */
+.theme-shifting,
+.theme-shifting *:not(svg):not(svg *) {
+  transition:
+    background-color 220ms var(--ease-out-quint),
+    color 220ms var(--ease-out-quint),
+    border-color 220ms var(--ease-out-quint) !important;
+}
+
+/* The change still happens instantly; only the easing goes. */
+@media (prefers-reduced-motion: reduce) {
+  .theme-shifting,
+  .theme-shifting *:not(svg):not(svg *) {
+    transition: none !important;
+  }
+}
+
 @utility field-input {
   width: 100%;
   /* Without this a date input's intrinsic width overrides the track. */

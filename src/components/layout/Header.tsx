@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import GroundToggle from '../primitives/GroundToggle'
+import AppearanceMenu from '../primitives/AppearanceMenu'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { nav, site } from '../../data/site'
 import Logo from '../primitives/Logo'
@@ -83,7 +83,7 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-4">
-          <GroundToggle className="hidden sm:inline-flex" />
+          <AppearanceMenu className="hidden sm:inline-flex" />
           <Link
             to="/submit-innovation"
             className="hidden text-[0.8125rem] font-medium transition-colors duration-300 lg:inline-block"
@@ -135,7 +135,7 @@ export default function Header() {
             style={{ borderTop: '1px solid var(--rule)', borderBottom: '1px solid var(--rule)' }}
           >
             <span className="label" style={{ color: 'var(--color-faint)' }}>THEME</span>
-            <GroundToggle />
+            <AppearanceMenu />
           </div>
 
           <div className="mt-6 flex flex-col gap-3">
