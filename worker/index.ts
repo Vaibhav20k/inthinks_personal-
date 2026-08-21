@@ -40,6 +40,7 @@ const json = (body: unknown, status = 200) =>
       'content-type': 'application/json; charset=utf-8',
       // Submission responses carry a reference and must never be cached.
       'cache-control': 'no-store',
+      'x-robots-tag': 'noindex, nofollow',
     },
   })
 
