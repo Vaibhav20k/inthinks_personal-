@@ -27,13 +27,21 @@ states, a qualified match, one mark on a figure. Never a field, never a
 gradient. The greys are pulled toward the accent so the system reads as one hue
 family.
 
-The accent is `#3b7baf`, taken **exactly from the logo file** rather than
-chosen. That is a constraint, not a free hand: it measures 4.5:1 on white — it
-clears AA for text by a hair — and only 4.1:1 against the sunk ground, so it
-cannot carry small type there. Two derived steps on the same hue (207°) do the
-work it cannot: `--color-accent-deep` `#2a597e` (7.4:1 on white, 6.7:1 on sunk)
-for dense small text, hover, and anything inside a sunk band;
-`--color-accent-light` `#7cb2de` (8.8:1 on black) for the inverted sections.
+The accent is indigo — the intelligence signal, and the colour of the mark
+itself. It means one thing wherever it appears: active, connected, matched,
+qualified, progressing. Never decoration.
+
+`--color-accent` is `#4f46e5` on the light ground (6.3:1 on white) and
+`#6366f1` on the dark one, because the same hue has to hold against `#050505`
+and the darker value does not. `--color-accent-deep` is the one that carries
+dense small text — darker on white (`#4338ca`), brighter on black (`#818cf8`),
+which is the same job in both directions. `--color-accent-light` `#a5b4fc` is
+for the inverted graphite sections.
+
+`--color-accent-fill` `#4f46e5` is separate and identical on both grounds: it
+is the indigo that carries white text on top of it, and an element with its own
+fill does not care what the page behind it is. Using the ground-aware token
+there put white on `#6366f1` at 4.47:1 — under AA.
 
 A `sunk` utility paints the tinted ground *and* redefines `--color-accent` to
 the deep step for everything inside it, so a label that passes on the page

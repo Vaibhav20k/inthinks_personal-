@@ -91,7 +91,10 @@ export default function PointerLabel({ label, children, className = '' }: Props)
             style={{
               left: '14px',
               top: '10px',
-              background: 'var(--color-accent)',
+              // The fill token, not the ground-aware one: this chip carries
+              // white text on its own background, and the dark ground's
+              // lighter accent puts that at 4.47:1.
+              background: 'var(--color-accent-fill)',
               color: '#fff',
             }}
           >

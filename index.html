@@ -55,20 +55,10 @@
 
       The order is deliberate:
 
-        1. A ground the visitor pinned here wins, always. Pinning is a
-           deliberate act — the header control has three positions and the
-           middle two are the pins — so it is not something anyone lands on
-           by accident, and AUTO is one click away from either of them.
-           Nothing else pins a ground: absent a pin, everyone loads on AUTO.
-        2. Otherwise, a system set to dark wins. That is an explicit signal
-           from the person, and a clock should not overrule it at 2pm.
-        3. Otherwise — and this is the common case, because most people never
-           change the system default off light — the sun decides. Sunrise and
-           sunset for the visitor's own location, falling back to 06:00–18:00
-           until the first answer is cached.
-
-      The clock is the visitor's, not the server's: this site says INDIA /
-      GLOBAL, and a reader in Toronto should get their own evening.
+        1. A mode the visitor chose wins, always. LIGHT and DARK are obeyed
+           regardless of room, system or hour; absent a choice everyone loads
+           on AUTO, which is the default and stays it.
+        2. AUTO is the system's own appearance.
 
       What "automatic" means is defined once, here, and handed to the app on
       `window.__inthinksGround`. The header control has to answer the same
@@ -78,43 +68,25 @@
     <script>
       (function () {
         /**
-         * Is it light out?
+         * What AUTO resolves to before the page has painted: the system.
          *
-         * Read from a sunrise and sunset cached by an earlier visit — no
-         * network, so no flash. The times come from /api/daylight, which
-         * computes them from the edge's coarse location; this script only
-         * compares against them.
+         * The same answer `systemGround()` gives in src/lib/theme.ts, and it
+         * has to stay that way. The two run milliseconds apart on the same
+         * page, so any disagreement between them is visible as a flash — this
+         * used to fall back to sunrise and sunset when the system said light,
+         * while the app followed the system alone, and at 05:00 local on a
+         * light system the page painted dark and then corrected itself.
          *
-         * With nothing cached, 06:00–18:00 local. That is wrong at the edges
-         * of the year and the map, which is the whole reason the real answer
-         * exists — but it is close enough for one page view, and it is the
-         * only option that does not paint the wrong ground and flip.
+         * AUTO's other input, the light sensor, is deliberately absent here:
+         * it answers asynchronously and only after permission, so it cannot
+         * inform a paint that has to happen now. The app picks it up once it
+         * is running, by which time a change is considered rather than a
+         * flicker.
          */
-        function daylightGround() {
-          var LIGHT_FROM = 6, DARK_FROM = 18
-          try {
-            var raw = localStorage.getItem('inthinks-daylight')
-            if (raw) {
-              var d = JSON.parse(raw)
-              if (d.kind === 'polar-day') return 'light'
-              if (d.kind === 'polar-night') return 'dark'
-              if (typeof d.sunriseUtcMin === 'number' && typeof d.sunsetUtcMin === 'number') {
-                var now = new Date()
-                var m = now.getUTCHours() * 60 + now.getUTCMinutes()
-                var rise = d.sunriseUtcMin, set = d.sunsetUtcMin
-                var light = rise <= set ? (m >= rise && m < set) : (m >= rise || m < set)
-                return light ? 'light' : 'dark'
-              }
-            }
-          } catch (e) { /* unreadable cache: fall through to the hours */ }
-          var h = new Date().getHours()
-          return h >= LIGHT_FROM && h < DARK_FROM ? 'light' : 'dark'
-        }
-
-        /** What AUTO resolves to at this moment: the system, then the sun. */
         function autoGround() {
-          if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) return 'dark'
-          return daylightGround()
+          return window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light'
         }
 
         /**
@@ -159,23 +131,10 @@
         }
       })()
 
-      /* Refresh the cached sunrise after the page has painted. Not awaited and
-         never applied here: correcting the ground mid-paint is a flash with
-         extra steps. The control's own AUTO watcher picks the new times up on
-         its next tick, so a first visit at the edges of the map corrects
-         itself within the minute rather than staying wrong all session. */
-      addEventListener('load', function () {
-        try {
-          var pinned = localStorage.getItem('inthinks-theme-mode')
-          if (pinned === 'light' || pinned === 'dark') return
-          fetch('/api/daylight', { headers: { accept: 'application/json' } })
-            .then(function (r) { return r.ok ? r.json() : null })
-            .then(function (d) {
-              if (d && d.known) localStorage.setItem('inthinks-daylight', JSON.stringify(d))
-            })
-            .catch(function () { /* offline or blocked: the hours still work */ })
-        } catch (e) { /* storage blocked */ }
-      })
+      /* The sunrise cache this used to fetch is gone with the sun fallback.
+         AUTO is the system setting, and the app's light sensor where a browser
+         offers one — neither of which needs a network request, so there is no
+         longer one on every page load. */
     </script>
 
     <!--
@@ -225,8 +184,8 @@
          than ordinary assets — Chrome keeps them in a separate store that a
          normal reload does not touch — so an edited icon can keep showing the
          old one for days. Bump the number whenever favicon.svg changes. -->
-    <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml" />
-    <link rel="mask-icon" href="/favicon.svg?v=2" color="#3b7baf" />
+    <link rel="icon" href="/favicon.svg?v=3" type="image/svg+xml" />
+    <link rel="mask-icon" href="/favicon.svg?v=3" color="#4f46e5" />
   </head>
   <body>
     <div id="root"></div>
