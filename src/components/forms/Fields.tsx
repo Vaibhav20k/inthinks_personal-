@@ -178,7 +178,7 @@ export function ChoiceGroup({
                 className="mt-1 h-3.5 w-3.5 shrink-0"
                 style={{
                   border: `1px solid ${on ? 'var(--color-accent)' : 'var(--rule-strong)'}`,
-                  background: on ? 'var(--color-accent)' : 'transparent',
+                  background: on ? 'var(--color-accent-fill)' : 'transparent',
                   borderRadius: multiple ? 0 : '50%',
                 }}
               />
@@ -223,7 +223,7 @@ export function Consent({ label, checked, onChange }: ConsentProps) {
         className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center"
         style={{
           border: `1px solid ${checked ? 'var(--color-accent)' : 'var(--rule-strong)'}`,
-          background: checked ? 'var(--color-accent)' : 'transparent',
+          background: checked ? 'var(--color-accent-fill)' : 'transparent',
         }}
       >
         {checked && (

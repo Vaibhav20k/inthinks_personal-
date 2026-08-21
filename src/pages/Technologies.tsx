@@ -183,7 +183,7 @@ function FilterRow({
               className="tap px-3 py-1.5 text-[0.8125rem] transition-colors duration-250"
               style={{
                 border: `1px solid ${on ? 'var(--color-accent)' : 'var(--rule-strong)'}`,
-                background: on ? 'var(--color-accent)' : 'transparent',
+                background: on ? 'var(--color-accent-fill)' : 'transparent',
                 color: on ? '#fff' : 'var(--color-muted)',
               }}
             >

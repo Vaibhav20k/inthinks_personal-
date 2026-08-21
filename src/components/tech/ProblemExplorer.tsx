@@ -86,7 +86,7 @@ export default function ProblemExplorer() {
                       className="tap px-4 py-2.5 font-display text-[1.0625rem] font-medium tracking-[-0.02em] transition-colors duration-250"
                       style={{
                         border: `1px solid ${on ? 'var(--color-accent)' : 'var(--rule-strong)'}`,
-                        background: on ? 'var(--color-accent)' : 'transparent',
+                        background: on ? 'var(--color-accent-fill)' : 'transparent',
                         color: on ? '#fff' : 'var(--color-ink)',
                       }}
                     >
@@ -117,7 +117,7 @@ export default function ProblemExplorer() {
                           className="tap px-3.5 py-2 text-[0.875rem] transition-colors duration-250"
                           style={{
                             border: `1px solid ${on ? 'var(--color-accent)' : 'var(--rule-strong)'}`,
-                            background: on ? 'var(--color-accent)' : 'transparent',
+                            background: on ? 'var(--color-accent-fill)' : 'transparent',
                             color: on ? '#fff' : 'var(--color-muted)',
                           }}
                         >

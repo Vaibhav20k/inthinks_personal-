@@ -87,15 +87,23 @@
      this has to clear AA on the tinted ground too, not only on white. */
   --color-faint: #6b6b7c;
 
-  /* The brand blue, taken exactly from the logo file (public/InThinks.png).
-     4.5:1 on white — it clears AA for text by a hair, and does not clear it
-     against the sunk ground, so small text uses `deep` rather than this. */
-  --color-accent: #3b7baf;
-  /* Same hue, darker. 7.4:1 on white and 6.7:1 on the sunk ground — this is
-     what carries dense small text and hover. */
-  --color-accent-deep: #2a597e;
-  /* Same hue, lighter. 8.8:1 on black — the inverted sections. */
-  --color-accent-light: #7cb2de;
+  /* Indigo — the intelligence signal, and the colour of the mark itself. It
+     means one thing everywhere it appears: active, connected, matched,
+     qualified, progressing. Never decoration.
+     6.3:1 on white, so unlike the steel blue it replaced it carries small text
+     on the paper ground without needing `deep`. */
+  --color-accent: #4f46e5;
+  /* Same hue, darker. For the sunk ground, where `accent` runs closer to the
+     line, and for hover. */
+  --color-accent-deep: #4338ca;
+  /* Same hue, lighter. The inverted graphite sections, where the accent has to
+     hold against near-black. */
+  --color-accent-light: #a5b4fc;
+  /* The indigo that carries white text on top of it.
+     Deliberately the same on both grounds: an element with its own fill does
+     not care what the page behind it is, and the dark ground's lighter accent
+     drops white text to 4.47:1 — under AA — when used this way. */
+  --color-accent-fill: #4f46e5;
 
   /* The primary CTA fill. Its own token rather than borrowing the section
      colour: a black block and a black button only look alike on white, and
@@ -224,7 +232,7 @@ body {
    token keeps its role; only its value moves. Set `data-ground="dark"` on
    the root element to see it.
 
-   The signal stays #3b7baf, so the mark and the site remain one colour. It
+   The signal stays indigo, so the mark and the site remain one colour. It
    measures 4.5:1 on #050505 and 4.2:1 on the raised surface — enough for
    fills, rules and large type, not enough for 11px labels. So the roles
    mirror the light ground exactly: `accent` fills and draws, `accent-deep`
@@ -250,16 +258,20 @@ body {
   --color-faint: #8a8a94;
 
   /* Unchanged: the logo's own blue. Fills, rules, large type. */
-  --color-accent: #3b7baf;
+  /* Brighter on black than on white: the same hue has to work against #050505,
+     and #4f46e5 there is too close to the ground to read. */
+  --color-accent: #6366f1;
   /* 9.0:1 — the high-contrast step, for dense small text. */
-  --color-accent-deep: #7cb2de;
+  /* `deep` is the *brighter* one on this ground — it carries dense small text,
+     which needs more contrast against black, not less. */
+  --color-accent-deep: #818cf8;
   /* 11.3:1 — for the raised sections. */
-  --color-accent-light: #9cc6e8;
+  --color-accent-light: #a5b4fc;
 
   /* On black the CTA inverts: the lighter step of the brand hue, carrying
      the ground colour as its label. 9.0:1, and it reads as the signal
      rather than as a hole in the page. */
-  --color-cta: #7cb2de;
+  --color-cta: #818cf8;
   --color-cta-text: #050505;
 
   /* Still light: a graphite section is a raised surface here, and raised
