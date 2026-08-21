@@ -1,4 +1,5 @@
 import Button from '../components/primitives/Button'
+import PageMeta from '../components/layout/PageMeta'
 import Reveal from '../components/primitives/Reveal'
 import SectionLabel from '../components/primitives/SectionLabel'
 import PageHero from '../components/layout/PageHero'
@@ -7,6 +8,7 @@ import { confidentiality, industryJourney } from '../data/pipeline'
 export default function ForIndustry() {
   return (
     <>
+      <PageMeta title="For Industry" description="Bring an industrial challenge to InThinks. It is structured as a technical profile, compared against the portfolio, and reviewed before anything reaches you." />
       <PageHero
         eyebrow="For Industry"
         title="Bring us the problem."

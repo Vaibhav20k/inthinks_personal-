@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import PageMeta from '../components/layout/PageMeta'
 import { searchMatches, useExplorerState } from '../lib/explorer'
 import SearchField from '../components/primitives/SearchField'
 import PointerLabel from '../components/primitives/PointerLabel'
@@ -8,6 +9,7 @@ import Notice from '../components/primitives/Notice'
 import TechnologyRow from '../components/tech/TechnologyRow'
 import { loadPortfolio } from '../data/portfolio'
 import { matchesForTechnology } from '../data/examples'
+import StackedRecord from '../components/tech/StackedRecord'
 import { TRANSFER_STATUSES } from '../data/models'
 import type { Technology, TransferStatus } from '../data/models'
 import { domains, outcomes, sectors } from '../data/taxonomy'
@@ -50,7 +52,37 @@ function TechnologyIndex({
   onPreview: (t: Technology | null) => void
 }) {
   return (
-    <div className="overflow-x-auto">
+    <>
+      {/* Below xl the table does not fit. Measured: it wants 816px and the
+          explorer's own column does not offer that until about 1280px, so
+          under it every reader was scrolling sideways to reach STATUS. */}
+      <ul className="xl:hidden">
+        {rows.map((tech) => {
+          const n = matchesForTechnology(tech.slug).length
+          return (
+            <StackedRecord
+              key={tech.slug}
+              to={`/technologies/${tech.slug}`}
+              reference={tech.id}
+              title={tech.name}
+              fields={[
+                { term: 'TRL', value: `${String(tech.currentTrl).padStart(2, '0')} → ${String(tech.targetTrl).padStart(2, '0')}` },
+                { term: 'DOMAIN', value: tech.domain.toUpperCase() },
+                {
+                  term: 'MATCHES',
+                  value: n > 0
+                    ? <span style={{ color: 'var(--color-accent)' }}>{n} ACTIVE</span>
+                    : <span style={{ color: 'var(--color-faint)' }}>—</span>,
+                },
+                { term: 'TRANSFER STATUS', value: tech.transferStatus.toUpperCase() },
+              ]}
+            />
+          )
+        })}
+        <li style={{ borderTop: '1px solid var(--rule)' }} />
+      </ul>
+
+    <div className="hidden xl:block">
       <table className="w-full" style={{ borderCollapse: 'collapse' }}>
         <caption className="sr-only">Technologies in the InThinks portfolio</caption>
         <thead>
@@ -109,6 +141,7 @@ function TechnologyIndex({
         </tbody>
       </table>
     </div>
+    </>
   )
 }
 
@@ -252,6 +285,7 @@ export default function Technologies() {
 
   return (
     <>
+      <PageMeta title="Technology Explorer" description="Early-stage technologies in the InThinks development portfolio, shown as industrial opportunities with TRL, domain and transfer status. Every profile is anonymised." />
       <PageHero
         eyebrow="Technologies"
         title="Technology Explorer"

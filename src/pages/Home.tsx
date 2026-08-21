@@ -1,4 +1,5 @@
 import Hero from '../components/home/Hero'
+import PageMeta from '../components/layout/PageMeta'
 import AudienceGateway from '../components/home/AudienceGateway'
 import IntelligenceSnapshot from '../components/home/IntelligenceSnapshot'
 import Engine from '../components/home/Engine'
@@ -39,6 +40,7 @@ const COORDINATES = [
 export default function Home() {
   return (
     <>
+      <PageMeta title="InThinks — Early innovation. Industry ready." description="InThinks identifies promising early-stage technologies, develops selected innovations through focused R&D, and prepares qualified solutions for industrial adoption." />
       <ScrollCoordinate sections={COORDINATES} />
       <Hero />
       <AudienceGateway />

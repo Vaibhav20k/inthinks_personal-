@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import PageMeta from '../components/layout/PageMeta'
 import FormShell from '../components/forms/FormShell'
 import type { Step } from '../components/forms/FormShell'
 import Confirmation from '../components/forms/Confirmation'
@@ -345,6 +346,7 @@ export default function SubmitInnovation() {
 
   return (
     <>
+      <PageMeta title="Submit an Innovation" description="Submit an early-stage technology for assessment. Submitting transfers nothing, and your identity is not published." />
       <PageHero
         eyebrow="For Innovators"
         title="Built something worth taking further?"

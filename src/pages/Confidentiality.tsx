@@ -1,4 +1,5 @@
 import Button from '../components/primitives/Button'
+import PageMeta from '../components/layout/PageMeta'
 import Reveal from '../components/primitives/Reveal'
 import SectionLabel from '../components/primitives/SectionLabel'
 import PageHero from '../components/layout/PageHero'
@@ -16,6 +17,7 @@ const stages = [
 export default function ConfidentialityPage() {
   return (
     <>
+      <PageMeta title="Confidentiality" description="What InThinks publishes, what it never publishes, and how the separation is enforced in the system rather than in a template." />
       <PageHero
         eyebrow="Confidentiality"
         title="Innovation requires discretion."

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import PageMeta from '../components/layout/PageMeta'
 import { Link } from 'react-router-dom'
 import PageHero from '../components/layout/PageHero'
 import Notice from '../components/primitives/Notice'
 import { loadProblems } from '../data/portfolio'
 import { matchesForProblem } from '../data/examples'
+import StackedRecord from '../components/tech/StackedRecord'
 import { sectors } from '../data/taxonomy'
 import { searchMatches, useExplorerState } from '../lib/explorer'
 import SearchField from '../components/primitives/SearchField'
@@ -118,6 +120,7 @@ export default function Problems() {
 
   return (
     <>
+      <PageMeta title="Industrial Problem Explorer" description="Anonymised industrial challenges structured as technical problem profiles for technology discovery and evaluation." />
       <PageHero
         eyebrow="Industry"
         title="Problems worth solving."
@@ -210,7 +213,38 @@ export default function Problems() {
                  to scan for a sector or a target, not a page to read. The
                  MATCHES column is the point of it — a challenge with candidates
                  against it is the one an innovator should look at first. */
-              <div className="overflow-x-auto">
+              <>
+              {/* Below xl the table does not fit: it wants 850px, which the
+                  explorer's own column does not offer until about 1280px. Same
+                  fields, stacked, so nothing is reached by scrolling sideways. */}
+              <ul className="xl:hidden">
+                {results.map((p) => {
+                  const n = matchesForProblem(p.slug).length
+                  return (
+                    <StackedRecord
+                      key={p.slug}
+                      to={`/problems/${p.slug}`}
+                      reference={p.id}
+                      title={p.title}
+                      fields={[
+                        { term: 'INDUSTRY', value: p.sector.toUpperCase() },
+                        { term: 'PRIORITY', value: p.priorityArea.toUpperCase() },
+                        { term: 'TARGET', value: p.target },
+                        {
+                          term: 'MATCHES',
+                          value: n > 0
+                            ? <span style={{ color: 'var(--color-accent)' }}>{n} CANDIDATE{n === 1 ? '' : 'S'}</span>
+                            : <span style={{ color: 'var(--color-faint)' }}>—</span>,
+                        },
+                        { term: 'STATUS', value: p.status.toUpperCase() },
+                      ]}
+                    />
+                  )
+                })}
+                <li style={{ borderTop: '1px solid var(--rule)' }} />
+              </ul>
+
+              <div className="hidden xl:block">
                 <table className="w-full" style={{ borderCollapse: 'collapse' }}>
                   <caption className="sr-only">Industrial problems brought to InThinks</caption>
                   <thead>
@@ -268,6 +302,7 @@ export default function Problems() {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </div>
         </div>

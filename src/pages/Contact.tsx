@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import PageMeta from '../components/layout/PageMeta'
 import { Consent, SelectField, TextArea, TextField } from '../components/forms/Fields'
 import Button from '../components/primitives/Button'
 import Notice from '../components/primitives/Notice'
@@ -181,6 +182,7 @@ export default function Contact() {
 
   return (
     <>
+      <PageMeta title="Contact" description="Talk to InThinks — a question, a partnership, or working out whether we are the right people to ask." />
       <PageHero
         eyebrow="Contact"
         title="Talk to InThinks."

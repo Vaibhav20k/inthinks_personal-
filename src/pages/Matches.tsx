@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import PageMeta from '../components/layout/PageMeta'
 import { Link } from 'react-router-dom'
 import PageHero from '../components/layout/PageHero'
 import Notice from '../components/primitives/Notice'
@@ -149,6 +150,7 @@ export default function Matches() {
 
   return (
     <>
+      <PageMeta title="Technology Matches" description="Where structured industrial demand intersects with emerging technology. Every match is reviewed by InThinks before it is published." />
       <PageHero
         eyebrow="Matching"
         title="Where problems meet possibilities."

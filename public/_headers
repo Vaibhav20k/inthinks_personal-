@@ -5,6 +5,20 @@
   Permissions-Policy: geolocation=(), microphone=(), camera=(), interest-cohort=()
   Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; object-src 'none'
 
+# Belt as well as braces. robots.txt asks a crawler not to fetch these; this
+# tells one that fetched anyway not to index what it found. The admin surface
+# is behind a session, so a crawler sees only the sign-in page — but an indexed
+# sign-in page is still an invitation, and a record ID in a search result is a
+# disclosure even when the page behind it is protected.
+/admin
+  X-Robots-Tag: noindex, nofollow
+
+/admin/*
+  X-Robots-Tag: noindex, nofollow
+
+/api/*
+  X-Robots-Tag: noindex, nofollow
+
 # Vite fingerprints these filenames, so they can be cached indefinitely.
 /assets/*
   Cache-Control: public, max-age=31536000, immutable

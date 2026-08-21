@@ -14,6 +14,9 @@ import HowItWorks from './pages/HowItWorks'
 import TechnologyTransfer from './pages/TechnologyTransfer'
 import About from './pages/About'
 import ConfidentialityPage from './pages/Confidentiality'
+import Privacy from './pages/Privacy'
+import Terms from './pages/Terms'
+import SubmissionTerms from './pages/SubmissionTerms'
 import Contact from './pages/Contact'
 import SubmitChallenge from './pages/SubmitChallenge'
 import SubmitInnovation from './pages/SubmitInnovation'
@@ -49,6 +52,9 @@ export default function App() {
           <Route path="/technology-transfer" element={<TechnologyTransfer />} />
           <Route path="/about" element={<About />} />
           <Route path="/confidentiality" element={<ConfidentialityPage />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/submission-terms" element={<SubmissionTerms />} />
           <Route path="/submit-challenge" element={<SubmitChallenge />} />
           <Route path="/submit-innovation" element={<SubmitInnovation />} />
           <Route path="*" element={<NotFound />} />

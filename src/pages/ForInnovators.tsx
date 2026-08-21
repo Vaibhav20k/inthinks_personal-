@@ -1,4 +1,5 @@
 import Button from '../components/primitives/Button'
+import PageMeta from '../components/layout/PageMeta'
 import Reveal from '../components/primitives/Reveal'
 import SectionLabel from '../components/primitives/SectionLabel'
 import PageHero from '../components/layout/PageHero'
@@ -15,6 +16,7 @@ const path = [
 export default function ForInnovators() {
   return (
     <>
+      <PageMeta title="For Innovators" description="Submit an early-stage technology. InThinks assesses it, and where it takes one on, develops it toward industrial readiness. Your identity is not published." />
       <PageHero
         eyebrow="For Innovators"
         title="Built something with industrial potential?"

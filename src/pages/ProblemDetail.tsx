@@ -1,4 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
+import PageMeta from '../components/layout/PageMeta'
 import Button from '../components/primitives/Button'
 import MetaList from '../components/primitives/MetaList'
 import Notice from '../components/primitives/Notice'
@@ -47,6 +48,7 @@ export default function ProblemDetail() {
 
   return (
     <>
+      <PageMeta title="Industrial Problem" description="An anonymised industrial challenge brought to InThinks." />
       <section className="container-grid pb-12 pt-36 sm:pt-44">
         <Link to="/problems" className="tap label inline-flex items-center gap-2" style={{ color: 'var(--color-muted)' }}>
           <span aria-hidden="true">←</span> INDUSTRIAL PROBLEMS
