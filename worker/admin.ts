@@ -28,7 +28,7 @@ import type { RoyaltyType } from './royalties'
 import { nextReference } from './storage'
 import {
   DOMAINS, IP_STATUSES, OUTCOMES, PRIORITY_AREAS, PROBLEM_STATUSES,
-  DEVELOPMENT_LEVELS, FIT_DIMENSIONS, FIT_RATINGS, MATCH_CLASSES, MATCH_STATUSES,
+  DEVELOPMENT_LEVELS, FIT_DIMENSIONS, FIT_RATINGS, MATCH_CLASSES, MATCH_STATUSES, fitRating,
   PUBLIC_STAGES, PUBLISHABLE_STAGES, RECORD_TYPES, SECTORS, namedPartyLeak,
   TRANSFER_STATUSES as PUBLIC_TRANSFER_STATUSES, domainFor, identityLeak,
   isSlug, parseList, profileProse, publicStage, toSlug,
@@ -883,13 +883,26 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
     const reference = matchMatch[1]
     const row = await db
       .prepare(
-        `SELECT m.*, c.title AS challenge_title, c.sector AS challenge_sector,
+        // Either end can be an authored record with no submission behind it.
+        // Joining only the submission tables showed a blank title and no TRL
+        // for those, which is a review page that cannot be reviewed from.
+        `SELECT m.*,
+                COALESCE(c.title, cp.title) AS challenge_title,
+                COALESCE(c.sector, cp.sector) AS challenge_sector,
                 c.confidentiality AS challenge_confidentiality,
-                i.title AS technology_title, i.category AS technology_category,
-                i.entry_trl, i.current_trl, i.target_trl, i.acquisition_stage
+                COALESCE(i.title, tp.name) AS technology_title,
+                COALESCE(i.category, tp.authored_domain_code) AS technology_category,
+                COALESCE(i.entry_trl, tp.authored_entry_trl) AS entry_trl,
+                COALESCE(i.current_trl, tp.authored_current_trl) AS current_trl,
+                COALESCE(i.target_trl, tp.authored_target_trl) AS target_trl,
+                i.acquisition_stage,
+                mp.reference AS promoted_as
          FROM matches m
          LEFT JOIN challenges c ON c.reference = m.challenge_ref
+         LEFT JOIN challenge_profiles cp ON cp.reference = m.challenge_ref
          LEFT JOIN innovations i ON i.reference = m.technology_ref
+         LEFT JOIN technology_profiles tp ON tp.reference = m.technology_ref
+         LEFT JOIN match_profiles mp ON mp.source_match_ref = m.reference
          WHERE m.reference = ?`,
       )
       .bind(reference)
@@ -931,11 +944,89 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
       trlGap: row.trl_gap,
       ipRisk: row.ip_risk,
       analysis: parsePayload(row.analysis),
+      /**
+       * The reviewer's own reading, where one exists.
+       *
+       * Kept beside the engine's rather than replacing it: the useful thing is
+       * seeing where a person disagreed with the model, and overwriting the
+       * machine's fits would destroy exactly that.
+       */
+      review: row.reviewed_at
+        ? {
+            mechanism: row.review_mechanism_fit,
+            application: row.review_application_fit,
+            trl: row.review_trl_fit,
+            constraint: row.review_constraint_fit,
+            classification: row.review_classification,
+            note: row.review_note,
+            by: row.reviewed_by,
+            at: row.reviewed_at,
+          }
+        : null,
+      promotedAs: row.promoted_as ?? null,
       decision: row.decision,
       decidedBy: row.decided_by,
       decidedAt: row.decided_at,
       decisionNote: row.decision_note,
+      ratings: FIT_RATINGS,
+      classes: MATCH_CLASSES,
+      decisions: MATCH_DECISIONS,
     })
+  }
+
+  /**
+   * Records a technical review of a candidate.
+   *
+   * Separate from the decision. A decision is yes or no; this is what the
+   * assessment found, dimension by dimension, and it is the reviewer's read
+   * rather than the engine's. Gated on `editReviewState` — the technical
+   * assessment belongs to the people who do technical assessment, which is
+   * deliberately not the same capability that releases a match to industry.
+   */
+  const reviewMatch = path.match(/^\/matches\/([A-Za-z0-9-]{1,32})\/review$/)
+  if (reviewMatch && request.method === 'POST') {
+    if (!can.editReviewState) {
+      return json({ error: 'Only admins and R&D reviewers can record a technical review.' }, 403)
+    }
+    const reference = reviewMatch[1]
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+
+    const rating = (v: unknown) =>
+      oneOf(FIT_RATINGS, v) ? (v as string) : null
+    const fits = {
+      mechanism: rating(body.mechanism),
+      application: rating(body.application),
+      trl: rating(body.trl),
+      constraint: rating(body.constraint),
+    }
+    // A review with nothing in it is not a review. Requiring one rated
+    // dimension keeps "reviewed" from meaning "somebody opened the page".
+    if (Object.values(fits).every((v) => v === null) && !clip(body.note, 4000)) {
+      return json({ error: 'Rate at least one dimension, or write what the assessment found.' }, 422)
+    }
+    if (body.classification !== undefined && body.classification !== ''
+        && !oneOf(MATCH_CLASSES, body.classification)) {
+      return json({ error: 'Unknown classification' }, 422)
+    }
+
+    const result = await db
+      .prepare(
+        `UPDATE matches
+            SET review_mechanism_fit = ?, review_application_fit = ?, review_trl_fit = ?,
+                review_constraint_fit = ?, review_classification = ?, review_note = ?,
+                reviewed_by = ?, reviewed_at = ?
+          WHERE reference = ?`,
+      )
+      .bind(
+        fits.mechanism, fits.application, fits.trl, fits.constraint,
+        oneOf(MATCH_CLASSES, body.classification) ? body.classification : null,
+        clip(body.note, 4000), actor.email, new Date().toISOString(), reference,
+      )
+      .run()
+    if (!result.meta.changes) return json({ error: 'Not found' }, 404)
+
+    await audit(db, actor, 'match.review', reference, fits, ip)
+    return json({ ok: true })
   }
 
   const decideMatch = path.match(/^\/matches\/([A-Za-z0-9-]{1,32})\/decision$/)
@@ -952,7 +1043,16 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
       return json({ error: 'Not permitted to decide matches' }, 403)
     }
 
-    const outcome = await decide(ctx, decideMatch[1], body.decision, clip(body.note, 2000), ip)
+    // Releasing to industry and rejecting outright are the two decisions
+    // somebody will be asked to justify later. Requiring the note here means
+    // the answer exists at the moment it is cheap to write, rather than being
+    // reconstructed from memory months afterwards.
+    const note = clip(body.note, 2000)
+    if (!note && (body.decision === RELEASING_DECISION || body.decision === 'Rejected')) {
+      return json({ error: `Record why before you ${body.decision === 'Rejected' ? 'reject' : 'approve'} this match.` }, 422)
+    }
+
+    const outcome = await decide(ctx, decideMatch[1], body.decision, note, ip)
     return json({ ok: true, opportunity: outcome.opportunity })
   }
 
@@ -1979,7 +2079,9 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
       .prepare(
         `SELECT reference, challenge_ref, technology_ref, classification, decision,
                 mechanism_fit, application_fit, trl_fit, constraint_fit,
-                development_effort, analysis
+                development_effort, analysis,
+                review_mechanism_fit, review_application_fit, review_trl_fit,
+                review_constraint_fit, review_classification, review_note, reviewed_at
            FROM matches WHERE reference = ?`,
       )
       .bind(sourceRef).first<Record<string, unknown>>()
@@ -2018,20 +2120,29 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
     let analysis: Record<string, unknown> = {}
     try { analysis = JSON.parse(String(source.analysis ?? '{}')) } catch { /* leave it empty */ }
 
-    const rating = (v: unknown) => {
-      const key = String(v ?? '').toLowerCase()
-      return key === 'strong' ? 'Strong'
-        : key === 'moderate' ? 'Moderate'
-        : key === 'limited' ? 'Limited'
-        : 'Unknown'
-    }
+    /**
+     * The reviewer's reading wins where there is one.
+     *
+     * This is why both are kept: what an industrial reader sees should be the
+     * qualified assessment, not the model's first pass. Where a dimension was
+     * not reviewed the engine's value stands — visibly, since the match room
+     * shows the two side by side.
+     */
+    const reviewed = Boolean(source.reviewed_at)
+    const prefer = (review: unknown, engine: unknown) =>
+      fitRating(reviewed && review ? review : engine)
+
     const fit = [
-      { dimension: 'Mechanism', rating: rating(source.mechanism_fit) },
-      { dimension: 'Application', rating: rating(source.application_fit) },
-      { dimension: 'TRL', rating: rating(source.trl_fit) },
-      { dimension: 'Implementation', rating: rating(source.constraint_fit) },
+      { dimension: 'Mechanism', rating: prefer(source.review_mechanism_fit, source.mechanism_fit) },
+      { dimension: 'Application', rating: prefer(source.review_application_fit, source.application_fit) },
+      { dimension: 'TRL', rating: prefer(source.review_trl_fit, source.trl_fit) },
+      { dimension: 'Implementation', rating: prefer(source.review_constraint_fit, source.constraint_fit) },
     ]
-    const classification = String(source.classification ?? '').toLowerCase()
+    const classification = String(
+      (reviewed && source.review_classification) || source.classification || '',
+    ).toLowerCase()
+    // A reviewer's classification is already in the site's vocabulary; the
+    // engine's is its own, so both are funnelled through the same mapping.
     const matchClass = classification.includes('strong') ? 'Strong candidate'
       : classification.includes('promis') ? 'Promising match'
       : 'Candidate match'

@@ -468,6 +468,12 @@ export interface MatchDetail {
   }
   trlGap: number | null
   ipRisk: string | null
+  /** The reviewer's own reading, null until somebody records one. */
+  review: MatchReview | null
+  /** The public match this became, if it has been promoted. */
+  promotedAs: string | null
+  ratings: string[]
+  classes: string[]
   analysis: MatchAnalysis
   decision: MatchDecision
   decidedBy: string | null
@@ -489,6 +495,20 @@ export const generateMatches = (challenge: string) =>
     method: 'POST',
     body: JSON.stringify({ challenge }),
   })
+
+export interface MatchReview {
+  mechanism: string | null
+  application: string | null
+  trl: string | null
+  constraint: string | null
+  classification: string | null
+  note: string | null
+  by: string
+  at: string
+}
+
+export const reviewMatch = (reference: string, body: Record<string, unknown>) =>
+  call<{ ok: true }>(`/matches/${reference}/review`, { method: 'POST', body: JSON.stringify(body) })
 
 export const decideMatch = (reference: string, decision: MatchDecision, note: string) =>
   call<{ ok: true }>(`/matches/${reference}/decision`, {

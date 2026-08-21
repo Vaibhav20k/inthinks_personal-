@@ -156,6 +156,29 @@ export const FIT_DIMENSIONS = ['Mechanism', 'Application', 'TRL', 'Implementatio
 export const FIT_RATINGS = ['Strong', 'Promising', 'Moderate', 'Limited', 'Unknown'] as const
 export const DEVELOPMENT_LEVELS = ['Low', 'Medium', 'High'] as const
 
+/**
+ * One fit rating, from either vocabulary.
+ *
+ * The engine emits lowercase strong/moderate/limited and never says
+ * "promising"; a reviewer picks from the public set, which does. A mapper
+ * written for the engine alone silently turned a reviewer's "Promising" into
+ * "Unknown" when a match was promoted — their judgement replaced by a shrug on
+ * the published page. Anything already in the public vocabulary passes through
+ * untouched; only the engine's own words are translated.
+ */
+export function fitRating(value: unknown): (typeof FIT_RATINGS)[number] {
+  const raw = String(value ?? '')
+  const exact = FIT_RATINGS.find((r) => r === raw)
+  if (exact) return exact
+  switch (raw.toLowerCase()) {
+    case 'strong': return 'Strong'
+    case 'promising': return 'Promising'
+    case 'moderate': return 'Moderate'
+    case 'limited': return 'Limited'
+    default: return 'Unknown'
+  }
+}
+
 export const PUBLISHABLE_STAGES = ['Rights Secured', 'Development Portfolio'] as const
 
 /* -------------------------------------------------------------------- slugs */
