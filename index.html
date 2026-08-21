@@ -131,7 +131,8 @@
         function savedMode() {
           try {
             localStorage.removeItem('inthinks-ground')
-            var v = localStorage.getItem('inthinks-ground-v2')
+            localStorage.removeItem('inthinks-ground-v2')
+            var v = localStorage.getItem('inthinks-theme-mode')
             return v === 'light' || v === 'dark' ? v : 'auto'
           } catch (e) { return 'auto' }
         }
@@ -165,7 +166,8 @@
          itself within the minute rather than staying wrong all session. */
       addEventListener('load', function () {
         try {
-          if (localStorage.getItem('inthinks-ground-v2')) return
+          var pinned = localStorage.getItem('inthinks-theme-mode')
+          if (pinned === 'light' || pinned === 'dark') return
           fetch('/api/daylight', { headers: { accept: 'application/json' } })
             .then(function (r) { return r.ok ? r.json() : null })
             .then(function (d) {
