@@ -33,7 +33,7 @@ run_worker_first = ["/api/*"]
 [[d1_databases]]
 binding = "DB"
 database_name = "inthinks-staging"
-database_id = "PASTE_STAGING_D1_DATABASE_ID_HERE"
+database_id = "999ccb3e-d7e1-4081-a15d-63c3e8a9ac93"
 migrations_dir = "migrations"
 
 # Uncomment once the bucket exists. Without it, written submissions still work
