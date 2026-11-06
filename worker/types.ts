@@ -18,6 +18,22 @@ export interface Env {
   /** HMAC secret for password-login sessions. */
   SESSION_SECRET?: string
 
+  /** "on" enables password sign-in (local/staging only). Production uses Access. */
+  PASSWORD_LOGIN?: string
+
+  /* Submitter receipts, delivered through the outbox (worker/outbox.ts). */
+
+  /** Resend API key. Without it (and ACK_FROM) receipts are recorded as skipped. */
+  RESEND_API_KEY?: string
+  /** Sender, e.g. "InThinks <receipts@example.com>"; must be a domain verified in Resend. */
+  ACK_FROM?: string
+  /** "log" marks receipts as sent without sending — local development only. */
+  EMAIL_MODE?: string
+
+  /* Cloudflare Turnstile. Both must be set for the bot check to run. */
+  TURNSTILE_SITE_KEY?: string
+  TURNSTILE_SECRET?: string
+
   /** Anthropic API key for the match engine. Without it, matching is disabled. */
   ANTHROPIC_API_KEY?: string
   /** Overrides the matching model. Defaults to claude-opus-5. */

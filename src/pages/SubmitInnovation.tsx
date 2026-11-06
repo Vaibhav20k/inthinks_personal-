@@ -8,7 +8,8 @@ import TrlSelector from '../components/forms/TrlSelector'
 import { ChoiceGroup, Consent, SelectField, TextArea, TextField } from '../components/forms/Fields'
 import PageHero from '../components/layout/PageHero'
 import Notice from '../components/primitives/Notice'
-import { useDraft } from '../lib/draft'
+import { useDraft, useSubmissionKey } from '../lib/draft'
+import Turnstile from '../components/forms/Turnstile'
 import { SubmissionError, submissionStatus, submitInnovation } from '../lib/api'
 import { domains, sectors } from '../data/taxonomy'
 import type { TRL } from '../data/models'
@@ -98,6 +99,10 @@ const EMPTY: InnovationDraft = {
 
 export default function SubmitInnovation() {
   const { value, update, clear, savedAt } = useDraft<InnovationDraft>('inthinks.innovation', EMPTY)
+  const submission = useSubmissionKey('inthinks.innovation')
+  const [siteKey, setSiteKey] = useState<string | null>(null)
+  const [token, setToken] = useState<string | null>(null)
+  const [resetSignal, setResetSignal] = useState(0)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [reference, setReference] = useState<string | null>(null)
   const [sentFiles, setSentFiles] = useState(0)
@@ -110,23 +115,35 @@ export default function SubmitInnovation() {
 
   useEffect(() => {
     let live = true
-    submissionStatus().then((s) => live && setStatus(s))
+    submissionStatus().then((s) => {
+      if (!live) return
+      setStatus(s)
+      setSiteKey(s.turnstileSiteKey)
+    })
     return () => {
       live = false
     }
   }, [])
 
   const send = async () => {
+    if (siteKey && !token) {
+      setSubmitError('Please complete the verification check below, then submit again.')
+      return
+    }
     setSubmitting(true)
     setSubmitError(null)
     try {
       const { step: _step, ...record } = value
-      const { reference: issued } = await submitInnovation(record, files)
+      const { reference: issued } = await submitInnovation(record, files, { idempotencyKey: submission.key, turnstileToken: token })
       setSentFiles(files.length)
       setReference(issued)
       setFiles([])
       clear()
+      submission.renew()
     } catch (cause) {
+      // The bot-check token was spent on this attempt; a retry needs a new one.
+      // The idempotency key is kept, so a retry cannot open a second case.
+      setResetSignal((n) => n + 1)
       if (cause instanceof SubmissionError) {
         setSubmitError(cause.message)
         if (cause.fields) setErrors(cause.fields)
@@ -372,6 +389,13 @@ export default function SubmitInnovation() {
           savedAt={savedAt}
           submitting={submitting}
           submitError={submitError}
+          finalStep={siteKey ? <Turnstile siteKey={siteKey} onToken={setToken} resetSignal={resetSignal} /> : null}
+          onClearDraft={() => {
+            clear()
+            submission.renew()
+            setErrors({})
+            setSubmitError(null)
+          }}
         />
       </section>
     </>

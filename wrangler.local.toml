@@ -35,3 +35,15 @@ bucket_name = "inthinks-evidence"
 # Local-only secrets. Real deployments set these with `wrangler secret put`.
 SESSION_SECRET = "local-development-session-secret-not-for-production"
 IP_SALT = "local-development-ip-salt"
+# Password sign-in is local/staging only (decision D8).
+PASSWORD_LOGIN = "on"
+# Receipts are marked sent without emailing anyone.
+EMAIL_MODE = "log"
+# Cloudflare's published Turnstile TEST keys — they always pass. Never real keys here.
+TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
+TURNSTILE_SECRET = "1x0000000000000000000000000000000AA"
+
+# Outbox retry. Locally, trigger it by hand:
+#   curl "http://localhost:8787/cdn-cgi/handler/scheduled"
+[triggers]
+crons = ["*/5 * * * *"]

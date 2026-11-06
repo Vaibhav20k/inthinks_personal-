@@ -6,6 +6,8 @@ import Notice from '../components/primitives/Notice'
 import Reveal from '../components/primitives/Reveal'
 import PageHero from '../components/layout/PageHero'
 import { SubmissionError, submissionStatus, submitMessage } from '../lib/api'
+import { useSubmissionKey } from '../lib/draft'
+import Turnstile from '../components/forms/Turnstile'
 import { offices, site } from '../data/site'
 import OfficeList from '../components/primitives/OfficeList'
 
@@ -65,6 +67,10 @@ export default function Contact() {
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [connected, setConnected] = useState<boolean | null>(null)
+  const submission = useSubmissionKey('inthinks.contact')
+  const [siteKey, setSiteKey] = useState<string | null>(null)
+  const [token, setToken] = useState<string | null>(null)
+  const [resetSignal, setResetSignal] = useState(0)
   /** Bumped on every rejected submit, so the focus effect runs again. */
   const [attempt, setAttempt] = useState(0)
 
@@ -79,7 +85,11 @@ export default function Contact() {
   // than accepting a message the deployment cannot store.
   useEffect(() => {
     let live = true
-    submissionStatus().then((s) => live && setConnected(s.submissions))
+    submissionStatus().then((s) => {
+      if (!live) return
+      setConnected(s.submissions)
+      setSiteKey(s.turnstileSiteKey)
+    })
     return () => { live = false }
   }, [])
 
@@ -138,14 +148,21 @@ export default function Contact() {
       return
     }
 
+    if (siteKey && !token) {
+      setSendError('Please complete the verification check, then send again.')
+      return
+    }
     setSending(true)
     setSendError(null)
     try {
       const { consent: _consent, ...rest } = value
-      const { reference: issued } = await submitMessage({ ...rest, website: trap.current })
+      const { reference: issued } = await submitMessage({ ...rest, website: trap.current }, { idempotencyKey: submission.key, turnstileToken: token })
       setReference(issued)
       setValue(EMPTY)
+      submission.renew()
     } catch (cause) {
+      // Token spent; the idempotency key is kept so a retry cannot duplicate.
+      setResetSignal((n) => n + 1)
       if (cause instanceof SubmissionError) {
         setSendError(cause.message)
         if (cause.fields) setErrors(cause.fields)
@@ -280,6 +297,8 @@ export default function Contact() {
                     </p>
                   )}
                 </div>
+
+                {siteKey && <Turnstile siteKey={siteKey} onToken={setToken} resetSignal={resetSignal} />}
 
                 {sendError && (
                   <p role="alert" className="label px-3 py-2" style={{ border: '1px solid var(--color-accent-deep)', color: 'var(--color-accent-deep)' }}>

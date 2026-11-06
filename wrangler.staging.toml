@@ -1,0 +1,55 @@
+# STAGING — a free Cloudflare account used for testing (decision D1).
+#
+# Separate from wrangler.toml on purpose: staging must never be able to claim
+# the inthinks.com routes, and production must never pick up staging's
+# password sign-in. It deploys to a *.workers.dev address instead.
+#
+# One-time setup (run in this folder, signed in to YOUR Cloudflare account):
+#
+#   npx wrangler login
+#   npx wrangler d1 create inthinks-staging        # paste the id below
+#   npx wrangler r2 bucket create inthinks-staging-evidence   # optional; R2 asks for a card on file
+#   npm run db:migrate:staging
+#   npx wrangler secret put SESSION_SECRET -c wrangler.staging.toml   # long random string
+#   npx wrangler secret put IP_SALT        -c wrangler.staging.toml   # long random string
+#   # optional:
+#   npx wrangler secret put TURNSTILE_SECRET -c wrangler.staging.toml
+#   npx wrangler secret put RESEND_API_KEY   -c wrangler.staging.toml
+#   npm run deploy:staging
+#
+# There is no [build] block: run `npm run deploy:staging`, which builds first.
+# (The build command in wrangler.toml is POSIX shell and fails on Windows.)
+name = "inthinks-staging"
+compatibility_date = "2026-08-18"
+main = "worker/index.ts"
+workers_dev = true
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "inthinks-staging"
+database_id = "PASTE_STAGING_D1_DATABASE_ID_HERE"
+migrations_dir = "migrations"
+
+# Uncomment once the bucket exists. Without it, written submissions still work
+# and file uploads are refused with a clear message.
+# [[r2_buckets]]
+# binding = "EVIDENCE"
+# bucket_name = "inthinks-staging-evidence"
+
+[vars]
+# Staging only. Production staff sign in through Cloudflare Access (D8).
+PASSWORD_LOGIN = "on"
+# Set TURNSTILE_SITE_KEY here once a widget exists for the workers.dev host
+# (the secret goes in with `wrangler secret put`). Both are needed for the
+# bot check to run.
+# TURNSTILE_SITE_KEY = ""
+# ACK_FROM = "InThinks <receipts@your-verified-domain>"
+
+[triggers]
+crons = ["*/5 * * * *"]

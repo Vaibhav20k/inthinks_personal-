@@ -77,6 +77,8 @@ export interface Meta {
   acquisitionStages: string[]
   challengeStatuses: string[]
   innovationStatuses: string[]
+  /** Submission review status, separate from the pipeline status. */
+  reviewStatuses: string[]
   developmentStages: string[]
   logKinds: string[]
   readinessDimensions: { key: string; label: string }[]
@@ -120,6 +122,7 @@ export interface InnovationSummary {
   reference: string
   createdAt: string
   status: string
+  reviewStatus: string
   acquisitionStage: string
   title: string
   internalTitle: string | null
@@ -184,6 +187,7 @@ export interface ChallengeSummary {
   reference: string
   createdAt: string
   status: string
+  reviewStatus: string
   confidentiality: string
   sector: string
   title: string

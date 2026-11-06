@@ -17,11 +17,9 @@ export async function audit(
   ip?: string,
 ) {
   try {
-    let ipHash: string | null = null
-    if (ip) {
-      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip))
-      ipHash = [...new Uint8Array(digest)].slice(0, 8).map((b) => b.toString(16).padStart(2, '0')).join('')
-    }
+    // `ip` arrives already keyed-hashed (ipTag in worker/ratelimit.ts); the
+    // raw address never reaches the admin surface or this table.
+    const ipHash = ip ? ip.slice(0, 32) : null
     await db
       .prepare(
         `INSERT INTO audit_log (at, actor, role, action, target, meta, ip_hash)

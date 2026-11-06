@@ -270,7 +270,19 @@ export default function InnovationDetail({ me }: { me: Me }) {
           <Panel title="Review state">
             <div className="grid gap-4">
               <label className="grid gap-2">
-                <span className="label" style={{ color: 'var(--color-faint)' }}>STATUS</span>
+                <span className="label" style={{ color: 'var(--color-faint)' }}>REVIEW STATUS</span>
+                <select
+                  value={data.reviewStatus}
+                  disabled={!me.can.editReviewState || saving}
+                  onChange={(e) => patch({ reviewStatus: e.target.value })}
+                  className="field-input py-2 text-[0.875rem]"
+                >
+                  {(meta.reviewStatuses ?? []).map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+                </select>
+              </label>
+
+              <label className="grid gap-2">
+                <span className="label" style={{ color: 'var(--color-faint)' }}>PIPELINE STATUS</span>
                 <select
                   value={data.status}
                   disabled={!me.can.editReviewState || saving}

@@ -239,7 +239,11 @@ export interface AuthContext {
 
 export function adminConfigured(env: Env) {
   const access = Boolean(env.ACCESS_TEAM_DOMAIN && env.ACCESS_AUD)
-  const passwords = Boolean(env.SESSION_SECRET)
+  // Password sign-in is opt-in per deployment (decision D8): production staff
+  // sign in through Cloudflare Access with MFA, and only local or staging
+  // deployments set PASSWORD_LOGIN = "on". SESSION_SECRET alone is not enough —
+  // it is also the evidence-link signing key, so it exists everywhere.
+  const passwords = Boolean(env.SESSION_SECRET) && env.PASSWORD_LOGIN === 'on'
   return { access, passwords, any: access || passwords }
 }
 

@@ -1,6 +1,8 @@
 import { authenticate, capabilities, clearedCookie, constantTimeEqual, hashPassword, issueSession, newSalt, ROLES, sessionCookie, adminConfigured } from './auth'
 import type { AuthContext, Role } from './auth'
 import { audit } from './audit'
+import { checkLogin } from './ratelimit'
+import { deliverOutbox } from './outbox'
 import { signEvidence, verifyEvidence } from './evidence'
 import {
   ACQUISITION_STAGES, CHALLENGE_STATUSES, DIMENSION_KEYS,
@@ -26,6 +28,11 @@ import {
 } from './royalties'
 import type { RoyaltyType } from './royalties'
 import { nextReference } from './storage'
+
+/** Submission review status — separate from the pipeline `status` (migration 0013). */
+export const REVIEW_STATUSES = [
+  'submitted', 'under_review', 'clarification_requested', 'qualified', 'declined', 'withdrawn',
+] as const
 import {
   DOMAINS, IP_STATUSES, OUTCOMES, PRIORITY_AREAS, PROBLEM_STATUSES,
   DEVELOPMENT_LEVELS, FIT_DIMENSIONS, FIT_RATINGS, MATCH_CLASSES, MATCH_STATUSES, fitRating,
@@ -75,6 +82,7 @@ function innovationSummary(row: Record<string, unknown>, ctx: AuthContext) {
     reference: row.reference,
     createdAt: row.created_at,
     status: row.status,
+    reviewStatus: row.review_status ?? 'submitted',
     acquisitionStage: row.acquisition_stage,
     title: row.title,
     internalTitle: row.internal_title ?? null,
@@ -100,6 +108,7 @@ function challengeSummary(row: Record<string, unknown>, ctx: AuthContext) {
     reference: row.reference,
     createdAt: row.created_at,
     status: row.status,
+    reviewStatus: row.review_status ?? 'submitted',
     confidentiality: row.confidentiality,
     sector: row.sector,
     title: row.title,
@@ -154,6 +163,13 @@ async function handleLogin(env: Env, request: Request, ip: string): Promise<Resp
   const email = clip(body?.email, 254).toLowerCase()
   const password = typeof body?.password === 'string' ? body.password : ''
   if (!email || !password) return json({ error: 'Enter an email address and password.' }, 400)
+
+  // Throttled before any password work, so guessing is slow and cannot be
+  // used to exhaust the Worker's CPU budget.
+  if (!(await checkLogin(env.DB, ip, email))) {
+    await audit(env.DB, { email, role: 'rnd-reviewer' }, 'admin.login.throttled', undefined, undefined, ip)
+    return json({ error: 'Too many sign-in attempts. Please wait ten minutes and try again.' }, 429)
+  }
 
   const row = await env.DB
     .prepare('SELECT email, role, password_hash, password_salt, token_version, disabled FROM users WHERE email = ?')
@@ -242,6 +258,7 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
       dimensions: SCORING_DIMENSIONS,
       acquisitionStages: ACQUISITION_STAGES,
       challengeStatuses: CHALLENGE_STATUSES,
+      reviewStatuses: REVIEW_STATUSES,
       developmentStages: DEVELOPMENT_STAGES,
       logKinds: LOG_KINDS,
       readinessDimensions: READINESS_DIMENSIONS,
@@ -375,6 +392,10 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
     if (oneOf(INNOVATION_STATUSES, body.status)) {
       if (!can.editReviewState) return json({ error: 'Not permitted to change review state' }, 403)
       sets.push('status = ?'); binds.push(body.status)
+    }
+    if (oneOf(REVIEW_STATUSES, body.reviewStatus)) {
+      if (!can.editReviewState) return json({ error: 'Not permitted to change review state' }, 403)
+      sets.push('review_status = ?'); binds.push(body.reviewStatus)
     }
     if (oneOf(ACQUISITION_STAGES, body.acquisitionStage)) {
       if (!can.moveAcquisitionStage) return json({ error: 'Not permitted to move acquisition stage' }, 403)
@@ -521,12 +542,56 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
     const sets: string[] = []
     const binds: unknown[] = []
+    // Any change to a challenge is a review action; a reviewer role may not
+    // move a company's case (finding S6).
+    if (!can.editReviewState) return json({ error: 'Not permitted to change review state' }, 403)
     if (oneOf(CHALLENGE_STATUSES, body.status)) { sets.push('status = ?'); binds.push(body.status) }
+    if (oneOf(REVIEW_STATUSES, body.reviewStatus)) { sets.push('review_status = ?'); binds.push(body.reviewStatus) }
     if (typeof body.analyst === 'string') { sets.push('analyst = ?'); binds.push(clip(body.analyst, 200)) }
     if (sets.length === 0) return json({ error: 'Nothing to update' }, 400)
     binds.push(reference)
     await db.prepare(`UPDATE challenges SET ${sets.join(', ')} WHERE reference = ?`).bind(...binds).run()
     await audit(db, actor, 'challenge.update', reference, body, ip)
+    return json({ ok: true })
+  }
+
+  /* ---------------------------------------------------------------- outbox */
+
+  // Receipts and arrival notices that did not go out. Staff can see why and
+  // re-queue them; the payload (which holds the recipient address) is never
+  // returned.
+  if (path === '/outbox' && request.method === 'GET') {
+    if (!can.viewAudit) return json({ error: 'Not permitted' }, 403)
+    const rows = await db
+      .prepare(
+        `SELECT id, kind, reference, status, attempts, next_attempt_at, last_error, created_at, sent_at
+         FROM outbox WHERE status IN ('pending', 'failed', 'skipped') ORDER BY id DESC LIMIT 200`,
+      )
+      .all<Record<string, unknown>>()
+    const counts = await db
+      .prepare('SELECT status, COUNT(*) AS n FROM outbox GROUP BY status')
+      .all<{ status: string; n: number }>()
+    await audit(db, actor, 'outbox.list', undefined, { count: rows.results.length }, ip)
+    return json({
+      counts: Object.fromEntries(counts.results.map((c) => [c.status, c.n])),
+      items: rows.results.map((r) => ({
+        id: r.id, kind: r.kind, reference: r.reference, status: r.status, attempts: r.attempts,
+        nextAttemptAt: r.next_attempt_at, lastError: r.last_error, createdAt: r.created_at, sentAt: r.sent_at,
+      })),
+    })
+  }
+
+  const retryMatch = path.match(/^\/outbox\/(\d{1,12})\/retry$/)
+  if (retryMatch && request.method === 'POST') {
+    if (!can.viewAudit) return json({ error: 'Not permitted' }, 403)
+    const id = Number(retryMatch[1])
+    const row = await db
+      .prepare(`UPDATE outbox SET status = 'pending', attempts = 0, next_attempt_at = ? WHERE id = ? AND status = 'failed' RETURNING reference`)
+      .bind(new Date().toISOString(), id)
+      .first<{ reference: string }>()
+    if (!row) return json({ error: 'Only failed jobs can be retried' }, 409)
+    await audit(db, actor, 'outbox.retry', row.reference, { id }, ip)
+    await deliverOutbox(env, { reference: row.reference })
     return json({ ok: true })
   }
 

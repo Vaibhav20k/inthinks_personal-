@@ -64,3 +64,36 @@ export async function submissionsUsed(db: D1Database, ip: string, salt: string):
     .first<{ count: number }>()
   return row?.count ?? 0
 }
+
+/**
+ * A keyed hash of an address for the audit trail and login throttling.
+ *
+ * HMAC with IP_SALT rather than a plain digest: an unsalted SHA-256 of an IPv4
+ * address is reversible by trying all four billion of them. Without a salt
+ * nothing address-derived is recorded at all.
+ */
+export async function ipTag(ip: string, salt: string | undefined): Promise<string> {
+  if (!salt) return 'unsalted'
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(salt), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`ip:${ip}`))
+  return [...new Uint8Array(mac)].slice(0, 16).map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** Sign-in attempts allowed per address, and per account, in one window. */
+export const LOGIN_CEILING = 10
+
+/**
+ * Charged on every sign-in attempt, before any password work, so guessing is
+ * slow and cannot be used to burn the Worker's CPU. Counted per address and
+ * per account so neither a single source nor a spread-out attack gets far.
+ */
+export async function checkLogin(db: D1Database, tag: string, email: string): Promise<boolean> {
+  const bucket = Math.floor(Date.now() / WINDOW_MS)
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email.toLowerCase()))
+  const account = [...new Uint8Array(digest)].slice(0, 16).map((b) => b.toString(16).padStart(2, '0')).join('')
+  const [byIp, byAccount] = await Promise.all([
+    bump(db, `login-ip:${tag}`, bucket),
+    bump(db, `login-acct:${account}`, bucket),
+  ])
+  return byIp <= LOGIN_CEILING && byAccount <= LOGIN_CEILING
+}

@@ -42,7 +42,12 @@ if (!/script-src 'self'/.test(headers)) {
   console.error("csp-hash: could not find \"script-src 'self'\" in _headers — refusing to guess")
   process.exit(1)
 }
-const next = headers.replace(/script-src 'self'[^;]*/, `script-src 'self' ${hashes.join(' ')}`)
+// Keep any non-hash sources already listed (e.g. the Turnstile host) and
+// replace only the hashes, so a rebuild never accumulates stale ones.
+const next = headers.replace(/script-src 'self'([^;]*)/, (_, rest) => {
+  const kept = rest.trim().split(/\s+/).filter((s) => s && !s.startsWith("'sha256-"))
+  return ['script-src', "'self'", ...kept, ...hashes].join(' ')
+})
 writeFileSync(HEADERS, next)
 
 console.log(`csp-hash: allowed ${hashes.length} inline script(s) by hash`)

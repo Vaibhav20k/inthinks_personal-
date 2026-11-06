@@ -210,7 +210,17 @@ export default function ChallengeDetail({ me }: { me: Me }) {
           <Panel title="Handling">
             <div className="grid gap-4">
               <label className="grid gap-2">
-                <span className="label" style={{ color: 'var(--color-faint)' }}>STATUS</span>
+                <span className="label" style={{ color: 'var(--color-faint)' }}>REVIEW STATUS</span>
+                <select
+                  value={data.reviewStatus}
+                  onChange={(e) => api.patchChallenge(reference, { reviewStatus: e.target.value }).then(load)}
+                  className="field-input py-2 text-[0.875rem]"
+                >
+                  {(meta.reviewStatuses ?? []).map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-2">
+                <span className="label" style={{ color: 'var(--color-faint)' }}>PIPELINE STATUS</span>
                 <select
                   value={data.status}
                   onChange={(e) => api.patchChallenge(reference, { status: e.target.value }).then(load)}

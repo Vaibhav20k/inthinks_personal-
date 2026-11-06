@@ -1,5 +1,4 @@
 import type { Clean } from './validation'
-import type { Env } from './types'
 
 /** Fields promoted to real columns so triage never has to parse JSON. */
 const CHALLENGE_COLUMNS = [
@@ -52,12 +51,21 @@ export async function nextReference(db: D1Database, stream: ReferenceStream, yea
  * before this is called — so there is no column for it and no way for it to
  * be stored and later mistaken for a real website field.
  */
-export async function insertMessage(db: D1Database, reference: string, data: Clean) {
-  await db
+/**
+ * The inserts below return prepared statements rather than running them, so
+ * a handler can commit the record, its evidence manifest and its outbox rows
+ * in one `db.batch()` — D1 runs a batch as a single transaction, so either all
+ * of it is stored or none of it is.
+ *
+ * `idempotencyKey` is the client's key for this submission attempt; see
+ * migrations/0013_reliable_intake.sql.
+ */
+export function messageInsert(db: D1Database, reference: string, data: Clean, idempotencyKey: string | null) {
+  return db
     .prepare(
       `INSERT INTO messages
-         (reference, created_at, status, name, email, organisation, topic, message)
-       VALUES (?, ?, 'New', ?, ?, ?, ?, ?)`,
+         (reference, created_at, status, name, email, organisation, topic, message, idempotency_key)
+       VALUES (?, ?, 'New', ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       reference,
@@ -67,20 +75,20 @@ export async function insertMessage(db: D1Database, reference: string, data: Cle
       one(data.organisation),
       one(data.topic),
       one(data.message),
+      idempotencyKey,
     )
-    .run()
 }
 
-export async function insertChallenge(db: D1Database, reference: string, data: Clean) {
+export function challengeInsert(db: D1Database, reference: string, data: Clean, idempotencyKey: string | null) {
   const rest: Clean = { ...data }
   for (const key of CHALLENGE_COLUMNS) delete rest[key]
 
-  await db
+  return db
     .prepare(
       `INSERT INTO challenges
          (reference, created_at, status, confidentiality, company, contact_name,
-          designation, email, phone, location, website, sector, title, payload)
-       VALUES (?, ?, 'Received', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          designation, email, phone, location, website, sector, title, payload, idempotency_key)
+       VALUES (?, ?, 'Received', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       reference,
@@ -96,20 +104,20 @@ export async function insertChallenge(db: D1Database, reference: string, data: C
       one(data.sector),
       one(data.title),
       JSON.stringify(rest),
+      idempotencyKey,
     )
-    .run()
 }
 
-export async function insertInnovation(db: D1Database, reference: string, data: Clean) {
+export function innovationInsert(db: D1Database, reference: string, data: Clean, idempotencyKey: string | null) {
   const rest: Clean = { ...data }
   for (const key of INNOVATION_COLUMNS) delete rest[key]
 
-  await db
+  return db
     .prepare(
       `INSERT INTO innovations
          (reference, created_at, status, title, category, entry_trl,
-          innovator_name, innovator_email, institution, institution_type, payload)
-       VALUES (?, ?, 'Submitted', ?, ?, ?, ?, ?, ?, ?, ?)`,
+          innovator_name, innovator_email, institution, institution_type, payload, idempotency_key)
+       VALUES (?, ?, 'Submitted', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       reference,
@@ -122,41 +130,36 @@ export async function insertInnovation(db: D1Database, reference: string, data: 
       one(data.institution),
       one(data.institutionType),
       JSON.stringify(rest),
+      idempotencyKey,
     )
-    .run()
 }
 
-export async function recordEvidence(
+export function evidenceInsert(
   db: D1Database,
   reference: string,
   file: { key: string; name: string; type: string; size: number },
 ) {
-  await db
+  return db
     .prepare(
       `INSERT INTO evidence (reference, object_key, file_name, content_type, size_bytes, created_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
     .bind(reference, file.key, file.name, file.type, file.size, new Date().toISOString())
-    .run()
 }
 
-/**
- * Tells the team something arrived — reference, company and sector only.
- *
- * The problem statement and every technical answer are the confidential part
- * of a submission, and a webhook is the least controlled surface in the
- * system, so none of it goes here.
- */
-export async function notify(env: Env, summary: Record<string, string>) {
-  if (!env.NOTIFY_WEBHOOK) return
-  try {
-    await fetch(env.NOTIFY_WEBHOOK, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(summary),
-    })
-  } catch {
-    // A failed notification must never fail the submission — the record is
-    // already committed and the submitter has their reference.
-  }
+export type SubmissionTable = 'challenges' | 'innovations' | 'messages'
+
+/** The reference already issued for this idempotency key, if any. */
+export async function referenceForKey(db: D1Database, table: SubmissionTable, key: string | null) {
+  if (!key) return null
+  const row = await db
+    .prepare(`SELECT reference FROM ${table} WHERE idempotency_key = ?`)
+    .bind(key)
+    .first<{ reference: string }>()
+  return row?.reference ?? null
+}
+
+/** Whether a D1 error is the unique-index violation a concurrent retry causes. */
+export function isUniqueViolation(cause: unknown) {
+  return cause instanceof Error && /UNIQUE constraint failed/i.test(cause.message)
 }

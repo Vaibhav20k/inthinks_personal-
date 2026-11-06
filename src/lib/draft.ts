@@ -47,3 +47,41 @@ export function useDraft<T extends object>(key: string, initial: T) {
 
   return { value, update, clear, savedAt }
 }
+
+function freshKey() {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`
+}
+
+/**
+ * One idempotency key per submission, kept beside the draft.
+ *
+ * It survives a reload, so "Submit → connection drops → refresh → Submit"
+ * still reuses the same key and the server hands back the reference it
+ * already issued rather than opening a second case. `renew` is called only
+ * after a confirmed success, which is what makes the next submission new.
+ */
+export function useSubmissionKey(draftKey: string) {
+  const storageKey = `${draftKey}.submission-key`
+  const [key, setKey] = useState<string>(() => {
+    try {
+      const stored = window.localStorage.getItem(storageKey)
+      if (stored) return stored
+    } catch {
+      /* storage unavailable — an in-memory key still covers double-clicks */
+    }
+    return freshKey()
+  })
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(storageKey, key)
+    } catch {
+      /* ignore */
+    }
+  }, [storageKey, key])
+
+  const renew = useCallback(() => setKey(freshKey()), [])
+  return { key, renew }
+}

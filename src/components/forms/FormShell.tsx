@@ -21,6 +21,10 @@ interface Props {
   submitting?: boolean
   /** A failure from the server rather than from a field. */
   submitError?: string | null
+  /** Rendered above the buttons on the last step only (the bot check). */
+  finalStep?: ReactNode
+  /** Removes the saved draft from this browser. */
+  onClearDraft?: () => void
 }
 
 /**
@@ -43,6 +47,8 @@ export default function FormShell({
   savedAt,
   submitting = false,
   submitError = null,
+  finalStep = null,
+  onClearDraft,
 }: Props) {
   const headingRef = useRef<HTMLHeadingElement>(null)
   const mounted = useRef(false)
@@ -116,6 +122,22 @@ export default function FormShell({
           <p className="label mt-6" style={{ color: 'var(--color-faint)' }}>
             {savedAt ? 'DRAFT SAVED IN THIS BROWSER' : 'DRAFT SAVES AUTOMATICALLY'}
           </p>
+          {onClearDraft && (
+            // Confidential drafts must not silently live on a shared or work
+            // computer: the submitter can always take theirs off the device.
+            <button
+              type="button"
+              className="label mt-3 border-b border-current pb-0.5"
+              style={{ color: 'var(--color-muted)' }}
+              onClick={() => {
+                if (window.confirm('Remove this draft from this device? Everything you have entered will be cleared.')) {
+                  onClearDraft()
+                }
+              }}
+            >
+              REMOVE DRAFT FROM THIS DEVICE
+            </button>
+          )}
         </div>
       </div>
 
@@ -150,6 +172,8 @@ export default function FormShell({
         )}
 
         <div className="mt-10 grid gap-8">{step.render()}</div>
+
+        {last && finalStep && <div className="mt-10">{finalStep}</div>}
 
         <div
           className="mt-12 flex flex-wrap items-center justify-between gap-4 pt-8"

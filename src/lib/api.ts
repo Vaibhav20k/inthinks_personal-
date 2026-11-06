@@ -52,42 +52,72 @@ async function unwrap(response: Response): Promise<{ reference: string }> {
   return { reference }
 }
 
+export interface IntakeStatus {
+  submissions: boolean
+  uploads: boolean
+  /** Present when the deployment runs the Turnstile bot check. */
+  turnstileSiteKey: string | null
+}
+
 /** Whether this deployment can actually accept submissions and files. */
-export async function submissionStatus(): Promise<{ submissions: boolean; uploads: boolean }> {
+export async function submissionStatus(): Promise<IntakeStatus> {
+  const off: IntakeStatus = { submissions: false, uploads: false, turnstileSiteKey: null }
   try {
     const response = await fetch('/api/status', { headers: { accept: 'application/json' } })
-    if (!response.ok) return { submissions: false, uploads: false }
-    return (await response.json()) as { submissions: boolean; uploads: boolean }
+    if (!response.ok) return off
+    const body = (await response.json()) as Partial<IntakeStatus>
+    return {
+      submissions: Boolean(body.submissions),
+      uploads: Boolean(body.uploads),
+      turnstileSiteKey: typeof body.turnstileSiteKey === 'string' ? body.turnstileSiteKey : null,
+    }
   } catch {
-    return { submissions: false, uploads: false }
+    return off
   }
 }
 
-export async function submitMessage(record: Record<string, unknown>) {
+/**
+ * Sent with every submission. The same `idempotencyKey` is reused on every
+ * retry of one submission, so the server returns the reference it already
+ * issued instead of opening a second case.
+ */
+export interface SubmitOptions {
+  idempotencyKey: string
+  turnstileToken?: string | null
+}
+
+function intakeHeaders(options: SubmitOptions, json: boolean): Record<string, string> {
+  const headers: Record<string, string> = { 'idempotency-key': options.idempotencyKey }
+  if (json) headers['content-type'] = 'application/json'
+  if (options.turnstileToken) headers['x-turnstile-token'] = options.turnstileToken
+  return headers
+}
+
+export async function submitMessage(record: Record<string, unknown>, options: SubmitOptions) {
   const response = await fetch('/api/contact', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: intakeHeaders(options, true),
     body: JSON.stringify(record),
   })
   return unwrap(response)
 }
 
-export async function submitChallenge(record: Record<string, unknown>) {
+export async function submitChallenge(record: Record<string, unknown>, options: SubmitOptions) {
   const response = await fetch('/api/challenges', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: intakeHeaders(options, true),
     body: JSON.stringify(record),
   })
   return unwrap(response)
 }
 
-export async function submitInnovation(record: Record<string, unknown>, files: File[]) {
+export async function submitInnovation(record: Record<string, unknown>, files: File[], options: SubmitOptions) {
   // Multipart only when there is something to attach — a JSON body keeps the
   // common case simple and cheap.
   if (files.length === 0) {
     const response = await fetch('/api/innovations', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: intakeHeaders(options, true),
       body: JSON.stringify(record),
     })
     return unwrap(response)
@@ -97,6 +127,7 @@ export async function submitInnovation(record: Record<string, unknown>, files: F
   form.append('record', JSON.stringify(record))
   for (const file of files) form.append('files', file, file.name)
 
-  const response = await fetch('/api/innovations', { method: 'POST', body: form })
+  // No content-type header: the browser sets the multipart boundary itself.
+  const response = await fetch('/api/innovations', { method: 'POST', headers: intakeHeaders(options, false), body: form })
   return unwrap(response)
 }
