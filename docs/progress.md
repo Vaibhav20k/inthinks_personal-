@@ -22,7 +22,7 @@ push or merge to `main`. Last updated: 13 November 2026.
 | 6 | Structured qualification | ✅ Done |
 | 7 | Adaptive text intake | ⬜ To do |
 | 8 | Private automatic admin assessments + deterministic economics | ⬜ To do |
-| 9 | Matching without Claude | ⬜ To do |
+| 9 | Matching without Claude | ✅ Done (code); live AI check pending |
 | 10 | Controlled disclosure and engagement workflow | ⬜ To do |
 | 11 | Voice, documents, discovery, pilots | ⬜ To do |
 | 12 | Enterprise, scale, visual redesign | ⬜ To do |
@@ -74,7 +74,23 @@ pass. Every migration runs in an isolated test database.
   retired, never deleted.
 - Participants see only their own figures; staff estimates stay internal.
 
-**Test status:** 190 automated HTTP checks + 6 unit suites pass.
+### 9. Matching without Claude
+- Claude is no longer used. Default engine: rules → verified figures →
+  meaning similarity from **Cloudflare Workers AI** (`@cf/baai/bge-m3`, free
+  daily allowance, records stay on the Cloudflare account).
+- Keeps the **top 3** suggestions per run. Each one lists its reasons, figure
+  conflicts and missing evidence. Labels come from fixed thresholds; there are
+  no percentages, and IP is never guessed.
+- **Reverse matching:** each technology page has *Find matching problems*.
+- If the AI is unavailable or the free allowance is spent, matching falls back
+  to rules + figures and says so. Text containing an email, phone number or
+  LinkedIn link is never sent to the AI.
+- Every suggestion starts *Pending*. Only an admin decision moves it, and
+  re-running never overwrites a decision.
+- Meaning-vectors are stored (migration 0019) and recomputed only when a
+  record's text changes.
+
+**Test status:** 216 automated HTTP checks + 6 unit suites pass.
 
 ---
 
@@ -89,11 +105,19 @@ pass. Every migration runs in an isolated test database.
 - [x] **Resend usage cap** at half the free tier: 50/day, 1,500/month
   (migration 0018, `worker/email-quota.ts`). Codes keep 10/day in reserve;
   receipts over the cap wait until the next UTC day. Shown on Operations.
-- [ ] Free uptime monitor on `/api/health` (UptimeRobot); log alerts.
+- [x] Free uptime monitor on `/api/health` (UptimeRobot, 5-minute checks,
+  email alerts). Added 13 Nov 2026.
 - [ ] Choose a real malware scanner (currently manual inspection).
 - [ ] Rehearse restoring into a live Cloudflare database.
 
 ### Deferred — do later
+
+> [!IMPORTANT]
+> **Tomorrow, once the card is available (14 Nov 2026):** enable R2 and
+> create the bucket, then set up Cloudflare Access. When Access is on, add a
+> bypass for `/api/health`, or the UptimeRobot monitor will report the site
+> as down. Steps for both are below.
+
 - [ ] **Enable R2 file storage.** Free up to ~10 GB but Cloudflare needs a card
   on file; no card available yet. Until then staging refuses attachments.
   After enabling: create bucket `inthinks-staging-evidence`, uncomment the R2
@@ -107,6 +131,9 @@ pass. Every migration runs in an isolated test database.
 
 
 ### Known gaps in finished phases
+- [ ] Phase 9: Workers AI not yet checked live on staging; similarity
+  thresholds (0.70 / 0.55) are starting values, so tune them once admins have
+  reviewed about 20 real pairs.
 - [ ] No email when staff ask a clarification question.
 - [ ] No automatic invitation email.
 - [ ] Participant screens not yet tested in a browser.
@@ -116,8 +143,6 @@ pass. Every migration runs in an isolated test database.
   sector templates, without sending confidential text to outside AI services.
 - **8. Automatic admin assessments** — private to admins, economics computed
   by fixed, configurable rules from verified figures.
-- **9. Matching without Claude** — rules plus a free or self-hosted model,
-  explainable evidence, human approval.
 - **10. Controlled disclosure and engagement.**
 - **11. Voice, documents, discovery, pilots.**
 - **12. Enterprise, scale, visual redesign.**

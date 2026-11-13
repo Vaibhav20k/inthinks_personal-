@@ -52,6 +52,12 @@ PASSWORD_LOGIN = "on"
 # Resend test sender: delivers only to the Resend account owner until a domain is verified.
 ACK_FROM = "InThinks <onboarding@resend.dev>"
 
+# Phase 9 matching: Cloudflare Workers AI for meaning-based similarity
+# (worker/match-local.ts). Workers Free includes a daily allowance; when it is
+# used up, matching falls back to rules only. Records stay on this account.
+[ai]
+binding = "AI"
+
 [triggers]
 crons = ["*/5 * * * *"]
 

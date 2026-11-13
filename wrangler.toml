@@ -95,6 +95,12 @@ custom_domain = true
 
 # Outbox retry: re-sends submitter receipts and team notices that the
 # submitting request could not deliver. Free on the Workers Free plan.
+# Phase 9 matching: Cloudflare Workers AI for meaning-based similarity
+# (worker/match-local.ts). Workers Free includes a daily allowance; when it is
+# used up, matching falls back to rules only. Records stay on this account.
+[ai]
+binding = "AI"
+
 [triggers]
 crons = ["*/5 * * * *"]
 

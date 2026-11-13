@@ -1,5 +1,6 @@
 import AccessControls from './AccessControls'
 import CaseWorkflow from './CaseWorkflow'
+import TechnologyMatches from './TechnologyMatches'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import * as api from './api'
@@ -227,6 +228,8 @@ export default function InnovationDetail({ me }: { me: Me }) {
               </div>
             )}
           </Panel>
+
+          {(me.role === 'admin' || me.role === 'super-admin') && <TechnologyMatches reference={reference} canRun={me.can.editReviewState} />}
 
           <Panel title="Notes">
             <form

@@ -4,6 +4,25 @@ import { deliverOutbox } from '../worker/outbox'
 import { hashPassword, issueSession } from '../worker/auth'
 import type { Env } from '../worker/types'
 
+// Deterministic stand-in for Workers AI: hashed bag of words, unit length.
+let aiCalls = 0
+const fakeAi = {
+  async run(_model: string, input: unknown) {
+    aiCalls++
+    const texts = (input as { text: string[] }).text
+    return { data: texts.map((t) => {
+      const v = new Array(64).fill(0)
+      for (const w of t.toLowerCase().match(/[a-z]{4,}/g) ?? []) {
+        let h = 0; for (const ch of w) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+        v[h % 64] += 1
+      }
+      const n = Math.hypot(...v) || 1
+      return v.map((x) => x / n)
+    }) }
+  },
+}
+const failingAi = { async run() { aiCalls++; throw new Error('daily allowance used') } }
+
 export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext) {
     const tasks: Promise<unknown>[] = []
@@ -16,10 +35,13 @@ export default {
       return Response.json({ token: await issueSession(env.SESSION_SECRET!, { email, role }, 1) })
     }
     if (path === '/test/outbox') return Response.json(await deliverOutbox(env))
+    if (path === '/test/ai-calls') return Response.json({ calls: aiCalls })
     if (path === '/test/hash') return Response.json({ hash: await hashPassword('test-password', 'test-salt') })
     if (request.headers.get('x-test-upload-failure') === '1') {
       env = { ...env, EVIDENCE: { put: async () => { throw new Error('injected R2 outage') }, delete: async () => {} } as unknown as R2Bucket }
     }
+    const aiMode = request.headers.get('x-test-ai')
+    if (aiMode) env = { ...env, AI: aiMode === 'fail' ? failingAi : fakeAi }
     if (request.headers.get('x-test-email-unconfigured') === '1') env = { ...env, RESEND_API_KEY: undefined }
     const response = await app.fetch(request, env, ctx)
     await Promise.all(tasks)

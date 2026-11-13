@@ -500,6 +500,12 @@ export const generateMatches = (challenge: string) =>
     body: JSON.stringify({ challenge }),
   })
 
+export const generateTechnologyMatches = (technology: string) =>
+  call<{ created: number; considered: number; shortlisted: number; engine: string }>('/matches/generate', {
+    method: 'POST',
+    body: JSON.stringify({ technology }),
+  })
+
 export interface MatchReview {
   mechanism: string | null
   application: string | null

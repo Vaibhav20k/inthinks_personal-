@@ -149,7 +149,7 @@ export default function ChallengeDetail({ me }: { me: Me }) {
             {matches.length === 0 ? (
               <Empty>
                 No candidates generated yet. The engine filters the portfolio on structured
-                criteria, then assesses the shortlist — results are proposals for review.
+                criteria, then ranks by meaning and verified figures and keeps the best three — results are proposals for review.
               </Empty>
             ) : (
               <ul>

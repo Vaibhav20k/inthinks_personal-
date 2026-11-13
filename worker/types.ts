@@ -42,6 +42,10 @@ export interface Env {
   ANTHROPIC_API_KEY?: string
   /** Overrides the matching model. Defaults to claude-opus-5. */
   MATCH_MODEL?: string
+  /** "claude" re-enables the Claude engine (needs the key). Default: phase 9 local engine. */
+  MATCH_ENGINE?: string
+  /** Cloudflare Workers AI, for meaning-based match similarity. Optional. */
+  AI?: { run(model: string, input: unknown): Promise<unknown> }
 
   ASSETS: Fetcher
 }

@@ -1,4 +1,6 @@
 import { runMatchEngine } from './match-engine'
+import type { CandidateAnalysis } from './match-engine'
+import { matchChallenge, matchTechnology } from './match-local'
 import type { ChallengeRecord, TechnologyRecord } from './match-rules'
 import type { AuthContext } from './auth'
 import { audit } from './audit'
@@ -197,30 +199,31 @@ async function nextMatchReference(db: D1Database, year: number) {
   return `M-${year}-${String(row?.value ?? 1).padStart(4, '0')}`
 }
 
-export async function generateMatches(env: Env, ctx: AuthContext, challengeRef: string, ip: string) {
-  if (!env.ANTHROPIC_API_KEY) {
-    throw Object.assign(new Error('The match engine is not configured on this deployment.'), { status: 503 })
-  }
+/** Every challenge, submitted and authored, for reverse matching. Capped. */
+export async function loadChallenges(db: D1Database, limit = 300): Promise<ChallengeRecord[]> {
+  const refs = await db.prepare(`SELECT reference FROM challenges
+      UNION SELECT reference FROM challenge_profiles WHERE reference NOT IN (SELECT reference FROM challenges)
+      LIMIT ?`).bind(limit).all<{ reference: string }>()
+  const out: ChallengeRecord[] = []
+  for (const r of refs.results) { const c = await loadChallenge(db, r.reference); if (c) out.push(c) }
+  return out
+}
 
-  const challenge = await loadChallenge(ctx.db, challengeRef)
-  if (!challenge) throw Object.assign(new Error('Challenge not found'), { status: 404 })
+/**
+ * Which engine runs. Default is phase 9's local engine (rules, figures and
+ * Workers AI similarity). The Claude engine stays available only when
+ * MATCH_ENGINE=claude and a key are both set; the project runs without it.
+ */
+const useClaude = (env: Env) => env.MATCH_ENGINE === 'claude' && Boolean(env.ANTHROPIC_API_KEY)
 
-  const technologies = await loadTechnologies(ctx.db)
-  if (technologies.length === 0) {
-    return { created: 0, considered: 0, shortlisted: 0, engine: 'rules-only' }
-  }
+type Pair = { challenge: ChallengeRecord; analysis: CandidateAnalysis }
 
-  const result = await runMatchEngine(challenge, technologies, {
-    apiKey: env.ANTHROPIC_API_KEY,
-    model: env.MATCH_MODEL,
-  })
-
+async function writeAnalyses(ctx: AuthContext, pairs: Pair[], engine: string) {
   const year = new Date().getUTCFullYear()
   let created = 0
-
-  for (const analysis of result.analyses) {
+  for (const { challenge, analysis } of pairs) {
     const reference = await nextMatchReference(ctx.db, year)
-    // Regenerating replaces the analysis but never the decision — a reviewer's
+    // Regenerating replaces the analysis but never the decision: a reviewer's
     // call is not overwritten by a later run.
     await ctx.db
       .prepare(
@@ -244,19 +247,10 @@ export async function generateMatches(env: Env, ctx: AuthContext, challengeRef: 
            engine = excluded.engine`,
       )
       .bind(
-        reference,
-        new Date().toISOString(),
-        challenge.reference,
-        analysis.technologyReference,
-        analysis.classification,
-        analysis.mechanismFit,
-        analysis.applicationFit,
-        analysis.trlFit,
-        analysis.constraintFit,
-        analysis.ipAvailability,
-        analysis.developmentEffort,
-        analysis.estimatedTrlGap,
-        analysis.ipRisk,
+        reference, new Date().toISOString(), challenge.reference, analysis.technologyReference,
+        analysis.classification, analysis.mechanismFit, analysis.applicationFit, analysis.trlFit,
+        analysis.constraintFit, analysis.ipAvailability, analysis.developmentEffort,
+        analysis.estimatedTrlGap, analysis.ipRisk,
         JSON.stringify({
           challengeSummary: analysis.challengeSummary,
           technologySummary: analysis.technologySummary,
@@ -267,20 +261,51 @@ export async function generateMatches(env: Env, ctx: AuthContext, challengeRef: 
           commercialPotential: analysis.commercialPotential,
           internalRecommendation: analysis.internalRecommendation,
         }),
-        result.engine,
+        engine,
       )
       .run()
     created++
   }
+  return created
+}
+
+export async function generateMatches(env: Env, ctx: AuthContext, challengeRef: string, ip: string) {
+  const challenge = await loadChallenge(ctx.db, challengeRef)
+  if (!challenge) throw Object.assign(new Error('Challenge not found'), { status: 404 })
+
+  const technologies = await loadTechnologies(ctx.db)
+  if (technologies.length === 0) {
+    return { created: 0, considered: 0, shortlisted: 0, engine: 'rules+figures' }
+  }
+
+  let pairs: Pair[], engine: string, considered: number, shortlisted: number
+  if (useClaude(env)) {
+    const result = await runMatchEngine(challenge, technologies, { apiKey: env.ANTHROPIC_API_KEY!, model: env.MATCH_MODEL })
+    pairs = result.analyses.map((analysis) => ({ challenge, analysis }))
+    engine = result.engine; considered = result.considered; shortlisted = result.shortlisted
+  } else {
+    const run = await matchChallenge(ctx.db, env.AI, challenge, technologies)
+    pairs = run.pairs; engine = run.engine; considered = run.considered; shortlisted = pairs.length
+  }
+  const created = await writeAnalyses(ctx, pairs, engine)
 
   await audit(ctx.db, ctx.actor, 'match.generate', challengeRef, {
-    considered: result.considered,
-    shortlisted: result.shortlisted,
-    produced: created,
-    engine: result.engine,
+    considered, shortlisted, produced: created, engine,
   }, ip)
 
-  return { created, considered: result.considered, shortlisted: result.shortlisted, engine: result.engine }
+  return { created, considered, shortlisted, engine }
+}
+
+/** Reverse matching: a technology's best problems, written as ordinary match rows. */
+export async function generateTechnologyMatches(env: Env, ctx: AuthContext, technologyRef: string, ip: string) {
+  const technology = (await loadTechnologies(ctx.db)).find((t) => t.reference === technologyRef)
+  if (!technology) throw Object.assign(new Error('Technology not found'), { status: 404 })
+  const run = await matchTechnology(ctx.db, env.AI, technology, await loadChallenges(ctx.db))
+  const created = await writeAnalyses(ctx, run.pairs, run.engine)
+  await audit(ctx.db, ctx.actor, 'match.generate_reverse', technologyRef, {
+    considered: run.considered, produced: created, engine: run.engine,
+  }, ip)
+  return { created, considered: run.considered, shortlisted: run.pairs.length, engine: run.engine }
 }
 
 export async function decide(

@@ -89,7 +89,7 @@ export default function Engine({ me }: { me: Me }) {
     <div className="grid gap-6">
       <div className="flex flex-wrap items-baseline justify-between gap-4">
         <h1 className="section-type">Match engine</h1>
-        <p className="label" style={{ color: 'var(--color-faint)' }}>AI RECOMMENDS · INTHINKS QUALIFIES</p>
+        <p className="label" style={{ color: 'var(--color-faint)' }}>ENGINE RECOMMENDS · INTHINKS QUALIFIES</p>
       </div>
 
       {/* The pipeline as a row of steps, with the last one weighted: every
@@ -115,7 +115,7 @@ export default function Engine({ me }: { me: Me }) {
 
       {configured === false && (
         <p className="label px-3 py-2" style={{ border: '1px solid var(--rule-strong)', color: 'var(--color-muted)' }}>
-          THE ENGINE IS NOT CONFIGURED ON THIS DEPLOYMENT — SET ANTHROPIC_API_KEY TO RUN IT
+          THE ENGINE IS NOT AVAILABLE ON THIS DEPLOYMENT
         </p>
       )}
 

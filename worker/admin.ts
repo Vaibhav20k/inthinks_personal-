@@ -12,7 +12,7 @@ import {
   INNOVATION_STATUSES, SCORING_DIMENSIONS,
 } from './scoring'
 import type { Env } from './types'
-import { MATCH_DECISIONS, RELEASING_DECISION, decide, generateMatches } from './matches'
+import { MATCH_DECISIONS, RELEASING_DECISION, decide, generateMatches, generateTechnologyMatches } from './matches'
 import {
   DEVELOPMENT_STAGES, DEVELOPMENT_STAGES_ELIGIBLE, LOG_KINDS,
   READINESS_DIMENSIONS, READINESS_KEYS, READINESS_STATUSES,
@@ -859,6 +859,8 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
     const where: string[] = []
     const binds: unknown[] = []
     if (challenge) { where.push('m.challenge_ref = ?'); binds.push(challenge) }
+    const technology = url.searchParams.get('technology')
+    if (technology) { where.push('m.technology_ref = ?'); binds.push(technology) }
     if (decision && oneOf(MATCH_DECISIONS, decision)) { where.push('m.decision = ?'); binds.push(decision) }
 
     const rows = await db
@@ -942,18 +944,22 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
         ...submitted.results.map((r) => shape(r, 'submission')),
         ...authored.results.map((r) => shape(r, 'authored')),
       ],
-      /** Whether the engine can actually run on this deployment. */
-      configured: Boolean(env.ANTHROPIC_API_KEY),
+      /** The local engine always runs; `semantic` says whether Workers AI is bound. */
+      configured: true,
+      semantic: Boolean(env.AI),
     })
   }
 
   if (path === '/matches/generate' && request.method === 'POST') {
     if (!can.editReviewState) return json({ error: 'Not permitted to run the match engine' }, 403)
-    const body = (await request.json().catch(() => ({}))) as { challenge?: unknown }
+    const body = (await request.json().catch(() => ({}))) as { challenge?: unknown; technology?: unknown }
     const challengeRef = clip(body.challenge, 32)
-    if (!challengeRef) return json({ error: 'A challenge reference is required' }, 422)
+    const technologyRef = clip(body.technology, 32)
+    if (!challengeRef && !technologyRef) return json({ error: 'A challenge or technology reference is required' }, 422)
     try {
-      const result = await generateMatches(env, ctx, challengeRef, ip)
+      const result = challengeRef
+        ? await generateMatches(env, ctx, challengeRef, ip)
+        : await generateTechnologyMatches(env, ctx, technologyRef, ip)
       return json(result)
     } catch (cause) {
       const status = (cause as { status?: number }).status ?? 502
