@@ -1,0 +1,167 @@
+# InThinks — project progress
+
+Single tracker for the upgrade. Update it at the end of every batch.
+Detailed checkpoints: [progress-steps-1-3.md](progress-steps-1-3.md),
+[progress-steps-4-6.md](progress-steps-4-6.md). Operations:
+[operations-runbook.md](operations-runbook.md).
+
+Branch: `phase-1-reliable-intake` on `Vaibhav20k/inthinks_personal-`. Never
+push or merge to `main`. Last updated: 13 November 2026.
+
+---
+
+## 1. All planned phases
+
+| # | Phase | Status |
+| --- | --- | --- |
+| 1 | Verify the inherited branch (build, tests, staging dry run) | ✅ Done |
+| 2 | Reliable intake | ✅ Done |
+| 3 | Participant accounts, organizations, ownership, scoped staff access | ✅ Done |
+| 4 | Operational safeguards | 🟡 Code done; external setup pending |
+| 5 | Full workflows (drafts, clarifications, owners, next actions) | ✅ Done |
+| 6 | Structured qualification | ✅ Done |
+| 7 | Adaptive text intake | ⬜ To do |
+| 8 | Private automatic admin assessments + deterministic economics | ⬜ To do |
+| 9 | Matching without Claude | ⬜ To do |
+| 10 | Controlled disclosure and engagement workflow | ⬜ To do |
+| 11 | Voice, documents, discovery, pilots | ⬜ To do |
+| 12 | Enterprise, scale, visual redesign | ⬜ To do |
+
+---
+
+## 2. Completed phases
+
+### 1. Verify the inherited branch
+Type checks, unit suites, production build and staging deploy dry run all
+pass. Every migration runs in an isolated test database.
+
+### 2. Reliable intake
+- Submissions are saved once even on double-clicks, retries or dropped
+  connections (idempotency keys).
+- A failed file upload saves nothing, so a retry is clean.
+- Email and webhook failures never lose a submission; they retry automatically,
+  and admins can retry skipped ones.
+- Admin login is throttled.
+
+### 3. Participant access and ownership
+- `/account`: email-code sign-in, organizations, invitations, claiming earlier
+  submissions, own records, export.
+- Companies cannot see each other's cases. Contributors see only their own
+  cases or ones explicitly shared.
+- Staff (mediators, reviewers) see only cases assigned to them; reviewers get
+  an admin-approved anonymized brief and approved files only.
+
+### 4. Operational safeguards (code part)
+- Uploaded files are checked against their type; programs and mislabelled
+  files are refused. Every file is quarantined until an admin releases it.
+- `/api/health` for uptime monitoring; admin **Operations** page; health log
+  line every 5 minutes.
+- Backup and restore-drill scripts. Real staging backup restored successfully,
+  and migrations 0014–0017 rehearsed on it with no data lost.
+- GitHub Actions CI runs the full build and tests on every push (passing).
+
+### 5. Full workflows
+- Participants save drafts to their account and continue on another device.
+- Staff ask clarification questions; participants answer in My submissions;
+  case status follows automatically.
+- Each case has an owner and a next action with a due date; **Next actions**
+  page for admins and mediators.
+
+### 6. Structured qualification
+- Figures per case: measurements, limits, attributable costs, success
+  criteria — each with a unit from a fixed list, a source and a date.
+- Verification states; editing a figure resets its verification; figures are
+  retired, never deleted.
+- Participants see only their own figures; staff estimates stay internal.
+
+**Test status:** 190 automated HTTP checks + 6 unit suites pass.
+
+---
+
+## 3. Phases still to do
+
+### Pending from phase 4 (external setup — needs your accounts)
+- [x] Apply migrations 0014–0017 to staging, then deploy staging
+  (13 Nov 2026: backup + restore drill passed first; live at
+  https://inthinks-staging.inthinks.workers.dev, `/api/health` ok).
+- [x] Email sender on staging (`RESEND_API_KEY` secret, `ACK_FROM` =
+  Resend test sender). Live code sent to vkpal2006@gmail.com.
+- [x] **Resend usage cap** at half the free tier: 50/day, 1,500/month
+  (migration 0018, `worker/email-quota.ts`). Codes keep 10/day in reserve;
+  receipts over the cap wait until the next UTC day. Shown on Operations.
+- [ ] Free uptime monitor on `/api/health` (UptimeRobot); log alerts.
+- [ ] Choose a real malware scanner (currently manual inspection).
+- [ ] Rehearse restoring into a live Cloudflare database.
+
+### Deferred — do later
+- [ ] **Enable R2 file storage.** Free up to ~10 GB but Cloudflare needs a card
+  on file; no card available yet. Until then staging refuses attachments.
+  After enabling: create bucket `inthinks-staging-evidence`, uncomment the R2
+  block in `wrangler.staging.toml`, redeploy.
+- [ ] **Cloudflare Access (Zero Trust) with MFA.** Free up to 50 users; locks
+  `/admin` behind an email allow-list + one-time code. Deferred for now; admin
+  stays on password + login throttling. Steps: runbook §3. On staging it gates
+  the whole workers.dev site; on production only `/admin` (needs the
+  `inthinks.com` zone on this account).
+- [ ] **Verify a domain in Resend** so codes reach any address (no domain yet).
+
+
+### Known gaps in finished phases
+- [ ] No email when staff ask a clarification question.
+- [ ] No automatic invitation email.
+- [ ] Participant screens not yet tested in a browser.
+
+### Next phases
+- **7. Adaptive text intake** — follow-up questions from missing figures and
+  sector templates, without sending confidential text to outside AI services.
+- **8. Automatic admin assessments** — private to admins, economics computed
+  by fixed, configurable rules from verified figures.
+- **9. Matching without Claude** — rules plus a free or self-hosted model,
+  explainable evidence, human approval.
+- **10. Controlled disclosure and engagement.**
+- **11. Voice, documents, discovery, pilots.**
+- **12. Enterprise, scale, visual redesign.**
+
+---
+
+## 4. Highlighted points
+
+> [!IMPORTANT]
+> **Email sender (`ACK_FROM`) and Resend's test address**
+>
+> - Until you verify your own domain in Resend, use their test sender:
+>   `ACK_FROM=InThinks <onboarding@resend.dev>`.
+> - That sender only delivers to **the email address you signed up to Resend
+>   with**. On `/account`, sign in with that same address, or the code never
+>   arrives.
+> - Once you verify a domain in Resend (Domains → Add domain → add the DNS
+>   records it gives you), switch to e.g.
+>   `ACK_FROM=InThinks <receipts@yourdomain.com>`. Then codes reach any address.
+
+> [!IMPORTANT]
+> **Where secrets go**
+>
+> - Local: `inthinks/.dev.vars` (git-ignored). Never commit it, never paste
+>   keys into chat.
+> - Staging/production: `npx wrangler secret put RESEND_API_KEY -c wrangler.staging.toml`.
+
+> [!IMPORTANT]
+> **Email cap: 50 a day, 1,500 a month** (half of Resend's free tier). The last
+> 10 a day are kept for sign-in codes. Change with `EMAIL_DAILY_LIMIT` /
+> `EMAIL_MONTHLY_LIMIT` only if the Resend plan changes.
+
+> [!WARNING]
+> **After migration 0015, every existing file is quarantined.** An admin must
+> release each file before participants, mediators or reviewers can open it.
+
+> [!WARNING]
+> **Migrations before code.** Apply migrations before deploying the Worker that
+> uses them. Never edit an applied migration; add a new one.
+
+> [!NOTE]
+> **"Configured" is not "working".** A setting existing in a file or on the
+> Operations page does not prove the service works; check it live.
+
+> [!NOTE]
+> **No paid services or Claude API** for testing; free tiers only. Confidential
+> records must not be sent to free third-party AI APIs.

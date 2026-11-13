@@ -49,7 +49,8 @@ PASSWORD_LOGIN = "on"
 # (the secret goes in with `wrangler secret put`). Both are needed for the
 # bot check to run.
 # TURNSTILE_SITE_KEY = ""
-# ACK_FROM = "InThinks <receipts@your-verified-domain>"
+# Resend test sender: delivers only to the Resend account owner until a domain is verified.
+ACK_FROM = "InThinks <onboarding@resend.dev>"
 
 [triggers]
 crons = ["*/5 * * * *"]

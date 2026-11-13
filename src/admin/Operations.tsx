@@ -6,6 +6,7 @@ interface Report {
   checkedAt: string
   database: { reachable: boolean; missingMigrations: string[] }
   outbox: { failed: number; skipped: number; overdue: number }
+  email: { today: number; daily: number; month: number; monthly: number } | null
   files: { quarantined: number; quarantinedOverADay: number } | null
   workflow: { overdueClarifications: number; overdueNextActions: number; unownedCases: number } | null
   configuration: Record<string, boolean>
@@ -28,6 +29,8 @@ export default function Operations() {
       <p className="mt-3 text-sm">Checked {report.checkedAt.replace('T', ' ').slice(0, 16)} UTC.</p>
     </Panel>
     <div className="grid gap-4 sm:grid-cols-3">
+      <Stat label="Emails today" value={report.email ? `${report.email.today} / ${report.email.daily}` : '—'} />
+      <Stat label="Emails this month" value={report.email ? `${report.email.month} / ${report.email.monthly}` : '—'} />
       <Stat label="Failed notifications" value={report.outbox.failed} />
       <Stat label="Overdue notifications" value={report.outbox.overdue} />
       <Stat label="Files in quarantine" value={report.files?.quarantined ?? '—'} />

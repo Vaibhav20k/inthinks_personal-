@@ -29,6 +29,10 @@ export interface Env {
   ACK_FROM?: string
   /** "log" marks receipts as sent without sending — local development only. */
   EMAIL_MODE?: string
+  /** Real sends allowed per UTC day. Default 50 (half of Resend's free 100). */
+  EMAIL_DAILY_LIMIT?: string
+  /** Real sends allowed per UTC month. Default 1500 (half of Resend's free 3,000). */
+  EMAIL_MONTHLY_LIMIT?: string
 
   /* Cloudflare Turnstile. Both must be set for the bot check to run. */
   TURNSTILE_SITE_KEY?: string

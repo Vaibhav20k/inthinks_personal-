@@ -95,6 +95,8 @@ try {
   const state = await testOwnership({ mf, db, call, check, challenge, innovation, admin, deliveries })
   const { testWorkflow } = await import('./workflow.test.mjs')
   await testWorkflow({ ...state, mf, db, call, check, innovation, admin })
+  const { testEmailQuota } = await import('./email-quota.test.mjs')
+  await testEmailQuota({ db, call, check, challenge, admin })
   check('database foreign-key integrity',(await db.prepare('PRAGMA foreign_key_check').all()).results,[])
   console.log(`${checks} HTTP integration checks passed.`)
 } finally { await mf.dispose() }

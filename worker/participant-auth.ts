@@ -1,6 +1,7 @@
 import type { Env } from './types'
 import { bodyObject, cookie, digest, emailValue, reply } from './access-http'
 import { checkLogin, ipTag } from './ratelimit'
+import { reserveEmail } from './email-quota'
 
 export const PARTICIPANT_COOKIE = 'inthinks_participant'
 export interface Participant { email: string }
@@ -34,6 +35,10 @@ export async function participantAuth(request: Request, env: Env, path: string) 
       db.prepare('INSERT INTO verification_challenges(id,email,code_hash,expires_at) VALUES (?,?,?,?)')
         .bind(id,email,await digest(`${env.SESSION_SECRET}:${id}:${code}`),new Date(Date.now()+600_000).toISOString()),
     ])
+    if (!await reserveEmail(db,env,'verification')) {
+      await db.prepare('DELETE FROM verification_challenges WHERE id=?').bind(id).run()
+      return reply({ error: 'The daily email limit has been reached. Please try again tomorrow.' },503)
+    }
     try {
       const sent = await fetch('https://api.resend.com/emails', {
         method: 'POST', headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },

@@ -1,5 +1,6 @@
 import type { Env } from './types'
 import { adminConfigured } from './auth'
+import { emailUsage } from './email-quota'
 
 /**
  * Operational checks.
@@ -19,6 +20,7 @@ const REQUIRED_SCHEMA: [table: string, column: string, migration: string][] = [
   ['clarification_requests', 'status', '0016_case_workflow'],
   ['submission_drafts', 'payload', '0016_case_workflow'],
   ['qualification_items', 'verification', '0017_structured_qualification'],
+  ['email_usage', 'sent', '0018_email_quota'],
 ]
 
 export async function liveness(env: Env) {
@@ -59,6 +61,7 @@ export async function healthReport(env: Env) {
       skipped: await count(db, "SELECT COUNT(*) n FROM outbox WHERE status='skipped'"),
       overdue: await count(db, "SELECT COUNT(*) n FROM outbox WHERE status='pending' AND next_attempt_at<?", stale),
     },
+    email: ready ? await emailUsage(db, env) : null,
     files: ready ? {
       quarantined: await count(db, "SELECT COUNT(*) n FROM evidence WHERE scan_status='quarantined'"),
       quarantinedOverADay: await count(db, "SELECT COUNT(*) n FROM evidence WHERE scan_status='quarantined' AND created_at<?", dayAgo),
@@ -84,6 +87,8 @@ export async function healthReport(env: Env) {
   if (schemaMissing.length) w.push(`Migrations not applied: ${schemaMissing.join(', ')}.`)
   if (report.outbox.failed) w.push(`${report.outbox.failed} notification(s) failed permanently.`)
   if (report.outbox.overdue) w.push(`${report.outbox.overdue} notification(s) overdue by more than 30 minutes.`)
+  if (report.email && report.email.today >= report.email.daily * 0.8) w.push(`Email use today is ${report.email.today} of ${report.email.daily}.`)
+  if (report.email && report.email.month >= report.email.monthly * 0.8) w.push(`Email use this month is ${report.email.month} of ${report.email.monthly}.`)
   if (report.files?.quarantinedOverADay) w.push(`${report.files.quarantinedOverADay} file(s) waiting more than a day for inspection.`)
   if (report.workflow?.overdueClarifications) w.push(`${report.workflow.overdueClarifications} clarification request(s) past their due date.`)
   if (report.workflow?.overdueNextActions) w.push(`${report.workflow.overdueNextActions} case next action(s) overdue.`)

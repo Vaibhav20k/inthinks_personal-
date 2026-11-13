@@ -1,4 +1,5 @@
 import type { Env } from './types'
+import { nextUtcMidnight, reserveEmail } from './email-quota'
 
 /**
  * Transactional outbox.
@@ -78,7 +79,7 @@ export function receiptText(kind: SubmissionKind, reference: string) {
   ].join('\n')
 }
 
-type Outcome = { status: 'sent' } | { status: 'skipped'; reason: string } | { status: 'error'; reason: string }
+type Outcome = { status: 'sent' } | { status: 'skipped'; reason: string } | { status: 'error'; reason: string } | { status: 'deferred' }
 
 async function sendReceipt(env: Env, reference: string, payload: Record<string, string>): Promise<Outcome> {
   const kind = (payload.kind ?? 'challenge') as SubmissionKind
@@ -90,6 +91,8 @@ async function sendReceipt(env: Env, reference: string, payload: Record<string, 
     }
     return { status: 'skipped', reason: 'email not configured' }
   }
+  // Over the email cap: wait for tomorrow's allowance; not a failure.
+  if (!await reserveEmail(env.DB!, env, 'receipt')) return { status: 'deferred' }
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     signal: AbortSignal.timeout(10_000),
@@ -175,6 +178,12 @@ export async function deliverOutbox(env: Env, options: { reference?: string; lim
           outcome.status === 'sent' ? iso(Date.now()) : null, outcome.status === 'skipped' ? outcome.reason : null, row.id)
         .run()
       if (outcome.status === 'sent') delivered++
+      continue
+    }
+
+    if (outcome.status === 'deferred') {
+      await db.prepare(`UPDATE outbox SET next_attempt_at = ?, last_error = 'waiting for tomorrow''s email allowance' WHERE id = ?`)
+        .bind(nextUtcMidnight(), row.id).run()
       continue
     }
 
