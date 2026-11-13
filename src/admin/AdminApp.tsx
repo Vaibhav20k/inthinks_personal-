@@ -1,3 +1,4 @@
+import AssignedWorkspace from './AssignedWorkspace'
 import { useCallback, useEffect, useState } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import * as api from './api'
@@ -72,6 +73,8 @@ export default function AdminApp() {
   if (state === 'anonymous' || !me) {
     return <Login onSignedIn={check} />
   }
+
+  if (me.role === 'business-development' || me.role === 'rnd-reviewer') return <AssignedWorkspace me={me} onSignedOut={() => { setMe(null); setState('anonymous') }} />
 
   return (
     <Shell me={me} onSignedOut={() => { setMe(null); setState('anonymous') }}>

@@ -58,7 +58,7 @@ export default function Header() {
           </span>
         </Link>
 
-        <nav aria-label="Primary" className="hidden items-center gap-6 xl:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-6 2xl:flex">
           {nav.map((item) => (
             <NavLink
               key={item.label}
@@ -83,6 +83,7 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-4">
+          <Link to="/account" className="shrink-0 whitespace-nowrap text-[0.8125rem] underline">My submissions</Link>
           <AppearanceMenu className="hidden sm:inline-flex" />
           <Link
             to="/submit-innovation"
@@ -102,7 +103,7 @@ export default function Header() {
             onClick={() => setMenuOpen((v) => !v)}
             aria-expanded={menuOpen}
             aria-controls="mobile-nav"
-            className="label -mr-2 flex min-h-11 items-center gap-2 px-2 py-2 xl:hidden"
+            className="label -mr-2 flex min-h-11 items-center gap-2 px-2 py-2 2xl:hidden"
           >
             {menuOpen ? 'Close' : 'Menu'}
             <span aria-hidden="true" className="flex h-3 w-4 flex-col justify-between">
@@ -115,7 +116,7 @@ export default function Header() {
       </div>
 
       {menuOpen && (
-        <div id="mobile-nav" className="container-grid h-[calc(100svh-3.75rem)] overflow-y-auto pb-10 pt-2 xl:hidden">
+        <div id="mobile-nav" className="container-grid h-[calc(100svh-3.75rem)] overflow-y-auto pb-10 pt-2 2xl:hidden">
           <ul className="flex flex-col">
             {nav.map((item, i) => (
               <li key={item.label} style={{ borderTop: '1px solid var(--rule)' }}>

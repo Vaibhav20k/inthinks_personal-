@@ -1,3 +1,4 @@
+import { activeOrganization } from './participant'
 /**
  * Submission API client.
  *
@@ -88,6 +89,8 @@ export interface SubmitOptions {
 
 function intakeHeaders(options: SubmitOptions, json: boolean): Record<string, string> {
   const headers: Record<string, string> = { 'idempotency-key': options.idempotencyKey }
+  const org = activeOrganization()
+  if (org) headers['x-organization-id'] = org
   if (json) headers['content-type'] = 'application/json'
   if (options.turnstileToken) headers['x-turnstile-token'] = options.turnstileToken
   return headers

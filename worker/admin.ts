@@ -1,3 +1,4 @@
+import { staffAccess, mayDownload } from './staff-access'
 import { authenticate, capabilities, clearedCookie, constantTimeEqual, hashPassword, issueSession, newSalt, ROLES, sessionCookie, adminConfigured } from './auth'
 import type { AuthContext, Role } from './auth'
 import { audit } from './audit'
@@ -231,13 +232,15 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
     if (!(await verifyEvidence(env.SESSION_SECRET, key, exp, sig))) {
       return json({ error: 'This download link is invalid or has expired.' }, 403)
     }
+    if (!await mayDownload(auth.value, key)) return json({ error: 'Not found' }, 404)
     const object = await env.EVIDENCE.get(key)
     if (!object) return json({ error: 'File not found' }, 404)
 
     await audit(auth.value.db, auth.value.actor, 'evidence.download', key, undefined, ip)
     return new Response(object.body, {
       headers: {
-        'content-type': object.httpMetadata?.contentType ?? 'application/octet-stream',
+        'content-type': 'application/octet-stream',
+        'x-content-type-options': 'nosniff',
         'content-disposition': 'attachment',
         'cache-control': 'no-store',
       },
@@ -248,6 +251,8 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
   if (!auth.ok) return json({ error: auth.error }, auth.status)
   const ctx = auth.value
   const { db, actor, can } = ctx
+  const accessResponse = await staffAccess(request, env, ctx, path, ip)
+  if (accessResponse) return accessResponse
 
   if (path === '/me' && request.method === 'GET') {
     return json({ email: actor.email, role: actor.role, can })
@@ -586,10 +591,10 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
     if (!can.viewAudit) return json({ error: 'Not permitted' }, 403)
     const id = Number(retryMatch[1])
     const row = await db
-      .prepare(`UPDATE outbox SET status = 'pending', attempts = 0, next_attempt_at = ? WHERE id = ? AND status = 'failed' RETURNING reference`)
+      .prepare(`UPDATE outbox SET status = 'pending', attempts = 0, next_attempt_at = ? WHERE id = ? AND status IN ('failed','skipped') AND payload != '{}' RETURNING reference`)
       .bind(new Date().toISOString(), id)
       .first<{ reference: string }>()
-    if (!row) return json({ error: 'Only failed jobs can be retried' }, 409)
+    if (!row) return json({ error: 'Only failed or skipped jobs with retained delivery data can be retried' }, 409)
     await audit(db, actor, 'outbox.retry', row.reference, { id }, ip)
     await deliverOutbox(env, { reference: row.reference })
     return json({ ok: true })

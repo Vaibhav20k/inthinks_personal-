@@ -10,7 +10,7 @@ import type { Actor } from './auth'
  */
 export async function audit(
   db: D1Database,
-  actor: Actor,
+  actor: { email: string; role: Actor['role'] | 'participant' },
   action: string,
   target?: string,
   meta?: Record<string, unknown>,

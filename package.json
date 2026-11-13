@@ -18,13 +18,14 @@
     "r2:create": "wrangler r2 bucket create inthinks-evidence",
     "dev:worker": "wrangler dev -c wrangler.local.toml",
     "dev:db": "wrangler d1 migrations apply inthinks-submissions --local -c wrangler.local.toml",
-    "test": "npm run test:match && npm run test:deals && npm run test:royalties && npm run test:portfolio && npm run test:daylight && npm run test:outbox",
+    "test": "npm run test:match && npm run test:deals && npm run test:royalties && npm run test:portfolio && npm run test:daylight && npm run test:outbox && npm run test:http",
     "test:match": "esbuild tests/match-rules.test.ts --bundle --platform=node --format=esm --outfile=.test-build/match-rules.mjs && node .test-build/match-rules.mjs",
     "test:deals": "esbuild tests/deal-terms.test.ts --bundle --platform=node --format=esm --outfile=.test-build/deal-terms.mjs && node .test-build/deal-terms.mjs",
     "test:royalties": "esbuild tests/royalties.test.ts --bundle --platform=node --format=esm --outfile=.test-build/royalties.mjs && node .test-build/royalties.mjs",
     "test:portfolio": "esbuild tests/portfolio.test.ts --bundle --platform=node --format=esm --outfile=.test-build/portfolio.mjs && node .test-build/portfolio.mjs",
     "test:daylight": "esbuild tests/daylight.test.ts --bundle --platform=node --format=esm --outfile=.test-build/daylight.mjs && node .test-build/daylight.mjs",
-    "test:outbox": "esbuild tests/outbox.test.ts --bundle --platform=node --format=esm --outfile=.test-build/outbox.mjs && node .test-build/outbox.mjs"
+    "test:outbox": "esbuild tests/outbox.test.ts --bundle --platform=node --format=esm --outfile=.test-build/outbox.mjs && node .test-build/outbox.mjs",
+    "test:http": "node tests/http.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
@@ -42,7 +43,9 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vite": "^8.2.1",
-    "wrangler": "^4.124.0"
+    "wrangler": "^4.124.0",
+    "miniflare": "5.20260815.0-alpha",
+    "esbuild": "0.28.1"
   },
   "engines": {
     "node": ">=20"

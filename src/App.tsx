@@ -23,6 +23,7 @@ import SubmitInnovation from './pages/SubmitInnovation'
 import NotFound from './pages/NotFound'
 
 // Lazy so the public site never ships the admin bundle to a visitor.
+const Account = lazy(() => import('./pages/Account'))
 const AdminApp = lazy(() => import('./admin/AdminApp'))
 
 /**
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="/problems/:slug" element={<ProblemDetail />} />
           <Route path="/matches" element={<Matches />} />
           <Route path="/matches/:slug" element={<MatchDetail />} />
+          <Route path="/account" element={<Suspense fallback={<p>Loading account...</p>}><Account /></Suspense>} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/for-industry" element={<ForIndustry />} />
           <Route path="/for-innovators" element={<ForInnovators />} />

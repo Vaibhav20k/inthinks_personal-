@@ -92,6 +92,7 @@ async function sendReceipt(env: Env, reference: string, payload: Record<string, 
   }
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
+    signal: AbortSignal.timeout(10_000),
     headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
     body: JSON.stringify({
       from: env.ACK_FROM,
@@ -108,6 +109,7 @@ async function sendNotice(env: Env, reference: string, payload: Record<string, s
   if (!env.NOTIFY_WEBHOOK) return { status: 'skipped', reason: 'webhook not configured' }
   const response = await fetch(env.NOTIFY_WEBHOOK, {
     method: 'POST',
+    signal: AbortSignal.timeout(10_000),
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ reference, ...payload }),
   })
@@ -161,14 +163,16 @@ export async function deliverOutbox(env: Env, options: { reference?: string; lim
       outcome = row.kind === 'ack_email'
         ? await sendReceipt(env, row.reference, payload)
         : await sendNotice(env, row.reference, payload)
-    } catch (cause) {
-      outcome = { status: 'error', reason: cause instanceof Error ? cause.message.slice(0, 200) : 'unknown error' }
+    } catch {
+      // Provider exceptions can contain URLs, credentials or recipient details.
+      outcome = { status: 'error', reason: 'delivery failed or timed out' }
     }
 
     if (outcome.status === 'sent' || outcome.status === 'skipped') {
       await db
-        .prepare(`UPDATE outbox SET status = ?, payload = '{}', sent_at = ?, last_error = ? WHERE id = ?`)
-        .bind(outcome.status, iso(Date.now()), outcome.status === 'skipped' ? outcome.reason : null, row.id)
+        .prepare(`UPDATE outbox SET status = ?, payload = ?, sent_at = ?, last_error = ? WHERE id = ?`)
+        .bind(outcome.status, outcome.status === 'sent' ? '{}' : row.payload,
+          outcome.status === 'sent' ? iso(Date.now()) : null, outcome.status === 'skipped' ? outcome.reason : null, row.id)
         .run()
       if (outcome.status === 'sent') delivered++
       continue

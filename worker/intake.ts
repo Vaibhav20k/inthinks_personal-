@@ -1,3 +1,8 @@
+import { participant, PARTICIPANT_COOKIE } from './participant-auth'
+import type { Participant } from './participant-auth'
+import { membership } from './participant-organizations'
+import { accessibleCase, caseInsert } from './participant-records'
+import { cookie, sameOrigin } from './access-http'
 import { err, ok } from './types'
 import type { Env, Result } from './types'
 import { CHALLENGE_SCHEMA, INNOVATION_SCHEMA, MESSAGE_SCHEMA, REQUIRED_DECLARATIONS, validate } from './validation'
@@ -111,6 +116,8 @@ interface Gate {
   ip: string
   salt: string
   key: string | null
+  participant: Participant | null
+  organization: string | null
 }
 
 /** Steps 1 and 2. `replayed` short-circuits with the reference already issued. */
@@ -126,8 +133,18 @@ async function open(env: Env, request: Request, table: SubmissionTable): Promise
   }
   const key = readIdempotencyKey(request)
   if (!key.ok) return key
+  const account = table === 'messages' ? null : await participant(env, request)
+  if (table !== 'messages' && cookie(request, PARTICIPANT_COOKIE) && !account) return err(401, 'Your session expired. Sign in again before submitting.')
+  const organization = table === 'messages' ? null : request.headers.get('x-organization-id')
+  if (account && !sameOrigin(request)) return err(403, 'Request origin not allowed.')
+  if (organization && (!account || !await membership(env.DB, organization, account.email))) return err(403, 'Organization access denied.')
+  if (account && !organization) return err(422, 'Choose an organization before submitting.')
   const replayed = await referenceForKey(env.DB, table, key.value)
-  return ok({ db: env.DB, ip, salt, key: key.value, replayed })
+  if (replayed && table !== 'messages') {
+    const owned = await env.DB.prepare('SELECT organization_id FROM case_records WHERE reference=?').bind(replayed).first<{organization_id:string|null}>()
+    if (owned?.organization_id && (!account || !await accessibleCase(env.DB, replayed, account.email))) return err(403, 'Submission access denied.')
+  }
+  return ok({ db: env.DB, ip, salt, key: key.value, replayed, participant: account, organization })
 }
 
 /** Step 3 (after validation): bot check, then the accepted-submission ceiling. */
@@ -148,7 +165,13 @@ async function commit(gate: Gate, table: SubmissionTable, statements: D1Prepared
   } catch (cause) {
     if (gate.key && isUniqueViolation(cause)) {
       const existing = await referenceForKey(gate.db, table, gate.key)
-      if (existing) return ok(existing)
+      if (existing) {
+        if (table !== 'messages') {
+          const owned = await gate.db.prepare('SELECT organization_id FROM case_records WHERE reference=?').bind(existing).first<{organization_id:string|null}>()
+          if (owned?.organization_id && (!gate.participant || !await accessibleCase(gate.db,existing,gate.participant.email))) return err(403,'Submission access denied.')
+        }
+        return ok(existing)
+      }
     }
     throw cause
   }
@@ -211,6 +234,7 @@ async function handleChallenge(request: Request, env: Env, ctx: ExecutionContext
   const parsed = validate(CHALLENGE_SCHEMA, body.value)
   if (!parsed.ok) return fail(parsed)
   const data = parsed.value
+  if (gate.value.participant && one(data.email).toLowerCase() !== gate.value.participant.email) return fail(err(422, 'Use your verified email for this submission.'))
 
   const admitted = await admit(env, request, gate.value)
   if (!admitted.ok) return fail(admitted)
@@ -219,6 +243,7 @@ async function handleChallenge(request: Request, env: Env, ctx: ExecutionContext
   const reference = await nextReference(db, 'CH', new Date().getUTCFullYear())
   const outcome = await commit(gate.value, 'challenges', [
     challengeInsert(db, reference, data, gate.value.key),
+    caseInsert(db, reference, 'challenge', gate.value.organization, gate.value.participant?.email ?? null),
     ...outboxStatements(db, reference, submissionOutbox('challenge', one(data.email), {
       company: one(data.company),
       sector: one(data.sector),
@@ -286,6 +311,7 @@ async function handleInnovation(request: Request, env: Env, ctx: ExecutionContex
   const parsed = validate(INNOVATION_SCHEMA, input.value.raw)
   if (!parsed.ok) return fail(parsed)
   const data: Clean = parsed.value
+  if (gate.value.participant && one(data.email).toLowerCase() !== gate.value.participant.email) return fail(err(422, 'Use your verified email for this submission.'))
   const { files } = input.value
 
   const declared = Array.isArray(data.declarations) ? data.declarations : []
@@ -322,6 +348,7 @@ async function handleInnovation(request: Request, env: Env, ctx: ExecutionContex
   try {
     outcome = await commit(gate.value, 'innovations', [
       innovationInsert(db, reference, data, gate.value.key),
+      caseInsert(db, reference, 'innovation', gate.value.organization, gate.value.participant?.email ?? null),
       ...uploaded.map((u) => evidenceInsert(db, reference, u)),
       ...outboxStatements(db, reference, submissionOutbox('innovation', one(data.email), {
         category: one(data.category),
@@ -333,7 +360,10 @@ async function handleInnovation(request: Request, env: Env, ctx: ExecutionContex
     await removeObjects(env, uploaded.map((u) => u.key))
     throw cause
   }
-  if (!outcome.ok) return fail(outcome)
+  if (!outcome.ok) {
+    await removeObjects(env, uploaded.map((u) => u.key))
+    return fail(outcome)
+  }
   if (outcome.value !== 'stored') {
     // A concurrent retry stored the record first; these uploads are surplus.
     await removeObjects(env, uploaded.map((u) => u.key))

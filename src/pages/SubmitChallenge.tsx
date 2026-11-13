@@ -1,3 +1,4 @@
+import SubmissionAccount from '../components/forms/SubmissionAccount'
 import { useEffect, useState } from 'react'
 import PageMeta from '../components/layout/PageMeta'
 import FormShell from '../components/forms/FormShell'
@@ -294,6 +295,7 @@ export default function SubmitChallenge() {
       </PageHero>
 
       <section className="container-grid pb-28">
+        <SubmissionAccount />
         <FormShell
           steps={steps}
           index={Math.min(value.step, steps.length - 1)}

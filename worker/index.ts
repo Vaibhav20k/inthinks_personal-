@@ -8,6 +8,8 @@ import { handleIntake, json } from './intake'
 import { deliverOutbox } from './outbox'
 import { turnstileEnabled } from './turnstile'
 import { ipTag } from './ratelimit'
+import { handleParticipant } from './participant'
+import { sameOrigin } from './access-http'
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -91,9 +93,15 @@ export default {
       )
     }
 
+    if (url.pathname.startsWith('/api/participant/')) {
+      try { return await handleParticipant(request, env) }
+      catch { return json({ error: 'Account request failed. Please try again.' }, 500) }
+    }
+
     const ip = request.headers.get('cf-connecting-ip') ?? '0.0.0.0'
 
     if (url.pathname.startsWith('/api/admin')) {
+      if (!['GET', 'HEAD'].includes(request.method) && !sameOrigin(request)) return json({ error: 'Request origin not allowed.' }, 403)
       try {
         // The admin surface only ever sees a keyed hash of the address: it is
         // used for the audit trail and login throttling, never stored raw.
