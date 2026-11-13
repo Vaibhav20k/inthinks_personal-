@@ -137,14 +137,16 @@ export function innovationInsert(db: D1Database, reference: string, data: Clean,
 export function evidenceInsert(
   db: D1Database,
   reference: string,
-  file: { key: string; name: string; type: string; size: number },
+  file: { key: string; name: string; type: string; size: number; detected?: string },
 ) {
+  // scan_status defaults to 'quarantined' (migration 0015): nothing is served
+  // to participants or non-admin staff until a person releases it.
   return db
     .prepare(
-      `INSERT INTO evidence (reference, object_key, file_name, content_type, size_bytes, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO evidence (reference, object_key, file_name, content_type, size_bytes, created_at, detected_type)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     )
-    .bind(reference, file.key, file.name, file.type, file.size, new Date().toISOString())
+    .bind(reference, file.key, file.name, file.type, file.size, new Date().toISOString(), file.detected ?? null)
 }
 
 export type SubmissionTable = 'challenges' | 'innovations' | 'messages'

@@ -3,6 +3,7 @@ import { reply, sameOrigin } from './access-http'
 import { participant, participantAuth } from './participant-auth'
 import { organizationRoutes } from './participant-organizations'
 import { recordRoutes } from './participant-records'
+import { participantWorkflowRoutes } from './participant-workflow'
 import { audit } from './audit'
 import { ipTag } from './ratelimit'
 
@@ -15,6 +16,7 @@ export async function handleParticipant(request: Request, env: Env) {
   if (!user) return reply({error:'Verify your email to continue.'},401)
   if (path === '/me' && request.method === 'GET') return reply(user)
   const response = await organizationRoutes(request,env.DB!,user,path)
+    ?? await participantWorkflowRoutes(request,env,user,path)
     ?? await recordRoutes(request,env,user,path)
     ?? reply({error:'Not found.'},404)
   if (response.ok) await audit(env.DB!,{email:user.email,role:'participant'},`participant.${request.method.toLowerCase()}`,path,undefined,

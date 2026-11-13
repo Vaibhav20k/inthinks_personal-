@@ -3,6 +3,7 @@ import type { Env } from './types'
 import { bodyObject, emailValue, reply, textValue } from './access-http'
 import { audit } from './audit'
 import { signEvidence } from './evidence'
+import { caseWorkflowRoutes } from './case-workflow'
 
 export const isPlatformAdmin = (ctx: AuthContext) => ctx.actor.role === 'admin' || ctx.actor.role === 'super-admin'
 export async function assigned(ctx: AuthContext, reference: string) {
@@ -10,8 +11,10 @@ export async function assigned(ctx: AuthContext, reference: string) {
   return Boolean(await ctx.db.prepare('SELECT 1 FROM case_assignments WHERE reference=? AND staff_email=?').bind(reference,ctx.actor.email).first())
 }
 export async function mayDownload(ctx: AuthContext, key: string) {
-  const row = await ctx.db.prepare('SELECT id,reference FROM evidence WHERE object_key=?').bind(key).first<{id:number;reference:string}>()
+  const row = await ctx.db.prepare('SELECT id,reference,scan_status FROM evidence WHERE object_key=?').bind(key).first<{id:number;reference:string;scan_status:string}>()
   if (!row || !await assigned(ctx,row.reference)) return false
+  // Administrators inspect quarantined files; everyone else waits for release.
+  if (!isPlatformAdmin(ctx) && row.scan_status !== 'released') return false
   if (ctx.actor.role === 'rnd-reviewer') return Boolean(await ctx.db.prepare('SELECT 1 FROM reviewer_evidence_approvals WHERE evidence_id=?').bind(row.id).first())
   return true
 }
@@ -20,7 +23,7 @@ export async function mayDownload(ctx: AuthContext, key: string) {
  * until their assignment rules are explicitly added here. */
 export async function staffAccess(request: Request, env: Env, ctx: AuthContext, path: string, ip: string): Promise<Response | null> {
   const { db, actor } = ctx
-  const control = path.match(/^\/access\/([A-Za-z0-9-]{1,32})(?:\/(assignments|brief|evidence))?$/)
+  const control = path.match(/^\/access\/([A-Za-z0-9-]{1,32})(?:\/(assignments|brief|evidence|scan))?$/)
   if (control) {
     if (!isPlatformAdmin(ctx)) return reply({error:'Administrator access required.'},403)
     const reference = control[1]
@@ -28,7 +31,7 @@ export async function staffAccess(request: Request, env: Env, ctx: AuthContext, 
     if (request.method === 'GET' && !control[2]) {
       const assignments = await db.prepare('SELECT staff_email,assigned_at FROM case_assignments WHERE reference=?').bind(reference).all()
       const brief = await db.prepare('SELECT title,summary,approved_at FROM case_review_briefs WHERE reference=?').bind(reference).first()
-      const files = await db.prepare(`SELECT e.id,e.file_name,CASE WHEN a.evidence_id IS NULL THEN 0 ELSE 1 END approved
+      const files = await db.prepare(`SELECT e.id,e.file_name,e.scan_status,e.detected_type,e.scan_note,CASE WHEN a.evidence_id IS NULL THEN 0 ELSE 1 END approved
         FROM evidence e LEFT JOIN reviewer_evidence_approvals a ON a.evidence_id=e.id WHERE e.reference=?`).bind(reference).all()
       return reply({assignments:assignments.results,brief,files:files.results})
     }
@@ -60,13 +63,32 @@ export async function staffAccess(request: Request, env: Env, ctx: AuthContext, 
       if (body.revoke === true) await db.prepare('DELETE FROM reviewer_evidence_approvals WHERE evidence_id=?').bind(id).run()
       else {
         if (body.confirmAnonymized !== true) return reply({error:'Confirm the file is safe for technical reviewers.'},422)
+        if (!await db.prepare("SELECT 1 FROM evidence WHERE id=? AND scan_status='released'").bind(id).first()) return reply({error:'Release the file from quarantine before sharing it with reviewers.'},409)
         await db.prepare('INSERT OR REPLACE INTO reviewer_evidence_approvals(evidence_id,approved_by,approved_at) VALUES (?,?,?)').bind(id,actor.email,new Date().toISOString()).run()
       }
       await audit(db,actor,body.revoke === true ? 'review-file.revoke' : 'review-file.approve',reference,{id},ip)
       return reply({ok:true})
     }
+    if (control[2] === 'scan') {
+      const id = Number(body.id), decision = body.decision
+      if (decision !== 'released' && decision !== 'rejected') return reply({error:'Choose release or reject.'},422)
+      if (body.confirmInspected !== true) return reply({error:'Confirm you inspected the file before deciding.'},422)
+      const note = textValue(body.note,500)
+      if (decision === 'rejected' && !note) return reply({error:'Record why the file is rejected.'},422)
+      const changed = await db.batch([
+        db.prepare('UPDATE evidence SET scan_status=?,scan_note=?,scanned_by=?,scanned_at=? WHERE id=? AND reference=?')
+          .bind(decision,note || null,actor.email,new Date().toISOString(),Number.isSafeInteger(id) ? id : -1,reference),
+        // A rejected file can no longer be shared with reviewers.
+        db.prepare("DELETE FROM reviewer_evidence_approvals WHERE evidence_id=? AND EXISTS (SELECT 1 FROM evidence WHERE id=? AND scan_status='rejected')").bind(id,id),
+      ])
+      if (!changed[0].meta.changes) return reply({error:'Not found.'},404)
+      await audit(db,actor,`file.${decision === 'released' ? 'release' : 'reject'}`,reference,{id},ip)
+      return reply({ok:true})
+    }
     return reply({error:'Not found.'},404)
   }
+  const workflow = await caseWorkflowRoutes(request, ctx, path, ip)
+  if (workflow) return workflow
   // Prevent staff notes being attached to arbitrary or nonexistent references.
   const note = path.match(/^\/notes\/([A-Za-z0-9-]{1,32})$/)
   if (note && !await db.prepare('SELECT 1 FROM case_records WHERE reference=?').bind(note[1]).first()) return reply({error:'Not found.'},404)
@@ -96,7 +118,7 @@ export async function staffAccess(request: Request, env: Env, ctx: AuthContext, 
     if (!row) return reply({error:'Not found.'},404)
     const brief = await db.prepare('SELECT title,summary FROM case_review_briefs WHERE reference=?').bind(reference).first<{title:string;summary:string}>()
     const notes = await db.prepare('SELECT id,body,author,created_at FROM notes WHERE reference=? AND author=? ORDER BY created_at DESC').bind(reference,actor.email).all()
-    const files = await db.prepare(`SELECT e.id,e.object_key,e.size_bytes FROM evidence e JOIN reviewer_evidence_approvals a ON a.evidence_id=e.id WHERE e.reference=?`).bind(reference).all<{id:number;object_key:string;size_bytes:number}>()
+    const files = await db.prepare(`SELECT e.id,e.object_key,e.size_bytes FROM evidence e JOIN reviewer_evidence_approvals a ON a.evidence_id=e.id WHERE e.reference=? AND e.scan_status='released'`).bind(reference).all<{id:number;object_key:string;size_bytes:number}>()
     const evidence = await Promise.all(files.results.map(async f=>({fileName:`Reviewed evidence ${f.id}`,contentType:'application/octet-stream',sizeBytes:f.size_bytes,url:env.SESSION_SECRET ? await signEvidence(env.SESSION_SECRET,f.object_key) : null})))
     await audit(db,actor,'assigned-case.view',reference,undefined,ip)
     return reply({reference,title:brief?.title ?? reference,createdAt:row.created_at,reviewStatus:row.review_status,

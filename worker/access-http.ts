@@ -14,7 +14,7 @@ export async function digest(value: string) {
   const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
   return Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2,'0')).join('')
 }
-export async function bodyObject(request: Request): Promise<Record<string,unknown> | null> {
+export async function bodyObject(request: Request, max = 32_768): Promise<Record<string,unknown> | null> {
   if (!request.headers.get('content-type')?.includes('application/json')) return null
   // Bound reads before parsing, including chunked requests without content-length.
   const reader = request.body?.getReader()
@@ -24,7 +24,7 @@ export async function bodyObject(request: Request): Promise<Record<string,unknow
     const { done, value } = await reader.read()
     if (done) break
     length += value.byteLength
-    if (length > 32_768) { await reader.cancel(); return null }
+    if (length > max) { await reader.cancel(); return null }
     chunks.push(value)
   }
   const bytes = new Uint8Array(length); let offset = 0

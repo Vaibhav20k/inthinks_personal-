@@ -5,6 +5,8 @@ import { audit } from './audit'
 import { checkLogin } from './ratelimit'
 import { deliverOutbox } from './outbox'
 import { signEvidence, verifyEvidence } from './evidence'
+import { fileHead, sniff } from './file-safety'
+import { healthReport } from './operations'
 import {
   ACQUISITION_STAGES, CHALLENGE_STATUSES, DIMENSION_KEYS,
   INNOVATION_STATUSES, SCORING_DIMENSIONS,
@@ -361,7 +363,7 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
     const [scoreRows, noteRows, files] = await Promise.all([
       db.prepare('SELECT dimension, value, note, scored_by, scored_at FROM scores WHERE reference = ?').bind(reference).all(),
       db.prepare('SELECT id, body, author, created_at FROM notes WHERE reference = ? ORDER BY created_at DESC').bind(reference).all(),
-      db.prepare('SELECT object_key, file_name, content_type, size_bytes FROM evidence WHERE reference = ?').bind(reference).all<Record<string, unknown>>(),
+      db.prepare('SELECT object_key, file_name, content_type, size_bytes, scan_status FROM evidence WHERE reference = ?').bind(reference).all<Record<string, unknown>>(),
     ])
 
     const evidence = env.SESSION_SECRET
@@ -370,10 +372,11 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
             fileName: f.file_name,
             contentType: f.content_type,
             sizeBytes: f.size_bytes,
+            scanStatus: f.scan_status,
             url: await signEvidence(env.SESSION_SECRET!, String(f.object_key)),
           })),
         )
-      : files.results.map((f) => ({ fileName: f.file_name, contentType: f.content_type, sizeBytes: f.size_bytes, url: null }))
+      : files.results.map((f) => ({ fileName: f.file_name, contentType: f.content_type, sizeBytes: f.size_bytes, scanStatus: f.scan_status, url: null }))
 
     // Logged as a read: opening a disclosure is the sensitive action here.
     await audit(db, actor, 'innovation.view', reference, undefined, ip)
@@ -565,6 +568,11 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
   // Receipts and arrival notices that did not go out. Staff can see why and
   // re-queue them; the payload (which holds the recipient address) is never
   // returned.
+  if (path === '/health' && request.method === 'GET') {
+    if (!can.viewAudit) return json({ error: 'Not permitted' }, 403)
+    return json(await healthReport(env))
+  }
+
   if (path === '/outbox' && request.method === 'GET') {
     if (!can.viewAudit) return json({ error: 'Not permitted' }, 403)
     const rows = await db
@@ -787,6 +795,9 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
       if (file.size > 25 * 1024 * 1024) continue
       if (!env.EVIDENCE) break
       const ext = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.') + 1).toLowerCase() : ''
+      // Same content check as public intake; a mislabelled or executable file is skipped.
+      const sniffed = sniff(ext, await fileHead(file))
+      if (!sniffed.ok) continue
       const key = `${reference}/dev/${crypto.randomUUID()}${ext ? `.${ext}` : ''}`
       await env.EVIDENCE.put(key, file.stream(), {
         httpMetadata: { contentType: file.type || 'application/octet-stream' },
@@ -794,10 +805,10 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
       })
       await db
         .prepare(
-          `INSERT INTO evidence (reference, object_key, file_name, content_type, size_bytes, created_at, log_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO evidence (reference, object_key, file_name, content_type, size_bytes, created_at, log_id, detected_type)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         )
-        .bind(reference, key, file.name.slice(0, 300), file.type || 'application/octet-stream', file.size, new Date().toISOString(), inserted?.id ?? null)
+        .bind(reference, key, file.name.slice(0, 300), file.type || 'application/octet-stream', file.size, new Date().toISOString(), inserted?.id ?? null, sniffed.detected)
         .run()
     }
 

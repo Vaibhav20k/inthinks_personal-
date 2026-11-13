@@ -39,7 +39,9 @@ export async function recordRoutes(request: Request, env: Env, user: Participant
   }
   const file = path.match(/^\/evidence\/(\d+)$/)
   if (file && request.method === 'GET') {
-    const evidence = await db.prepare('SELECT reference,object_key FROM evidence WHERE id=?').bind(Number(file[1])).first<{reference:string;object_key:string}>()
+    const evidence = await db.prepare("SELECT reference,object_key FROM evidence WHERE id=? AND scan_status='released'").bind(Number(file[1])).first<{reference:string;object_key:string}>()
+    // Quarantined files are withheld even from their own organization: another
+    // member's upload is not proven safe until a person releases it.
     if (!evidence || !await accessibleCase(db,evidence.reference,user.email)) return reply({error:'Not found.'},404)
     if (!env.EVIDENCE) return reply({error:'File storage unavailable.'},503)
     const object = await env.EVIDENCE.get(evidence.object_key)
@@ -63,8 +65,8 @@ export async function recordRoutes(request: Request, env: Env, user: Participant
   // Deliberately excludes internal scores, notes, priority, economics and matches.
   const row = await db.prepare(`SELECT reference,title,created_at,review_status,payload FROM ${table} WHERE reference=?`).bind(record.reference).first<Record<string,unknown>>()
   if (!row) return reply({error:'Not found.'},404)
-  const files = await db.prepare('SELECT id,file_name,size_bytes FROM evidence WHERE reference=?').bind(record.reference).all<{id:number;file_name:string;size_bytes:number}>()
+  const files = await db.prepare('SELECT id,file_name,size_bytes,scan_status FROM evidence WHERE reference=?').bind(record.reference).all<{id:number;file_name:string;size_bytes:number;scan_status:string}>()
   return reply({reference:row.reference,kind:record.kind,title:row.title,createdAt:row.created_at,reviewStatus:row.review_status,
-    answers:JSON.parse(String(row.payload)),evidence:files.results.map(f=>({id:f.id,name:f.file_name,size:f.size_bytes,url:`/api/participant/evidence/${f.id}`}))},200,
+    answers:JSON.parse(String(row.payload)),evidence:files.results.map(f=>({id:f.id,name:f.file_name,size:f.size_bytes,status:f.scan_status,url:f.scan_status === 'released' ? `/api/participant/evidence/${f.id}` : null}))},200,
     match[2] === 'export' ? {'content-disposition':`attachment; filename="${record.reference}.json"`} : {})
 }

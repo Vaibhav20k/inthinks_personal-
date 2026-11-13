@@ -97,3 +97,10 @@ custom_domain = true
 # submitting request could not deliver. Free on the Workers Free plan.
 [triggers]
 crons = ["*/5 * * * *"]
+
+# Workers Logs: keeps console output (including the cron health line from
+# worker/operations.ts) searchable in the dashboard. Included in the Workers
+# Free plan within its daily log allowance; search for
+# `inthinks.health` there. Configured here, not yet verified on a deployment.
+[observability]
+enabled = true

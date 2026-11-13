@@ -10,6 +10,8 @@ import { turnstileEnabled } from './turnstile'
 import { ipTag } from './ratelimit'
 import { handleParticipant } from './participant'
 import { sameOrigin } from './access-http'
+import { liveness, logOperationalWarnings } from './operations'
+import { purgeExpiredDrafts } from './participant-workflow'
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -29,6 +31,12 @@ export default {
         // Public by design: a Turnstile site key is meant to be in the page.
         turnstileSiteKey: turnstileEnabled(env) ? env.TURNSTILE_SITE_KEY : null,
       })
+    }
+
+    // Liveness for an external uptime monitor: database reachability only.
+    if (url.pathname === '/api/health' && request.method === 'GET') {
+      const live = await liveness(env)
+      return json({ ok: live.ok }, live.status)
     }
 
     // The public portfolio. Read-only, unauthenticated, and served before the
@@ -133,6 +141,6 @@ export default {
    * (provider down, request cut short). See wrangler.toml [triggers].
    */
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(deliverOutbox(env, { limit: 50 }).then(() => undefined))
+    ctx.waitUntil(deliverOutbox(env, { limit: 50 }).then(() => purgeExpiredDrafts(env)).then(() => logOperationalWarnings(env)))
   },
 }

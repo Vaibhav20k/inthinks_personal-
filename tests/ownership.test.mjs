@@ -1,4 +1,4 @@
-export async function testOwnership({db,call,check,challenge,innovation,admin,deliveries}) {
+export async function testOwnership({mf,db,call,check,challenge,innovation,admin,deliveries}) {
   await db.prepare('DELETE FROM rate_limit').run()
   async function login(email) {
     const start = await call('/api/participant/login/request',{email})
@@ -62,7 +62,17 @@ export async function testOwnership({db,call,check,challenge,innovation,admin,de
   const filePath = `/api/participant/evidence/${file.id}`
   check('foreign company cannot download evidence',(await call(filePath,null,b)).status,404)
   const ownerFiles = (await call(`/api/participant/records/${existingInnovation.reference}`,null,innovator)).body.evidence
-  check('owner gets authorized file endpoint',ownerFiles[0].url,filePath)
+  check('quarantined file has no download link for its owner',ownerFiles[0].url,null)
+  check('quarantined file withheld from its own organization',(await call(filePath,null,innovator)).status,404)
+  const scan = `/api/admin/access/${existingInnovation.reference}/scan`
+  check('release requires confirmed inspection',(await call(scan,{id:file.id,decision:'released'},admin)).status,422)
+  check('rejection requires a reason',(await call(scan,{id:file.id,decision:'rejected',confirmInspected:true},admin)).status,422)
+  check('quarantined file cannot be shared with reviewers',(await call(`/api/admin/access/${existingInnovation.reference}/evidence`,{id:file.id,confirmAnonymized:true},admin)).status,409)
+  check('admin releases inspected file',(await call(scan,{id:file.id,decision:'released',confirmInspected:true},admin)).status,200)
+  check('release is audited',Boolean(await db.prepare("SELECT 1 FROM audit_log WHERE action='file.release'").first()),true)
+  check('owner gets authorized file endpoint after release',(await call(`/api/participant/records/${existingInnovation.reference}`,null,innovator)).body.evidence[0].url,filePath)
+  const download = await mf.dispatchFetch(`https://inthinks.test${filePath}`,{headers:innovator})
+  check('released file downloads for its owner',[download.status,await download.text()],[200,'test evidence'])
   const reviewerToken = (await call('/test/session',{email:'reviewer@example.com',role:'rnd-reviewer'})).body.token
   const reviewer = {cookie:`inthinks_admin=${reviewerToken}`}
   const mediatorToken = (await call('/test/session',{email:'mediator@example.com',role:'business-development'})).body.token
@@ -93,4 +103,5 @@ export async function testOwnership({db,call,check,challenge,innovation,admin,de
   check('cross-origin admin mutation blocked',(await call(`/api/admin/challenges/${ref}`,{reviewStatus:'declined'},{...admin,origin:'https://attacker.test'},'PATCH')).status,403)
   check('logout revokes session',(await call('/api/participant/logout',{},a)).status,200)
   check('old participant cookie no longer works',(await call('/api/participant/me',null,a)).status,401)
+  return {login,orgA,orgB,ref,b,mediator,reviewer,innovator,existingInnovation,file}
 }

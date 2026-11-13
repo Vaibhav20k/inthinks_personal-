@@ -18,6 +18,7 @@ export default function Shell({ me, onSignedOut, children }: { me: Me; onSignedO
     { to: '/admin', label: 'Overview', end: true },
     { to: '/admin/innovations', label: 'Innovations' },
     { to: '/admin/challenges', label: 'Challenges' },
+    { to: '/admin/next-actions', label: 'Next actions' },
     ...(me.can.viewChallengeContacts ? [{ to: '/admin/messages', label: 'Messages' }] : []),
     ...(me.can.moveAcquisitionStage ? [{ to: '/admin/public', label: 'Public records' }] : []),
     { to: '/admin/matches', label: 'Matches' },
@@ -27,7 +28,7 @@ export default function Shell({ me, onSignedOut, children }: { me: Me; onSignedO
     ...(me.can.viewCommercialTerms
       ? [{ to: '/admin/deals', label: 'Deals' }, { to: '/admin/royalties', label: 'Royalties' }]
       : []),
-    ...(me.can.viewAudit ? [{ to: '/admin/audit', label: 'Audit log' }] : []),
+    ...(me.can.viewAudit ? [{ to: '/admin/audit', label: 'Audit log' }, { to: '/admin/operations', label: 'Operations' }] : []),
     ...(me.can.manageUsers ? [{ to: '/admin/users', label: 'Users' }] : []),
   ]
 

@@ -25,6 +25,8 @@ import Royalties from './Royalties'
 import Royalty from './Royalty'
 import AuditLog from './AuditLog'
 import Users from './Users'
+import NextActions from './NextActions'
+import Operations from './Operations'
 import { Empty } from './ui'
 
 /**
@@ -102,7 +104,9 @@ export default function AdminApp() {
         {me.can.viewCommercialTerms && <Route path="deals/:reference" element={<DealRoom me={me} />} />}
         {me.can.viewCommercialTerms && <Route path="royalties" element={<Royalties me={me} />} />}
         {me.can.viewCommercialTerms && <Route path="royalties/:reference" element={<Royalty me={me} />} />}
+        <Route path="next-actions" element={<NextActions />} />
         {me.can.viewAudit && <Route path="audit" element={<AuditLog />} />}
+        {me.can.viewAudit && <Route path="operations" element={<Operations />} />}
         {me.can.manageUsers && <Route path="users" element={<Users />} />}
         <Route path="*" element={<Empty>That admin page does not exist.</Empty>} />
       </Routes>

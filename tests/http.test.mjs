@@ -92,7 +92,9 @@ try {
   check('email receipt excludes technical content', deliveries.filter(d => d.url.includes('resend')).every(d => !d.body.text.includes(challenge.statement)), true)
   // Added ownership/isolation checks run in the same database after intake checks.
   const { testOwnership } = await import('./ownership.test.mjs')
-  await testOwnership({ mf, db, call, check, challenge, innovation, admin, deliveries })
+  const state = await testOwnership({ mf, db, call, check, challenge, innovation, admin, deliveries })
+  const { testWorkflow } = await import('./workflow.test.mjs')
+  await testWorkflow({ ...state, mf, db, call, check, innovation, admin })
   check('database foreign-key integrity',(await db.prepare('PRAGMA foreign_key_check').all()).results,[])
   console.log(`${checks} HTTP integration checks passed.`)
 } finally { await mf.dispose() }

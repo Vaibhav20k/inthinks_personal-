@@ -1,0 +1,33 @@
+# Type checks, unit suites, the HTTP integration suite (isolated Miniflare
+# D1/R2, mocked email/webhook), the production build and CSP hashing.
+# No secrets are used and nothing is deployed.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --include=dev
+      - run: npm run build
+      - name: Check every migration is append-only
+        # Applied migrations must never be edited; a changed file means the
+        # live database and the repository disagree.
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+          changed=$(git diff --name-only --diff-filter=MDR "origin/${{ github.base_ref }}" -- migrations/ || true)
+          if [ -n "$changed" ]; then echo "Edited or removed migrations: $changed"; exit 1; fi

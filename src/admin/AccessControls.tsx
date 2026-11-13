@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Panel } from './ui'
 
-interface AccessState {assignments:{staff_email:string}[];brief:{title:string;summary:string}|null;files:{id:number;file_name:string;approved:number}[]}
+interface AccessState {assignments:{staff_email:string}[];brief:{title:string;summary:string}|null;files:{id:number;file_name:string;approved:number;scan_status:string;detected_type:string|null;scan_note:string|null}[]}
 export default function AccessControls({reference}:{reference:string}) {
   const [data,setData] = useState<AccessState|null>(null), [error,setError] = useState(''), [busy,setBusy] = useState(false)
   const [email,setEmail] = useState(''), [title,setTitle] = useState(''), [summary,setSummary] = useState(''), [confirmed,setConfirmed] = useState(false)
@@ -26,7 +26,14 @@ export default function AccessControls({reference}:{reference:string}) {
         <label className="flex items-start gap-3"><input type="checkbox" required checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>I reviewed this brief and removed names, identifiable locations, contact details, and private commercial information.</label>
         <button className="border px-4 py-2" disabled={busy||!confirmed}>Approve reviewer brief</button>
       </form>
-      {data?.files.map(f=><label key={f.id} className="flex items-start gap-3"><input type="checkbox" disabled={busy} checked={Boolean(f.approved)} onChange={e=>void change('/evidence',{id:f.id,revoke:!e.target.checked,confirmAnonymized:e.target.checked})}/><span>{f.file_name} — safe for assigned technical reviewers. Approve only after checking the file contents for identity and commercial information.</span></label>)}
+      {Boolean(data?.files.length)&&<h3 className="font-semibold">Files</h3>}
+      <p className="text-sm">Every file starts quarantined. No virus scanner runs here: download it as an administrator, inspect it on a protected machine, then release or reject it. Only released files reach the submitter's team, mediators or reviewers.</p>
+      {data?.files.map(f=><div key={f.id} className="grid gap-2 border p-3" style={{borderColor:'var(--rule)'}}>
+        <span>{f.file_name} · {f.scan_status}{f.detected_type?` · content looks like ${f.detected_type}`:''}{f.scan_note?` · ${f.scan_note}`:''}</span>
+        {f.scan_status!=='released'&&<button className="underline justify-self-start" disabled={busy} onClick={()=>{if(window.confirm('Release this file? Confirm you inspected its contents.'))void change('/scan',{id:f.id,decision:'released',confirmInspected:true})}}>Release after inspection</button>}
+        {f.scan_status!=='rejected'&&<button className="underline justify-self-start" disabled={busy} onClick={()=>{const note=window.prompt('Why is this file rejected?');if(note)void change('/scan',{id:f.id,decision:'rejected',confirmInspected:true,note})}}>Reject file</button>}
+        {f.scan_status==='released'&&<label className="flex items-start gap-3"><input type="checkbox" disabled={busy} checked={Boolean(f.approved)} onChange={e=>void change('/evidence',{id:f.id,revoke:!e.target.checked,confirmAnonymized:e.target.checked})}/><span>Safe for assigned technical reviewers. Approve only after checking the contents for identity and commercial information.</span></label>}
+      </div>)}
     </div>
   </Panel>
 }

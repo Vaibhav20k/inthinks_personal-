@@ -1,4 +1,5 @@
 import SubmissionAccount from '../components/forms/SubmissionAccount'
+import { discardServerDraft } from '../lib/server-draft'
 import { useEffect, useState } from 'react'
 import PageMeta from '../components/layout/PageMeta'
 import FormShell from '../components/forms/FormShell'
@@ -111,6 +112,7 @@ export default function SubmitChallenge() {
       setReference(issued)
       clear()
       submission.renew()
+      void discardServerDraft('challenge')
     } catch (cause) {
       // The bot-check token was spent on this attempt; a retry needs a new one.
       // The idempotency key is kept, so a retry cannot open a second case.
@@ -295,7 +297,7 @@ export default function SubmitChallenge() {
       </PageHero>
 
       <section className="container-grid pb-28">
-        <SubmissionAccount />
+        <SubmissionAccount draft={{ kind: 'challenge', value, onRestore: (payload) => update(payload as Partial<ChallengeDraft>) }} />
         <FormShell
           steps={steps}
           index={Math.min(value.step, steps.length - 1)}

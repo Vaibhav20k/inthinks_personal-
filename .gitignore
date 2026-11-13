@@ -13,3 +13,6 @@ yarn-error.log*
 .dev.vars
 dist-preview
 .test-build
+
+# D1 exports hold confidential submissions; never commit them.
+backups/

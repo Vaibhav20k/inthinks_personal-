@@ -20,6 +20,7 @@ import type { SubmissionTable } from './storage'
 import { SUBMISSION_CEILING, chargeSubmission, checkRequest, submissionsUsed } from './ratelimit'
 import { deliverOutbox, outboxStatements, submissionOutbox } from './outbox'
 import { verifyTurnstile } from './turnstile'
+import { fileHead, sniff } from './file-safety'
 
 /**
  * Public intake: contact messages, industry challenges, innovations.
@@ -320,6 +321,13 @@ async function handleInnovation(request: Request, env: Env, ctx: ExecutionContex
   }
   const filesOk = checkFiles(files, env)
   if (!filesOk.ok) return fail(filesOk)
+  // Content must agree with the extension; executables are refused outright.
+  const detected: string[] = []
+  for (const file of files) {
+    const sniffed = sniff(extensionOf(file.name), await fileHead(file))
+    if (!sniffed.ok) return fail(err(415, `${file.name} ${sniffed.reason}`))
+    detected.push(sniffed.detected)
+  }
 
   const admitted = await admit(env, request, gate.value)
   if (!admitted.ok) return fail(admitted)
@@ -329,15 +337,15 @@ async function handleInnovation(request: Request, env: Env, ctx: ExecutionContex
 
   // Files first. If any upload fails nothing has been recorded, so the
   // submitter can simply retry with the same key.
-  const uploaded: { key: string; name: string; type: string; size: number }[] = []
+  const uploaded: { key: string; name: string; type: string; size: number; detected: string }[] = []
   try {
-    for (const file of files) {
+    for (const [index, file] of files.entries()) {
       const key = safeKey(reference, file.name)
       await env.EVIDENCE!.put(key, file.stream(), {
         httpMetadata: { contentType: 'application/octet-stream' },
         customMetadata: { reference },
       })
-      uploaded.push({ key, name: file.name.slice(0, 300), type: file.type || 'application/octet-stream', size: file.size })
+      uploaded.push({ key, name: file.name.slice(0, 300), type: file.type || 'application/octet-stream', size: file.size, detected: detected[index] })
     }
   } catch {
     await removeObjects(env, uploaded.map((u) => u.key))

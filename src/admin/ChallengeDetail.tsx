@@ -1,4 +1,5 @@
 import AccessControls from './AccessControls'
+import CaseWorkflow from './CaseWorkflow'
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import * as api from './api'
@@ -100,7 +101,7 @@ export default function ChallengeDetail({ me }: { me: Me }) {
 
   return (
     <div className="grid gap-6">
-      {(me.role === 'admin' || me.role === 'super-admin') && <AccessControls reference={reference} />}
+      {(me.role === 'admin' || me.role === 'super-admin') && <><AccessControls reference={reference} /><CaseWorkflow reference={reference} /></>}
       <div>
         <Link to="/admin/challenges" className="label" style={{ color: 'var(--color-muted)' }}>
           ← CHALLENGES
