@@ -12,6 +12,31 @@ permissions:
   contents: read
 
 jobs:
+  commits:
+    # Conventional Commits: type(scope)!: subject. Checks only the commits this
+    # push or pull request adds; merge commits are skipped.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check commit messages
+        env:
+          BEFORE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          AFTER: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            echo "New branch: nothing to compare against."; exit 0
+          fi
+          pattern='(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9,._/-]+\))?!?: .+'
+          bad=$(git log --no-merges --format='%h %s' "$BEFORE..$AFTER" | grep -Ev "^[0-9a-f]+ $pattern" || true)
+          if [ -n "$bad" ]; then
+            echo "These commits do not follow Conventional Commits (type(scope): subject):"
+            echo "$bad"; exit 1
+          fi
+          echo "All commit messages follow Conventional Commits."
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
