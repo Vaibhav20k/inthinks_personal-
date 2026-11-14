@@ -114,7 +114,7 @@ pass. Every migration runs in an isolated test database.
 - Meaning-vectors are stored (migration 0019) and recomputed only when a
   record's text changes.
 
-**Test status:** 247 automated HTTP checks + 6 unit suites pass.
+**Test status:** 247 automated HTTP checks + 7 unit suites pass.
 
 ---
 
@@ -159,15 +159,15 @@ pass. Every migration runs in an isolated test database.
   (14 Nov 2026). Public pages now show only admin-published records, and an
   empty state until then. The home-page signal animation is hidden until
   published pairs exist.
-- [ ] Problem/solution checklists cover 5 groups, but the form has 11
-  sectors (Construction, Mining, Electronics, Infrastructure, Consumer
-  Products, Materials get the general list; the water list is unreachable).
-- [ ] When signed in, the submission form should fill in and lock the
-  verified email instead of rejecting a different one.
+- [x] Checklists now cover all 11 form sectors (added construction /
+  infrastructure, mining, electronics); a unit test keeps them in step with
+  the form and checks each problem limit has a comparable solution figure.
+  The water list is used only for free-text sectors (no form option).
+- [x] Signed-in submitters get their verified email filled in and locked
+  on both submission forms (checked in the browser on staging).
 - [x] Phase 7 participant form clicked through on staging (14 Nov 2026):
   accept, reject and typed answers all saved correctly; test case removed.
-- [ ] Show large numbers with separators in suggestions (2,400,000 not
-  2400000).
+- [x] Suggested numbers show separators (2,400,000).
 - [x] Phase 9 checked live on staging (14 Nov 2026), engine
   `rules+figures+@cf/baai/bge-m3`. Kiln problem → coating **Strong** (0.76),
   battery film **Weak** (0.45). Reverse: vibration sensor → conveyor problem

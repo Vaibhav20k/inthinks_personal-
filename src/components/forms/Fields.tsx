@@ -48,9 +48,11 @@ interface TextProps extends BaseProps {
   placeholder?: string
   type?: 'text' | 'email' | 'tel' | 'url' | 'number'
   inputMode?: 'text' | 'email' | 'tel' | 'url' | 'numeric'
+  /** Shown but not editable, e.g. a verified email the server requires. */
+  readOnly?: boolean
 }
 
-export function TextField({ value, onChange, placeholder, type = 'text', inputMode, ...base }: TextProps) {
+export function TextField({ value, onChange, placeholder, type = 'text', inputMode, readOnly, ...base }: TextProps) {
   const id = useId()
   return (
     <Wrapper {...base} htmlFor={id}>
@@ -60,10 +62,11 @@ export function TextField({ value, onChange, placeholder, type = 'text', inputMo
         inputMode={inputMode}
         value={value}
         placeholder={placeholder}
+        readOnly={readOnly}
         aria-invalid={base.error ? true : undefined}
         aria-required={base.required}
         onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
-        className="field-input"
+        className={readOnly ? 'field-input opacity-70' : 'field-input'}
       />
     </Wrapper>
   )

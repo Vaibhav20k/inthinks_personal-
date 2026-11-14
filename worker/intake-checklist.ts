@@ -60,6 +60,29 @@ const CHALLENGE: Record<string, ChecklistItem[]> = {
       question: 'What outlet concentration must be reached?' },
     COST_OF_PROBLEM, TARGET,
   ],
+  construction: [
+    { key: 'required_strength', label: 'Strength the solution must reach', category: 'constraint', units: ['MPa'], comparator: 'gte',
+      question: 'What strength (in MPa) must a solution reach?' },
+    { key: 'required_service_life', label: 'Service life required', category: 'constraint', units: ['year'], comparator: 'gte',
+      question: 'How many years must a solution last in service?' },
+    COST_OF_PROBLEM, TARGET,
+  ],
+  mining: [
+    { key: 'ore_throughput', label: 'Material throughput to handle', category: 'measurement', units: ['t/year', 'kg/h'],
+      question: 'How much material per year would a solution need to handle?' },
+    { key: 'water_use', label: 'Current water use of this process', category: 'measurement', units: ['m3/h', 'L/min'],
+      question: 'How much water does this process use today?' },
+    { key: 'energy_use', label: 'Current energy use of this process', category: 'measurement', units: ['MWh/year', 'kWh/year'],
+      question: 'How much energy does this process use per year today?' },
+    COST_OF_PROBLEM, TARGET,
+  ],
+  electronics: [
+    { key: 'operating_temperature', label: 'Temperature the solution must withstand', category: 'constraint', units: ['°C'], comparator: 'gte',
+      question: 'What is the highest temperature a solution would have to work at?' },
+    { key: 'power_limit', label: 'Maximum power the solution may draw', category: 'constraint', units: ['W', 'kW'], comparator: 'lte',
+      question: 'What is the most power a solution may draw?' },
+    COST_OF_PROBLEM, TARGET,
+  ],
   food: [
     { key: 'throughput', label: 'Throughput to handle', category: 'measurement', units: ['units/day', 'units/h', 'kg/h'],
       question: 'What throughput would a solution need to handle?' },
@@ -78,6 +101,22 @@ const INNOVATION: Record<string, ChecklistItem[]> = {
     { key: 'first_install_cost', label: 'Estimated cost of a first installation', category: 'cost', units: [], period: 'one_off',
       question: 'Roughly what would a first installation cost?' },
   ],
+  construction: [
+    { key: 'tested_strength', label: 'Strength measured in tests', category: 'measurement', units: ['MPa'],
+      question: 'What strength (in MPa) has your solution reached in tests?' },
+    { key: 'tested_service_life', label: 'Service life shown or projected', category: 'measurement', units: ['year'],
+      question: 'How many years of service has your solution shown or been projected to last?' },
+    { key: 'first_install_cost', label: 'Estimated cost of a first installation', category: 'cost', units: [], period: 'one_off',
+      question: 'Roughly what would a first installation cost?' },
+  ],
+  electronics: [
+    { key: 'tested_temperature', label: 'Highest temperature tested', category: 'measurement', units: ['°C'],
+      question: 'What is the highest temperature your solution has been tested at?' },
+    { key: 'power_draw', label: 'Power drawn in operation', category: 'measurement', units: ['W', 'kW'],
+      question: 'How much power does your solution draw in operation?' },
+    { key: 'first_install_cost', label: 'Estimated cost of a first installation', category: 'cost', units: [], period: 'one_off',
+      question: 'Roughly what would a first installation cost?' },
+  ],
   energy: [
     { key: 'energy_saving', label: 'Energy saved per year in tests', category: 'measurement', units: ['kWh/year', 'MWh/year'],
       question: 'How much energy per year has your solution saved in tests or pilots?' },
@@ -88,14 +127,30 @@ const INNOVATION: Record<string, ChecklistItem[]> = {
   ],
 }
 
+/**
+ * The 11 sectors the submission forms offer (src/data/taxonomy.ts), each
+ * mapped to a checklist. Keep this in step with that list.
+ */
+export const FORM_SECTORS: Record<string, string> = {
+  Manufacturing: 'manufacturing', Automotive: 'manufacturing', Chemicals: 'manufacturing',
+  Materials: 'manufacturing', 'Consumer Products': 'manufacturing',
+  Energy: 'energy', Construction: 'construction', Infrastructure: 'construction',
+  Mining: 'mining', Electronics: 'electronics', Agriculture: 'food',
+}
+
+/** Free-text fallback for authored records and solution industry lists. */
 const SECTOR_WORDS: [RegExp, string][] = [
   [/manufactur|cement|ceramic|steel|metal|kiln|factory|textile|chemical|automotive/i, 'manufacturing'],
   [/energy|power|solar|wind|grid|oil|gas/i, 'energy'],
   [/water|wastewater|effluent|sanitation/i, 'water'],
+  [/construct|building|cement|concrete|infrastructure|road|bridge/i, 'construction'],
+  [/mining|mineral|ore\b|quarry/i, 'mining'],
+  [/electronic|semiconductor|sensor|battery|pcb/i, 'electronics'],
   [/food|agri|dairy|beverage/i, 'food'],
 ]
 
 export function sectorKey(text: string) {
+  for (const [name, key] of Object.entries(FORM_SECTORS)) if (new RegExp(`\\b${name}\\b`, 'i').test(text)) return key
   for (const [pattern, key] of SECTOR_WORDS) if (pattern.test(text)) return key
   return 'default'
 }

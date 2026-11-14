@@ -78,6 +78,9 @@ export default function SubmitChallenge() {
   const [siteKey, setSiteKey] = useState<string | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [resetSignal, setResetSignal] = useState(0)
+  const [verifiedEmail, setVerifiedEmail] = useState('')
+  // Keep the locked contact email on the verified address after resets and draft loads.
+  useEffect(() => { if (verifiedEmail && value.email !== verifiedEmail) update({ email: verifiedEmail }) }, [verifiedEmail, value.email]) // eslint-disable-line react-hooks/exhaustive-deps
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [reference, setReference] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -249,7 +252,7 @@ export default function SubmitChallenge() {
           <div className="grid gap-8 sm:grid-cols-2">
             <TextField label="Contact name" required value={value.contact} error={err('contact')} onChange={(v) => update({ contact: v })} />
             <TextField label="Designation" value={value.designation} onChange={(v) => update({ designation: v })} />
-            <TextField label="Corporate email" required type="email" inputMode="email" value={value.email} error={err('email')} onChange={(v) => update({ email: v })} />
+            <TextField label="Corporate email" required type="email" inputMode="email" value={value.email} error={err('email')} onChange={(v) => update({ email: v })} readOnly={Boolean(verifiedEmail)} hint={verifiedEmail ? 'Your verified email. Sign out to submit from a different address.' : undefined} />
             <TextField label="Phone" type="tel" inputMode="tel" value={value.phone} onChange={(v) => update({ phone: v })} />
             <TextField label="Location" value={value.location} onChange={(v) => update({ location: v })} />
             <TextField label="Website" type="url" inputMode="url" value={value.website} onChange={(v) => update({ website: v })} />
@@ -297,7 +300,7 @@ export default function SubmitChallenge() {
       </PageHero>
 
       <section className="container-grid pb-28">
-        <SubmissionAccount draft={{ kind: 'challenge', value, onRestore: (payload) => update(payload as Partial<ChallengeDraft>) }} />
+        <SubmissionAccount draft={{ kind: 'challenge', value, onRestore: (payload) => update(payload as Partial<ChallengeDraft>) }} onVerifiedEmail={(email) => { setVerifiedEmail(email); update({ email }) }} />
         <FormShell
           steps={steps}
           index={Math.min(value.step, steps.length - 1)}

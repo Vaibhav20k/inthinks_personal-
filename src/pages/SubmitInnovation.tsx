@@ -105,6 +105,9 @@ export default function SubmitInnovation() {
   const [siteKey, setSiteKey] = useState<string | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [resetSignal, setResetSignal] = useState(0)
+  const [verifiedEmail, setVerifiedEmail] = useState('')
+  // Keep the locked contact email on the verified address after resets and draft loads.
+  useEffect(() => { if (verifiedEmail && value.email !== verifiedEmail) update({ email: verifiedEmail }) }, [verifiedEmail, value.email]) // eslint-disable-line react-hooks/exhaustive-deps
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [reference, setReference] = useState<string | null>(null)
   const [sentFiles, setSentFiles] = useState(0)
@@ -309,7 +312,7 @@ export default function SubmitInnovation() {
           <Notice>All identity information remains private and is never published on a technology profile.</Notice>
           <div className="grid gap-8 sm:grid-cols-2">
             <TextField label="Name" required value={value.name} error={err('name')} onChange={(v) => update({ name: v })} />
-            <TextField label="Email" required type="email" inputMode="email" value={value.email} error={err('email')} onChange={(v) => update({ email: v })} />
+            <TextField label="Email" required type="email" inputMode="email" value={value.email} error={err('email')} onChange={(v) => update({ email: v })} readOnly={Boolean(verifiedEmail)} hint={verifiedEmail ? 'Your verified email. Sign out to submit from a different address.' : undefined} />
             <TextField label="Institution" value={value.institution} onChange={(v) => update({ institution: v })} />
             <SelectField label="Institution type" options={INSTITUTION_TYPES} value={value.institutionType} onChange={(v) => update({ institutionType: v })} />
             <TextField label="Department" value={value.department} onChange={(v) => update({ department: v })} />
@@ -381,7 +384,7 @@ export default function SubmitInnovation() {
       </PageHero>
 
       <section className="container-grid pb-28">
-        <SubmissionAccount draft={{ kind: 'innovation', value, onRestore: (payload) => update(payload as Partial<InnovationDraft>) }} />
+        <SubmissionAccount draft={{ kind: 'innovation', value, onRestore: (payload) => update(payload as Partial<InnovationDraft>) }} onVerifiedEmail={(email) => { setVerifiedEmail(email); update({ email }) }} />
         <FormShell
           steps={steps}
           index={Math.min(value.step, steps.length - 1)}

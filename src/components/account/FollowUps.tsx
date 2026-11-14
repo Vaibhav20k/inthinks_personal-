@@ -9,6 +9,7 @@ interface Item {
 interface State { sector: string; items: Item[]; missing: number }
 
 const COMPARATOR: Record<string, string> = { gte: 'at least', lte: 'at most', eq: 'exactly' }
+const number = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 6 })
 
 /**
  * "Help us match you better": the figures still missing for this case's
@@ -41,7 +42,7 @@ export default function FollowUps({ reference, onChange }: { reference: string; 
         <p>{item.question}</p>
         {item.suggestion && <div className="grid gap-2 p-3" style={{ background: 'var(--color-surface, transparent)', border: '1px dashed var(--rule-strong)' }}>
           <span className="text-sm">From your submission: “{item.suggestion.quote}”</span>
-          <strong>{item.label}: {item.comparator && item.category !== 'measurement' ? `${COMPARATOR[item.comparator]} ` : ''}{item.suggestion.value} {item.suggestion.unit}</strong>
+          <strong>{item.label}: {item.comparator && item.category !== 'measurement' ? `${COMPARATOR[item.comparator]} ` : ''}{number(item.suggestion.value)} {item.suggestion.unit}</strong>
           <span className="flex flex-wrap gap-3">
             <button className="border px-3 py-1 disabled:opacity-50" disabled={busy !== ''} onClick={() => void run(item.key, () => api(`${base}/${item.suggestion!.id}/accept`, {}))}>Yes, that's right</button>
             <button className="underline disabled:opacity-50" disabled={busy !== ''} onClick={() => void run(item.key, () => api(`${base}/${item.suggestion!.id}/dismiss`, {}))}>Not right</button>
