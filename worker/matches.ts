@@ -308,6 +308,27 @@ export async function generateTechnologyMatches(env: Env, ctx: AuthContext, tech
   return { created, considered: run.considered, shortlisted: run.pairs.length, engine: run.engine }
 }
 
+/**
+ * Automatic matching after a submission is saved. Runs in the background
+ * (waitUntil) as the system, so the submitter's request never waits on it and
+ * a failure never affects the saved record. Results are ordinary Pending
+ * suggestions: a person still decides. Set AUTO_MATCH=off to disable.
+ */
+export const SYSTEM_ACTOR = { email: 'system@inthinks', role: 'super-admin' as const }
+
+export async function autoMatch(env: Env, kind: 'challenge' | 'innovation', reference: string) {
+  if (!env.DB || env.AUTO_MATCH === 'off') return null
+  const ctx = { db: env.DB, actor: SYSTEM_ACTOR, can: {} } as unknown as AuthContext
+  try {
+    return kind === 'challenge'
+      ? await generateMatches(env, ctx, reference, '')
+      : await generateTechnologyMatches(env, ctx, reference, '')
+  } catch (cause) {
+    console.error(JSON.stringify({ event: 'inthinks.match', auto: kind, error: cause instanceof Error ? cause.message.slice(0, 120) : 'unknown' }))
+    return null
+  }
+}
+
 export async function decide(
   ctx: AuthContext,
   reference: string,

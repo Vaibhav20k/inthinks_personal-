@@ -25,6 +25,11 @@ export async function testMatching({ mf, db, call, check, innovation, challenge,
   await figure(kilnRef, 'constraint', 'Shell surface temperature', 'lte', 120, '°C', 'participant_confirmed')
   await figure(coating, 'measurement', 'Shell surface temperature', 'eq', 95, '°C', 'document_checked')
 
+  const auto = await db.prepare('SELECT technology_ref, decision, engine FROM matches WHERE challenge_ref=?').bind(kilnRef).all()
+  check('new problem is matched automatically on submit', auto.results.length > 0, true) // problem arrives before the coating; it is matched against what exists
+  check('automatic suggestions still wait for a person', auto.results.every((r) => r.decision === 'Pending'), true)
+  check('automatic run is audited as the system', Boolean(await db.prepare("SELECT 1 FROM audit_log WHERE actor='system@inthinks' AND action='match.generate' AND target=?").bind(kilnRef).first()), true)
+  check('new solution is matched automatically on submit', Boolean(await db.prepare("SELECT 1 FROM audit_log WHERE actor='system@inthinks' AND action='match.generate_reverse' AND target=?").bind(battery).first()), true)
   const before = deliveries.length
   const run = await call('/api/admin/matches/generate', { challenge: kilnRef }, ai)
   check('local engine runs without Claude', [run.status, run.body.engine], [200, 'rules+figures+@cf/baai/bge-m3'])

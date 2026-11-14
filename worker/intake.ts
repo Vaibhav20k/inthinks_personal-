@@ -19,6 +19,7 @@ import {
 import type { SubmissionTable } from './storage'
 import { SUBMISSION_CEILING, chargeSubmission, checkRequest, submissionsUsed } from './ratelimit'
 import { deliverOutbox, outboxStatements, submissionOutbox } from './outbox'
+import { autoMatch } from './matches'
 import { verifyTurnstile } from './turnstile'
 import { fileHead, sniff } from './file-safety'
 
@@ -178,13 +179,15 @@ async function commit(gate: Gate, table: SubmissionTable, statements: D1Prepared
   }
 }
 
-function afterCommit(env: Env, ctx: ExecutionContext, gate: Gate, reference: string) {
+function afterCommit(env: Env, ctx: ExecutionContext, gate: Gate, reference: string, match?: 'challenge' | 'innovation') {
   ctx.waitUntil(
     (async () => {
       await chargeSubmission(gate.db, gate.ip, gate.salt)
       await deliverOutbox(env, { reference })
     })().catch(() => console.error('[intake] post-commit work failed for', reference)),
   )
+  // Separate from the receipts above, so neither can hold up or break the other.
+  if (match) ctx.waitUntil(autoMatch(env, match, reference))
 }
 
 async function handleMessage(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -253,7 +256,7 @@ async function handleChallenge(request: Request, env: Env, ctx: ExecutionContext
   if (!outcome.ok) return fail(outcome)
   if (outcome.value !== 'stored') return json({ reference: outcome.value, replayed: true })
 
-  afterCommit(env, ctx, gate.value, reference)
+  afterCommit(env, ctx, gate.value, reference, 'challenge')
   return json({ reference }, 201)
 }
 
@@ -378,7 +381,7 @@ async function handleInnovation(request: Request, env: Env, ctx: ExecutionContex
     return json({ reference: outcome.value, replayed: true })
   }
 
-  afterCommit(env, ctx, gate.value, reference)
+  afterCommit(env, ctx, gate.value, reference, 'innovation')
   return json({ reference, files: uploaded.length }, 201)
 }
 

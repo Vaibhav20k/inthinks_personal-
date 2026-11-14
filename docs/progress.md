@@ -82,6 +82,11 @@ pass. Every migration runs in an isolated test database.
   conflicts and missing evidence. Labels come from fixed thresholds; there are
   no percentages, and IP is never guessed.
 - **Reverse matching:** each technology page has *Find matching problems*.
+- **Automatic on submit** (14 Nov 2026): every new problem or solution is
+  matched in the background straight after it is saved, so its top 3 are
+  already waiting for the admin. It never delays or breaks the submission;
+  audited as `system@inthinks`; turn off with `AUTO_MATCH=off`. Checked live
+  on staging.
 - If the AI is unavailable or the free allowance is spent, matching falls back
   to rules + figures and says so. Text containing an email, phone number or
   LinkedIn link is never sent to the AI.
@@ -90,7 +95,7 @@ pass. Every migration runs in an isolated test database.
 - Meaning-vectors are stored (migration 0019) and recomputed only when a
   record's text changes.
 
-**Test status:** 216 automated HTTP checks + 6 unit suites pass.
+**Test status:** 224 automated HTTP checks + 6 unit suites pass.
 
 ---
 
