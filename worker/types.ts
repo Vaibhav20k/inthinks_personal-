@@ -46,6 +46,10 @@ export interface Env {
   MATCH_ENGINE?: string
   /** "off" stops matching from running automatically after each submission. */
   AUTO_MATCH?: string
+  /** "off" stops figures being read from submission text (phase 7). */
+  AUTO_EXTRACT?: string
+  /** AI figure-reading runs allowed per UTC day. Default 40. */
+  AI_EXTRACT_DAILY_LIMIT?: string
   /** Cloudflare Workers AI, for meaning-based match similarity. Optional. */
   AI?: { run(model: string, input: unknown): Promise<unknown> }
 

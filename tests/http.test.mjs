@@ -104,6 +104,8 @@ try {
   await testEmailQuota({ db, call, check, challenge, admin })
   const { testMatching } = await import('./matching.test.mjs')
   await testMatching({ mf, db, call, check, innovation, challenge, admin, deliveries })
+  const { testAdaptive } = await import('./adaptive.test.mjs')
+  await testAdaptive({ ...state, db, call, check, challenge, admin })
   check('database foreign-key integrity',(await db.prepare('PRAGMA foreign_key_check').all()).results,[])
   console.log(`${checks} HTTP integration checks passed.`)
 } finally { await mf.dispose() }

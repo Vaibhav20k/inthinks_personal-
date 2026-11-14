@@ -7,8 +7,22 @@ import type { Env } from '../worker/types'
 // Deterministic stand-in for Workers AI: hashed bag of words, unit length.
 let aiCalls = 0
 const fakeAi = {
-  async run(_model: string, input: unknown) {
+  async run(model: string, input: unknown) {
     aiCalls++
+    if (!model.includes('bge')) {
+      // Figure reader: finds "<n> °C" in the record, and also invents a value
+      // that is not in the text, which the grounding check must reject.
+      const prompt = (input as { messages: { content: string }[] }).messages.at(-1)!.content
+      const record = prompt.split('<record>')[1] ?? ''
+      const tempKey = prompt.match(/key "([a-z_]+)": [^\n]*unit one of: °C/)?.[1]
+      const pctKey = prompt.match(/key "([a-z_]+)": [^\n]*unit one of: %/)?.[1]
+      const hit = record.match(/[^.\n]*?(\d+)\s*°C[^.\n]*/)
+      const figures = [
+        ...(tempKey && hit ? [{ key: tempKey, value: Number(hit[1]), unit: '°C', quote: hit[0].trim() }] : []),
+        ...(pctKey ? [{ key: pctKey, value: 37, unit: '%', quote: 'improve by 37%' }] : []),
+      ]
+      return { choices: [{ message: { content: '```json\n' + JSON.stringify({ figures }) + '\n```' } }] }
+    }
     const texts = (input as { text: string[] }).text
     return { data: texts.map((t) => {
       const v = new Array(64).fill(0)

@@ -5,6 +5,7 @@ import { membership } from './participant-organizations'
 import { accessibleCase } from './participant-records'
 import { settleReviewStatus } from './case-workflow'
 import { qualificationRoutes } from './qualification'
+import { followUpRoutes } from './intake-checklist'
 
 /**
  * Participant side of the workflow: server drafts, answering clarification
@@ -87,10 +88,17 @@ export async function participantWorkflowRoutes(request: Request, env: Env, user
     return reply({ error: 'Method not allowed.' }, 405)
   }
 
-  const record = path.match(/^\/records\/([A-Za-z0-9-]{1,32})\/(clarifications|qualification)(\/.*)?$/)
+  const record = path.match(/^\/records\/([A-Za-z0-9-]{1,32})\/(clarifications|qualification|follow-ups)(\/.*)?$/)
   if (!record) return null
   const owned = await accessibleCase(db, record[1], user.email)
   if (!owned) return reply({ error: 'Not found.' }, 404)
+  if (record[2] === 'follow-ups') {
+    const status = await db.prepare(`SELECT review_status FROM ${owned.kind === 'challenge' ? 'challenges' : 'innovations'} WHERE reference=?`).bind(owned.reference).first<{ review_status: string }>()
+    if (request.method !== 'GET' && ['declined', 'withdrawn'].includes(status?.review_status ?? '')) return reply({ error: 'This case is closed.' }, 409)
+    const actor = { email: user.email, side: 'participant' as const }
+    return followUpRoutes(request, db, owned.reference, user.email, record[3] ?? '', (body) =>
+      qualificationRoutes(new Request(request.url, { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json' } }), db, owned.reference, actor, ''))
+  }
   if (record[2] === 'qualification') {
     const status = await db.prepare(`SELECT review_status FROM ${owned.kind === 'challenge' ? 'challenges' : 'innovations'} WHERE reference=?`).bind(owned.reference).first<{ review_status: string }>()
     if (request.method !== 'GET' && ['declined', 'withdrawn'].includes(status?.review_status ?? '')) return reply({ error: 'This case is closed.' }, 409)

@@ -20,6 +20,7 @@ import type { SubmissionTable } from './storage'
 import { SUBMISSION_CEILING, chargeSubmission, checkRequest, submissionsUsed } from './ratelimit'
 import { deliverOutbox, outboxStatements, submissionOutbox } from './outbox'
 import { autoMatch } from './matches'
+import { extractSuggestions } from './intake-extract'
 import { verifyTurnstile } from './turnstile'
 import { fileHead, sniff } from './file-safety'
 
@@ -188,6 +189,7 @@ function afterCommit(env: Env, ctx: ExecutionContext, gate: Gate, reference: str
   )
   // Separate from the receipts above, so neither can hold up or break the other.
   if (match) ctx.waitUntil(autoMatch(env, match, reference))
+  if (match) ctx.waitUntil(extractSuggestions(env, reference))
 }
 
 async function handleMessage(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { participantApi as api } from '../../lib/participant'
 import QualificationEditor from '../qualification/QualificationEditor'
+import FollowUps from './FollowUps'
 
 interface Question { id: number; question: string; askedAt: string; dueAt: string | null; status: string; response: string | null; respondedAt: string | null }
 
@@ -34,9 +35,11 @@ export function Clarifications({ reference }: { reference: string }) {
 }
 
 export function CaseFigures({ reference }: { reference: string }) {
+  const [version, setVersion] = useState(0)
   return <section className="grid gap-3">
+    <FollowUps reference={reference} onChange={() => setVersion((v) => v + 1)} />
     <h3 className="font-semibold">Figures for this case</h3>
-    <QualificationEditor base={`/api/participant/records/${reference}/qualification`} side="participant" />
+    <QualificationEditor key={version} base={`/api/participant/records/${reference}/qualification`} side="participant" />
   </section>
 }
 

@@ -20,7 +20,7 @@ push or merge to `main`. Last updated: 13 November 2026.
 | 4 | Operational safeguards | 🟡 Code done; external setup pending |
 | 5 | Full workflows (drafts, clarifications, owners, next actions) | ✅ Done |
 | 6 | Structured qualification | ✅ Done |
-| 7 | Adaptive text intake | ⬜ To do |
+| 7 | Adaptive text intake | ✅ Done |
 | 8 | Private automatic admin assessments + deterministic economics | ⬜ To do |
 | 9 | Matching without Claude | ✅ Done |
 | 10 | Controlled disclosure and engagement workflow | ⬜ To do |
@@ -74,6 +74,25 @@ pass. Every migration runs in an isolated test database.
   retired, never deleted.
 - Participants see only their own figures; staff estimates stay internal.
 
+### 7. Adaptive text intake
+- **Sector checklists** (`worker/intake-checklist.ts`): the figures that
+  matter per sector (manufacturing, energy, water, food, default) for
+  problems and solutions. Edit the lists freely.
+- **Help us match you better** in My submissions: only the missing figures,
+  each with a unit list; answers become the participant's own figures and
+  feed phase 9's figure checks.
+- **Numbers read from the text** by Cloudflare Workers AI
+  (`@cf/zai-org/glm-4.7-flash`, thinking off, ~7 free units per run).
+  A suggestion is kept only if its unit fits and its exact quote, number
+  included, appears in the submission. Nothing is saved until the
+  participant clicks *Yes, that's right*. Capped at 40 runs a day
+  (`AI_EXTRACT_DAILY_LIMIT`); text with an email or phone number is never
+  sent.
+- **Admin Figures checklist** on each case: filled, missing and awaiting
+  confirmation, with one-click *Ask as clarification*.
+- Checked live on staging: the AI read 180 °C, 2,400,000 kWh/year, 120 h and
+  15% correctly from a test problem.
+
 ### 9. Matching without Claude
 - Claude is no longer used. Default engine: rules → verified figures →
   meaning similarity from **Cloudflare Workers AI** (`@cf/baai/bge-m3`, free
@@ -95,7 +114,7 @@ pass. Every migration runs in an isolated test database.
 - Meaning-vectors are stored (migration 0019) and recomputed only when a
   record's text changes.
 
-**Test status:** 224 automated HTTP checks + 6 unit suites pass.
+**Test status:** 247 automated HTTP checks + 6 unit suites pass.
 
 ---
 
@@ -136,6 +155,9 @@ pass. Every migration runs in an isolated test database.
 
 
 ### Known gaps in finished phases
+- [ ] Phase 7: the participant *Help us match you better* form is covered by
+  automated tests but not yet clicked through in a browser (needs a signed-in
+  participant with an owned case).
 - [x] Phase 9 checked live on staging (14 Nov 2026), engine
   `rules+figures+@cf/baai/bge-m3`. Kiln problem → coating **Strong** (0.76),
   battery film **Weak** (0.45). Reverse: vibration sensor → conveyor problem
@@ -149,8 +171,6 @@ pass. Every migration runs in an isolated test database.
 - [ ] Participant screens not yet tested in a browser.
 
 ### Next phases
-- **7. Adaptive text intake** — follow-up questions from missing figures and
-  sector templates, without sending confidential text to outside AI services.
 - **8. Automatic admin assessments** — private to admins, economics computed
   by fixed, configurable rules from verified figures.
 - **10. Controlled disclosure and engagement.**
@@ -202,6 +222,12 @@ pass. Every migration runs in an isolated test database.
 > **Password hashing is capped at 100,000 PBKDF2 rounds.** Live Cloudflare
 > Workers refuse more, even though local tests allow it; a higher value broke
 > every staging admin sign-in. A test now guards the limit.
+
+> [!WARNING]
+> **Cloudflare retires AI models.** `llama-3.1-8b-instruct` was retired on
+> 30 May 2026 and silently produced nothing until replaced. If figure
+> suggestions stop appearing, check the model in `worker/intake-extract.ts`
+> against `npx wrangler ai models list`.
 
 > [!NOTE]
 > **"Configured" is not "working".** A setting existing in a file or on the

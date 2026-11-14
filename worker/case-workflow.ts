@@ -3,6 +3,7 @@ import { bodyObject, emailValue, reply, textValue } from './access-http'
 import { audit } from './audit'
 import { assigned, isPlatformAdmin } from './staff-access'
 import { qualificationRoutes } from './qualification'
+import { followUps } from './intake-checklist'
 
 /**
  * Staff side of the case workflow (step 5) and qualification (step 6).
@@ -63,6 +64,11 @@ export async function caseWorkflowRoutes(request: Request, ctx: AuthContext, pat
   const record = await db.prepare('SELECT kind FROM case_records WHERE reference=?').bind(reference).first<{ kind: string }>()
   if (!record || !await assigned(ctx, reference)) return reply({ error: 'Not found.' }, 404)
 
+  if (rest === '/follow-ups') {
+    if (request.method !== 'GET') return reply({ error: 'Method not allowed.' }, 405)
+    const state = await followUps(db, reference)
+    return state ? reply(state) : reply({ error: 'Not found.' }, 404)
+  }
   if (rest.startsWith('/qualification')) {
     const response = await qualificationRoutes(request, db, reference, { email: actor.email, side: 'staff' }, rest.slice('/qualification'.length))
     if (request.method !== 'GET' && response.ok) await audit(db, actor, `qualification.${request.method.toLowerCase()}`, reference, { path: rest }, ip)

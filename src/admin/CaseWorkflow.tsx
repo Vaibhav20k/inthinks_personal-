@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Panel } from './ui'
 import { requestJson } from '../lib/http'
 import QualificationEditor from '../components/qualification/QualificationEditor'
+import MissingFigures from './MissingFigures'
 
 interface Clarification {
   id: number; question: string; askedBy: string; askedAt: string; dueAt: string | null; status: string
@@ -70,6 +71,7 @@ export default function CaseWorkflow({ reference }: { reference: string }) {
         </div>
       </div>
     </Panel>
+    <MissingFigures reference={reference} onAsked={() => void load()} />
     <Panel title="Qualification"><QualificationEditor base={`${base}/qualification`} side="staff" /></Panel>
   </>
 }

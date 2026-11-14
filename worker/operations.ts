@@ -21,6 +21,8 @@ const REQUIRED_SCHEMA: [table: string, column: string, migration: string][] = [
   ['submission_drafts', 'payload', '0016_case_workflow'],
   ['qualification_items', 'verification', '0017_structured_qualification'],
   ['email_usage', 'sent', '0018_email_quota'],
+  ['match_embeddings', 'vector', '0019_match_embeddings'],
+  ['intake_suggestions', 'quote', '0020_intake_suggestions'],
 ]
 
 export async function liveness(env: Env) {
