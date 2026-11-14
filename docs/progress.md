@@ -137,8 +137,8 @@ pass. Every migration runs in an isolated test database.
   **Promising** (0.78), packaging **Weak** (0.43).
 - [ ] Tune the similarity thresholds (0.70 / 0.55) once admins have reviewed
   about 20 real pairs. Unrelated test pairs scored 0.43–0.45.
-- [ ] Remove the TEST P9 records from staging once you're done testing
-  (CH-2026-0002/0003/0004, INT-2026-0001/0002/0003).
+- [x] TEST P9 records removed from staging (14 Nov 2026, after a backup);
+  the audit log keeps its entries.
 - [ ] No email when staff ask a clarification question.
 - [ ] No automatic invitation email.
 - [ ] Participant screens not yet tested in a browser.
