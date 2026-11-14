@@ -1,4 +1,5 @@
 import SignalField from './SignalField'
+import { qualifiedPairs } from '../../data/signals'
 import Button from '../primitives/Button'
 import ArrowLink from '../primitives/ArrowLink'
 import { site } from '../../data/site'
@@ -41,9 +42,13 @@ export default function Hero() {
         </div>
       </div>
 
-      <div className="mt-16 sm:mt-20">
-        <SignalField />
-      </div>
+      {/* The field is drawn from published problem/technology pairs; with none
+          published it has nothing true to show, so it is left out. */}
+      {qualifiedPairs.length > 0 && (
+        <div className="mt-16 sm:mt-20">
+          <SignalField />
+        </div>
+      )}
     </section>
   )
 }

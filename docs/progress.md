@@ -155,6 +155,15 @@ pass. Every migration runs in an isolated test database.
 
 
 ### Known gaps in finished phases
+- [x] Removed the 10 invented example technologies, problems and matches
+  (14 Nov 2026). Public pages now show only admin-published records, and an
+  empty state until then. The home-page signal animation is hidden until
+  published pairs exist.
+- [ ] Problem/solution checklists cover 5 groups, but the form has 11
+  sectors (Construction, Mining, Electronics, Infrastructure, Consumer
+  Products, Materials get the general list; the water list is unreachable).
+- [ ] When signed in, the submission form should fill in and lock the
+  verified email instead of rejecting a different one.
 - [ ] Phase 7: the participant *Help us match you better* form is covered by
   automated tests but not yet clicked through in a browser (needs a signed-in
   participant with an owned case).

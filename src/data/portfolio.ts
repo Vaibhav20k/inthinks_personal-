@@ -56,7 +56,7 @@ export const loadPortfolio = async (): Promise<Portfolio> => {
   const items = await fetchTechnologies().catch(() => [] as Technology[])
   return items.length > 0
     ? { technologies: items, usingExamples: false }
-    : { technologies: exampleTechnologies, usingExamples: true }
+    : { technologies: exampleTechnologies, usingExamples: exampleTechnologies.length > 0 }
 }
 
 export const fetchProblems = () =>
@@ -74,7 +74,7 @@ export const loadProblems = async (): Promise<{ problems: IndustrialProblem[]; u
   const items = await fetchProblems().catch(() => [] as IndustrialProblem[])
   return items.length > 0
     ? { problems: items, usingExamples: false }
-    : { problems: exampleProblems, usingExamples: true }
+    : { problems: exampleProblems, usingExamples: exampleProblems.length > 0 }
 }
 
 export const fetchPublicMatches = () =>
@@ -90,7 +90,7 @@ export const loadMatches = async (): Promise<{ matches: PublicMatch[]; usingExam
   const items = await fetchPublicMatches().catch(() => [] as PublicMatch[])
   return items.length > 0
     ? { matches: items, usingExamples: false }
-    : { matches: exampleMatches, usingExamples: true }
+    : { matches: exampleMatches, usingExamples: exampleMatches.length > 0 }
 }
 
 export const findExampleProblem = (slug: string) => exampleProblems.find((p) => p.slug === slug)
