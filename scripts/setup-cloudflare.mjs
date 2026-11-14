@@ -135,7 +135,7 @@ if (!buckets.failed && String(buckets).includes(BUCKET)) {
 
 /* ----------------------------------------------------------- 4. migrations */
 
-step(4, 'schema — migrations 0001 through 0008')
+step(4, 'schema — every migration in migrations/')
 console.log('    (this is the step that is easy to skip, and skipping it makes')
 console.log('     every API call fail against a table that does not exist)')
 const migrated = run(['d1', 'migrations', 'apply', DB, '--remote'])

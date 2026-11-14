@@ -14,7 +14,64 @@ npm run dev        # http://localhost:5173
 npm run build      # typecheck + production build to dist/
 npm run preview    # serve the production build locally
 npm run deploy     # wrangler deploy (builds first)
+npm run deploy:staging   # build + all tests, then deploy to the staging Worker
 ```
+
+## Status and flags
+
+> [!IMPORTANT]
+> **Read this before relying on any number or screen.** Phase-by-phase
+> detail lives in [`docs/progress.md`](docs/progress.md); this is the short
+> list of what is done and what is still open.
+
+**Done:** phases 1–9 of the upgrade roadmap: reliable intake, participant
+accounts and ownership, operational safeguards, case workflow, structured
+qualification, adaptive intake, **private assessments and economics
+(phase 8)**, and matching without Claude. Still to do: phase 10 (controlled
+disclosure and engagement), 11 (voice, documents, discovery, pilots) and 12
+(enterprise, scale, visual redesign).
+
+**Staging:** https://inthinks-staging.inthinks.workers.dev, uptime-monitored
+on `/api/health`. Pushes go to `origin` (`Vaibhav20k/inthinks_personal-`),
+both `phase-1-reliable-intake` and `main`; CI enforces Conventional Commits
+and runs the build. There is no CD yet.
+
+**Flags: open issues to keep in mind**
+
+- ⚠️ **Phase 8 economics use placeholder settings.** Default currency EUR,
+  Hot from 100,000 a year at stake, Warm from 20,000, trust 100 / 90 / 70 /
+  50 %. They are not Magppie's real figures. Set them on *Admin → Economics*
+  before treating any Hot/Warm label as meaningful. If cases are mostly in
+  INR, almost nothing will rank by value until the currency is changed.
+- ⚠️ **Payback only appears** when the matched solution states a one-off
+  installation cost **in the same currency** as the problem's yearly cost.
+  Currencies are never converted.
+- ⚠️ **One disputed figure can blank an assessment.** Disputed figures are
+  left out entirely, so disputing the only yearly cost turns the case back
+  to *Not enough data*.
+- ⚠️ **Assessment ranges are wide until figures are checked.** Nearly every
+  figure arrives *unverified* and counts at 50 % on the low end; the range
+  narrows only as staff verify figures.
+- ⚠️ **Staging admin uses a test password.** Change it, or turn on Cloudflare
+  Access, before any real data goes onto staging.
+- ⚠️ **No file storage on staging yet.** R2 needs a card on the Cloudflare
+  account; until then staging refuses attachments. Cloudflare Access is also
+  pending, and needs a bypass for `/api/health` so the uptime monitor keeps
+  working.
+- ⚠️ **Email reaches only the test inbox.** The Resend test sender delivers to
+  one address until a domain is verified. Capped at 50/day and 1,500/month.
+- ⚠️ **Password hashing is capped at 100,000 PBKDF2 iterations**, because
+  deployed Workers reject more. Local `workerd` allows more, so a higher
+  value passes locally and then fails every sign-in in production; a test
+  guards this.
+- ⚠️ **Cloudflare retires Workers AI models.** The figure reader uses
+  `@cf/zai-org/glm-4.7-flash` (the earlier Llama model was retired on 30 May
+  2026). If suggestions stop appearing, check the model is still listed.
+- ⚠️ **Match thresholds (0.70 / 0.55) are untuned.** Revisit them after
+  admins have reviewed about 20 real pairs.
+- Not built yet: clarification-question emails, automatic invitation emails,
+  a real malware scanner (files are inspected by hand), and a rehearsal of
+  restoring into a live Cloudflare database.
 
 ## Design system
 
@@ -297,10 +354,20 @@ resources are touched.
 `challenges` and `innovations` promote the triage fields to real columns and
 keep the long-form answers in a `payload` JSON column, so the question set can
 change without a migration. `evidence` is the manifest pointing at R2 objects.
-Schema is in `migrations/`, applied in order: `0001_init.sql` (intake),
-`0002_admin.sql` (accounts, audit, scoring), `0003_matches.sql`,
-`0004_development.sql`, `0005_opportunities.sql`, `0006_deals.sql`,
-`0007_royalties.sql` and `0008_public_profiles.sql`.
+Schema is in `migrations/`, applied in order and never rewritten once
+applied:
+
+| Range | What it adds |
+|---|---|
+| 0001–0008 | Intake, accounts/audit/scoring, matches, R&D, opportunities, deals, royalties, public profiles |
+| 0009–0012 | Messages, authored records, match profiles, reviewer match fits |
+| 0013–0016 | Reliable intake (outbox), participant access, file quarantine, case workflow |
+| 0017–0018 | Structured qualification items, email quota |
+| 0019–0020 | Match embeddings cache, adaptive-intake suggestions |
+| 0021 | Versioned economics settings (phase 8) |
+
+`/api/admin/health` reports any migration the running Worker expects but the
+database lacks.
 
 ## Admin dashboard
 
@@ -321,7 +388,7 @@ Two mechanisms, in order of preference:
    plus audience, issuer and expiry. Identity comes from Cloudflare; no password
    is ever stored here.
 2. **Password sign-in**, for accounts not fronted by Access. PBKDF2-SHA256 at
-   210k iterations over WebCrypto, and a stateless HMAC-signed session in an
+   100k iterations over WebCrypto (the most deployed Workers accept), and a stateless HMAC-signed session in an
    HttpOnly, Secure, SameSite=Strict cookie.
 
 Either way a `users` row is required. Access proves *who* someone is; it does
@@ -370,7 +437,41 @@ by field; there is no `SELECT *` path to the client anywhere in
 - **Matches**, **R&D**, **Opportunities**, **Deals** and **Royalties** —
   described in their own sections below.
 - **Audit log** — reads as well as writes.
+- **Operations** — health, email quota, quarantine and overdue work.
+- **Economics** — the phase 8 rule set (administrators only).
 - **Users** — accounts and roles, super-admin only.
+
+### Case workflow, figures and assessments
+
+Each case page (administrators, and the mediator assigned to it) carries:
+
+- **Case workflow**: owner, next action with a due date, and clarification
+  questions to the submitter.
+- **Figures checklist**: the sector's expected figures, which are in, which
+  are missing (one click asks the missing one as a clarification), and which
+  the figure reader found in the submission text but the submitter has not
+  confirmed yet. The reader runs on Workers AI and only proposes; a figure
+  exists only once the submitter accepts it.
+- **Qualification**: typed, sourced, dated figures with units from a fixed
+  catalogue. Editing a value resets its verification.
+- **Assessment (phase 8)**: computed fresh on every view from those figures,
+  never stored, and never shown to submitters or technical reviewers:
+  - *Money at stake per year*: yearly cost × the share the problem causes
+    (monthly × 12).
+  - *Expected yearly saving*: money at stake × the improvement needed.
+  - *Payback per match*: the solution's one-off cost ÷ the yearly saving.
+  - Optional *energy saving* at a set price per kWh, shown separately so it
+    is never counted twice.
+  - A **Hot / Warm / Not yet / Not enough data** label with its reasons.
+    Points: value at stake 0–2, half the figures checked 1, checklist
+    complete 1, strong or promising match 1; Hot also needs value.
+
+  Every number is a **low–high range**. The high end takes figures as
+  stated; the low end discounts each by how well it is checked, and a
+  derived number takes its weakest input. Disputed figures are left out,
+  currencies are never converted, and no AI is involved, so the same figures
+  always give the same answer. Each assessment names the settings version
+  that produced it. See the flags above for the limits.
 
 ### Evidence files
 
@@ -444,8 +545,10 @@ an edited title silently breaks every link anyone has shared.
 
 ## Match engine
 
-Connects the challenge database to the technology portfolio. Two layers, then a
-person.
+Connects the challenge database to the technology portfolio. Rules, figures
+and meaning similarity, then a person. **Claude is no longer the default**;
+the engine runs on Cloudflare Workers AI on the same account, so records
+never go to a third-party model API.
 
 **Layer 1 — expert rules** (`worker/match-rules.ts`). Deterministic,
 explainable and free. It excludes what cannot answer the challenge whatever the
@@ -454,18 +557,27 @@ is a claim a domain expert could argue with, and each candidate carries the
 signals that produced its ranking. A readiness gap lowers the ranking but never
 excludes — closing that gap is what the development pipeline is for.
 
-**Layer 2 — semantic analysis** (`worker/match-engine.ts`). Claude assesses the
-shortlist and returns, per candidate: classification, six per-dimension fits,
-estimated TRL gap, IP risk, why they match, technical conflicts, missing
-evidence, required development, commercial potential, and a suggested next step.
-Structured output via Zod, so the shape is guaranteed rather than parsed out of
-prose.
+**Layer 2 — figures** (`worker/match-local.ts`). A problem's verified limits
+are compared unit for unit with a solution's measurements; conflicts are
+listed and cap the classification.
+
+**Layer 3 — meaning similarity** (`worker/match-local.ts`). Workers AI
+embeddings (`@cf/baai/bge-m3`), cosine similarity, strong at 0.70 and
+moderate at 0.55, top 3 kept. Vectors are cached in `match_embeddings` and
+recomputed only when a record's text changes. If the AI is unavailable the
+engine falls back to rules and figures and says so.
+
+Matching also runs **automatically on submit** (problems and solutions,
+including reverse matching from a technology), in the background, audited as
+`system@inthinks`. The older Claude engine (`worker/match-engine.ts`) runs
+only when `MATCH_ENGINE=claude` and an API key are both set.
 
 Two constraints shape the module:
 
 - **No identity reaches the model.** The candidate context is assembled from
   technical columns only — `loadTechnologies` never reads innovator name, email
-  or institution — and `assertNoIdentity` throws if an email, phone number or
+  or institution — and any record whose text holds an email, phone number or
+  LinkedIn link is withheld from the AI on its own. `assertNoIdentity` throws if an email, phone number or
   LinkedIn URL ever appears in the prompt. It should never fire, which is why
   it is worth having: a change that widens the record shape breaks loudly rather
   than quietly sending an innovator's name to a third party.
@@ -641,13 +753,19 @@ exposed on the public site in any form.
 
 ### Configuring
 
-```bash
-npx wrangler secret put ANTHROPIC_API_KEY   # required; without it matching is disabled
-npx wrangler secret put MATCH_MODEL         # optional, defaults to claude-opus-5
-```
+Matching and the figure reader need the `[ai] binding = "AI"` block in the
+wrangler config (present in `wrangler.toml` and `wrangler.staging.toml`). No
+key is required. Optional variables:
 
-Without the key, `/api/admin/matches/generate` returns 503 and the rest of the
-platform is unaffected.
+| Variable | Effect |
+|---|---|
+| `AUTO_MATCH=off` | Stop matching new records on submit |
+| `AUTO_EXTRACT=off` | Stop reading figures from submission text |
+| `AI_EXTRACT_DAILY_LIMIT` | Figure-reader runs per day (default 40) |
+| `MATCH_ENGINE=claude` + `ANTHROPIC_API_KEY` | Use the older Claude engine instead (paid; off by default) |
+
+Economics settings are not variables: they live in the database and are
+changed on *Admin → Economics*.
 
 ### Tests
 
@@ -656,8 +774,13 @@ reporting, affinity bounds, all four identity-guard cases, the deal room's money
 and rate parsers, the royalty schedule, due calculation and annual close, and
 the portfolio's identity guard, slug rules and public serialiser — the last of
 these asserting that an innovator's name, email, institution and raw submission
-payload do not survive the trip to the public shape. It runs as part of `npm run build`, so a regression
-fails the deploy.
+payload do not survive the trip to the public shape. It also covers the
+intake checklists and the phase 8 economics rules. Then an HTTP suite
+(`tests/http.test.mjs`, 278 checks) runs the real Worker against a local D1,
+covering ownership, workflow, email quota, matching, adaptive intake and
+assessments, including that participants and reviewers never receive
+economics. It runs as part of `npm run build`, so a regression fails the
+deploy.
 
 ## Deployment
 
@@ -676,7 +799,7 @@ node scripts/setup-cloudflare.mjs
 ```
 
 That creates the database, writes its id into `wrangler.toml`, creates the
-bucket, and applies migrations 0001 through 0008. It is safe to run twice: it
+bucket, and applies every migration in `migrations/`. It is safe to run twice: it
 checks for each resource before creating it, and only rewrites the id if what
 is there is wrong. **Commit the `wrangler.toml` change it makes** — the deploy
 reads the id from the repository, not from your machine.
@@ -689,7 +812,6 @@ Then, by hand:
 ```bash
 npx wrangler secret put SESSION_SECRET      # required — admin sign-in
 npx wrangler secret put IP_SALT             # required — rate limiting
-npx wrangler secret put ANTHROPIC_API_KEY   # optional — matching 503s without it
 
 node scripts/create-admin.mjs               # prints SQL for the first account
 npx wrangler deploy
@@ -741,6 +863,18 @@ so the script `POST`s a single rule to an existing redirect ruleset and only
 `PUT`s when the zone has none — redirects you already have are left alone. It
 is idempotent: a second run finds the rule by `ref` and stops.
 
+### Staging deploy routine
+
+```bash
+node scripts/d1-backup.mjs --env staging
+node scripts/restore-drill.mjs backups/<file>.sql --migrate
+CI=1 npx wrangler d1 migrations apply inthinks-staging --remote -c wrangler.staging.toml
+npm run deploy:staging
+```
+
+Back up, prove the backup restores and the new migrations apply to it, then
+migrate and deploy. Never rewrite an applied migration.
+
 ## What is and is not here
 
 The brief describes a private operating platform behind the public site:
@@ -752,9 +886,10 @@ engine shortlists and a person decides, an approved match opens an opportunity,
 a negotiated opportunity opens a deal, and an executed deal opens the royalty
 record that outlives it.
 
-One thing in the brief has never actually run here: the live call to the Claude
-API in the match engine, because this environment has no `ANTHROPIC_API_KEY`.
-The deterministic layers around it are tested; the model call is not.
+The Claude engine is kept but off; it has never run here because there is no
+`ANTHROPIC_API_KEY`, and the platform stays on free tiers. The Workers AI
+engine, the figure reader and the phase 8 assessments have all been checked
+live on staging. The open items are in **Status and flags** at the top.
 
 Nothing else is stubbed. The public portfolio reads published records, so the
 site shows whatever has been written and published and nothing otherwise —
