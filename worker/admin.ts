@@ -882,7 +882,7 @@ export async function handleAdmin(request: Request, env: Env, url: URL, ip: stri
          LEFT JOIN technology_profiles tp ON tp.reference = m.technology_ref
          LEFT JOIN match_profiles mp ON mp.source_match_ref = m.reference
          ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-         ORDER BY m.created_at DESC LIMIT 200`,
+         ORDER BY CASE m.classification WHEN 'Strong Match' THEN 0 WHEN 'Promising Match' THEN 1 WHEN 'Adjacent Opportunity' THEN 2 ELSE 3 END, m.created_at DESC LIMIT 200`,
       )
       .bind(...binds)
       .all<Record<string, unknown>>()

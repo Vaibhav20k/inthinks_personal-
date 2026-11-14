@@ -191,7 +191,7 @@ export function assess(challenge: ChallengeRecord, candidate: Prefilter, similar
   let classification: CandidateAnalysis['classification'] =
     mechanismFit === 'Strong' && total >= 6 ? 'Strong Match'
       : total >= 4 && mechanismFit !== 'Limited' ? 'Promising Match'
-        : total >= 2 ? 'Adjacent Opportunity' : 'Weak Match'
+        : total >= 2 && (mechanismFit !== 'Limited' || applicationFit !== 'Limited') ? 'Adjacent Opportunity' : 'Weak Match'
   if (figures.conflicts.length && (classification === 'Strong Match' || classification === 'Promising Match')) classification = 'Adjacent Opportunity'
 
   const why = [...candidate.signals]

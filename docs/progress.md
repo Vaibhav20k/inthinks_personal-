@@ -22,7 +22,7 @@ push or merge to `main`. Last updated: 13 November 2026.
 | 6 | Structured qualification | ✅ Done |
 | 7 | Adaptive text intake | ⬜ To do |
 | 8 | Private automatic admin assessments + deterministic economics | ⬜ To do |
-| 9 | Matching without Claude | ✅ Done (code); live AI check pending |
+| 9 | Matching without Claude | ✅ Done |
 | 10 | Controlled disclosure and engagement workflow | ⬜ To do |
 | 11 | Voice, documents, discovery, pilots | ⬜ To do |
 | 12 | Enterprise, scale, visual redesign | ⬜ To do |
@@ -131,9 +131,14 @@ pass. Every migration runs in an isolated test database.
 
 
 ### Known gaps in finished phases
-- [ ] Phase 9: Workers AI not yet checked live on staging; similarity
-  thresholds (0.70 / 0.55) are starting values, so tune them once admins have
-  reviewed about 20 real pairs.
+- [x] Phase 9 checked live on staging (14 Nov 2026), engine
+  `rules+figures+@cf/baai/bge-m3`. Kiln problem → coating **Strong** (0.76),
+  battery film **Weak** (0.45). Reverse: vibration sensor → conveyor problem
+  **Promising** (0.78), packaging **Weak** (0.43).
+- [ ] Tune the similarity thresholds (0.70 / 0.55) once admins have reviewed
+  about 20 real pairs. Unrelated test pairs scored 0.43–0.45.
+- [ ] Remove the TEST P9 records from staging once you're done testing
+  (CH-2026-0002/0003/0004, INT-2026-0001/0002/0003).
 - [ ] No email when staff ask a clarification question.
 - [ ] No automatic invitation email.
 - [ ] Participant screens not yet tested in a browser.
@@ -182,6 +187,16 @@ pass. Every migration runs in an isolated test database.
 > [!WARNING]
 > **Migrations before code.** Apply migrations before deploying the Worker that
 > uses them. Never edit an applied migration; add a new one.
+
+> [!WARNING]
+> **Staging admin uses a test password.** `vkpal2006@gmail.com` is a staging
+> super-admin with the test password chosen on 14 Nov 2026. Change it, or turn
+> on Cloudflare Access, before any real data goes on staging.
+
+> [!NOTE]
+> **Password hashing is capped at 100,000 PBKDF2 rounds.** Live Cloudflare
+> Workers refuse more, even though local tests allow it; a higher value broke
+> every staging admin sign-in. A test now guards the limit.
 
 > [!NOTE]
 > **"Configured" is not "working".** A setting existing in a file or on the

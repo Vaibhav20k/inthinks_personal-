@@ -40,6 +40,11 @@ try {
     await db.batch(statements.map(s => db.prepare(s)))
   }
   check('all migration files apply', true, true)
+  // Deployed Workers refuse PBKDF2 above 100,000 iterations; local workerd allows it.
+  const iterations = async (file, name) => Number((await readFile(file, 'utf8')).match(new RegExp(`${name} = ([\\d_]+)`))[1].replace(/_/g, ''))
+  const workerIterations = await iterations('worker/auth.ts', 'PBKDF2_ITERATIONS')
+  check('password hashing stays within the Workers PBKDF2 limit', workerIterations <= 100_000, true)
+  check('admin script hashes the same way as the Worker', await iterations('scripts/create-admin.mjs', 'ITERATIONS'), workerIterations)
   check('existing submissions backfilled as unowned',(await db.prepare("SELECT organization_id FROM case_records WHERE reference='CH-LEGACY-0001'").first()).organization_id,null)
   check('migration preserves legacy answers',(await db.prepare("SELECT payload FROM challenges WHERE reference='CH-LEGACY-0001'").first()).payload,'{"statement":"preserve me"}')
   await db.batch([db.prepare("DELETE FROM case_records WHERE reference='CH-LEGACY-0001'"),db.prepare("DELETE FROM challenges WHERE reference='CH-LEGACY-0001'")])

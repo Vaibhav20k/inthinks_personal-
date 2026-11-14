@@ -95,7 +95,9 @@ function constantTimeEqual(a: string, b: string) {
 
 /* ---------------------------------------------------------------- passwords */
 
-const PBKDF2_ITERATIONS = 210_000
+// Cloudflare Workers rejects PBKDF2 above 100,000 iterations (local workerd does
+// not), so this is the ceiling. Must equal ITERATIONS in scripts/create-admin.mjs.
+const PBKDF2_ITERATIONS = 100_000
 
 export async function hashPassword(password: string, salt: string) {
   const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits'])

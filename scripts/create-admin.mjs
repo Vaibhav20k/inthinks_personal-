@@ -18,7 +18,7 @@ import { promisify } from 'node:util'
 const derive = promisify(pbkdf2)
 
 // Must match worker/auth.ts exactly, or the hash will never verify.
-const ITERATIONS = 210_000
+const ITERATIONS = 100_000 // Cloudflare Workers maximum; see worker/auth.ts
 const KEY_LENGTH = 32
 const DIGEST = 'sha256'
 

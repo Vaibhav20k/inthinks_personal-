@@ -43,6 +43,9 @@ export async function testMatching({ mf, db, call, check, innovation, challenge,
   const coatingRow = rows.find((r) => r.technology_ref === coating), batteryRow = rows.find((r) => r.technology_ref === battery)
   check('relevant technology classified above unrelated one', !batteryRow || ['Strong Match', 'Promising Match'].includes(coatingRow.classification) && batteryRow.classification !== 'Strong Match', true)
   check('match list returns the suggestions', ranked.length, rows.length)
+  const order = ['Strong Match', 'Promising Match', 'Adjacent Opportunity', 'Weak Match']
+  check('match list shows the best suggestion first', ranked.every((m, i) => i === 0 || order.indexOf(ranked[i - 1].classification) <= order.indexOf(m.classification)), true)
+  if (batteryRow) check('readiness alone does not lift an unrelated technology', batteryRow.classification, 'Weak Match')
 
   const calls = (await (await mf.dispatchFetch('https://inthinks.test/test/ai-calls')).json()).calls
   await call('/api/admin/matches/generate', { challenge: kilnRef }, ai)
