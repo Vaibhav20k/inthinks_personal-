@@ -164,9 +164,10 @@ pass. Every migration runs in an isolated test database.
   Products, Materials get the general list; the water list is unreachable).
 - [ ] When signed in, the submission form should fill in and lock the
   verified email instead of rejecting a different one.
-- [ ] Phase 7: the participant *Help us match you better* form is covered by
-  automated tests but not yet clicked through in a browser (needs a signed-in
-  participant with an owned case).
+- [x] Phase 7 participant form clicked through on staging (14 Nov 2026):
+  accept, reject and typed answers all saved correctly; test case removed.
+- [ ] Show large numbers with separators in suggestions (2,400,000 not
+  2400000).
 - [x] Phase 9 checked live on staging (14 Nov 2026), engine
   `rules+figures+@cf/baai/bge-m3`. Kiln problem → coating **Strong** (0.76),
   battery film **Weak** (0.45). Reverse: vibration sensor → conveyor problem
