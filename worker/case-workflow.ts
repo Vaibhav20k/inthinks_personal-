@@ -4,6 +4,7 @@ import { audit } from './audit'
 import { assigned, isPlatformAdmin } from './staff-access'
 import { qualificationRoutes } from './qualification'
 import { followUps } from './intake-checklist'
+import { assessCase } from './assessment'
 
 /**
  * Staff side of the case workflow (step 5) and qualification (step 6).
@@ -68,6 +69,12 @@ export async function caseWorkflowRoutes(request: Request, ctx: AuthContext, pat
     if (request.method !== 'GET') return reply({ error: 'Method not allowed.' }, 405)
     const state = await followUps(db, reference)
     return state ? reply(state) : reply({ error: 'Not found.' }, 404)
+  }
+  if (rest === '/assessment') {
+    // Admin-only commercial view (C4): administrators and the assigned mediator only.
+    if (request.method !== 'GET') return reply({ error: 'Method not allowed.' }, 405)
+    const assessment = await assessCase(db, reference)
+    return assessment ? reply(assessment) : reply({ error: 'Not found.' }, 404)
   }
   if (rest.startsWith('/qualification')) {
     const response = await qualificationRoutes(request, db, reference, { email: actor.email, side: 'staff' }, rest.slice('/qualification'.length))

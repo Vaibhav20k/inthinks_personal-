@@ -37,7 +37,7 @@ function describe(i: Item) {
   return range
 }
 
-export default function QualificationEditor({ base, side }: { base: string; side: 'staff' | 'participant' }) {
+export default function QualificationEditor({ base, side, onChange }: { base: string; side: 'staff' | 'participant'; onChange?: () => void }) {
   const [data, setData] = useState<Data | null>(null)
   const [form, setForm] = useState(EMPTY)
   const [fields, setFields] = useState<Record<string, string>>({})
@@ -46,7 +46,7 @@ export default function QualificationEditor({ base, side }: { base: string; side
   useEffect(() => { load().catch((e) => setError(e.message)) }, [base])
   async function run(fn: () => Promise<unknown>) {
     setBusy(true); setError(''); setFields({})
-    try { await fn(); await load() } catch (e) { setError(e instanceof Error ? e.message : 'Request failed'); if (e instanceof RequestError) setFields(e.fields) }
+    try { await fn(); await load(); onChange?.() } catch (e) { setError(e instanceof Error ? e.message : 'Request failed'); if (e instanceof RequestError) setFields(e.fields) }
     finally { setBusy(false) }
   }
   const set = (patch: Partial<typeof EMPTY>) => setForm((f) => ({ ...f, ...patch }))

@@ -23,6 +23,7 @@ const REQUIRED_SCHEMA: [table: string, column: string, migration: string][] = [
   ['email_usage', 'sent', '0018_email_quota'],
   ['match_embeddings', 'vector', '0019_match_embeddings'],
   ['intake_suggestions', 'quote', '0020_intake_suggestions'],
+  ['economics_settings', 'settings', '0021_economics_settings'],
 ]
 
 export async function liveness(env: Env) {

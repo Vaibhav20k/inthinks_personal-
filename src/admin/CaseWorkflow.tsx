@@ -3,6 +3,7 @@ import { Panel } from './ui'
 import { requestJson } from '../lib/http'
 import QualificationEditor from '../components/qualification/QualificationEditor'
 import MissingFigures from './MissingFigures'
+import Assessment from './Assessment'
 
 interface Clarification {
   id: number; question: string; askedBy: string; askedAt: string; dueAt: string | null; status: string
@@ -21,6 +22,7 @@ export default function CaseWorkflow({ reference }: { reference: string }) {
   const [owner, setOwner] = useState(''), [nextAction, setNextAction] = useState(''), [due, setDue] = useState('')
   const [question, setQuestion] = useState(''), [questionDue, setQuestionDue] = useState('')
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false)
+  const [figures, setFigures] = useState(0)
   async function load() {
     const d = await requestJson<State>(base)
     setData(d); setOwner(d.workflow?.owner ?? ''); setNextAction(d.workflow?.nextAction ?? ''); setDue(d.workflow?.nextActionDue ?? '')
@@ -71,7 +73,8 @@ export default function CaseWorkflow({ reference }: { reference: string }) {
         </div>
       </div>
     </Panel>
-    <MissingFigures reference={reference} onAsked={() => void load()} />
-    <Panel title="Qualification"><QualificationEditor base={`${base}/qualification`} side="staff" /></Panel>
+    <Assessment key={figures} reference={reference} />
+    <MissingFigures key={`m${figures}`} reference={reference} onAsked={() => void load()} />
+    <Panel title="Qualification"><QualificationEditor base={`${base}/qualification`} side="staff" onChange={() => setFigures((n) => n + 1)} /></Panel>
   </>
 }

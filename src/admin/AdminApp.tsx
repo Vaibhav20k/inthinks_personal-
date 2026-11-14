@@ -27,6 +27,7 @@ import AuditLog from './AuditLog'
 import Users from './Users'
 import NextActions from './NextActions'
 import Operations from './Operations'
+import EconomicsSettings from './EconomicsSettings'
 import { Empty } from './ui'
 
 /**
@@ -107,6 +108,7 @@ export default function AdminApp() {
         <Route path="next-actions" element={<NextActions />} />
         {me.can.viewAudit && <Route path="audit" element={<AuditLog />} />}
         {me.can.viewAudit && <Route path="operations" element={<Operations />} />}
+        {me.can.viewAudit && <Route path="economics" element={<EconomicsSettings />} />}
         {me.can.manageUsers && <Route path="users" element={<Users />} />}
         <Route path="*" element={<Empty>That admin page does not exist.</Empty>} />
       </Routes>

@@ -21,7 +21,7 @@ push or merge to `main`. Last updated: 13 November 2026.
 | 5 | Full workflows (drafts, clarifications, owners, next actions) | ✅ Done |
 | 6 | Structured qualification | ✅ Done |
 | 7 | Adaptive text intake | ✅ Done |
-| 8 | Private automatic admin assessments + deterministic economics | ⬜ To do |
+| 8 | Private automatic admin assessments + deterministic economics | ✅ Done |
 | 9 | Matching without Claude | ✅ Done |
 | 10 | Controlled disclosure and engagement workflow | ⬜ To do |
 | 11 | Voice, documents, discovery, pilots | ⬜ To do |
@@ -93,6 +93,30 @@ pass. Every migration runs in an isolated test database.
 - Checked live on staging: the AI read 180 °C, 2,400,000 kWh/year, 120 h and
   15% correctly from a test problem.
 
+### 8. Private assessments and economics
+- **Assessment panel** on every case (admins and the assigned mediator only;
+  technical reviewers and participants never see it). Worked out fresh on each
+  view from the case's figures; nothing is stored, so it is never stale.
+- Problem side: **money at stake per year** (yearly cost × share it causes;
+  monthly × 12), **expected yearly saving** (× the improvement needed),
+  optional **energy saving** at a set kWh price, **payback per match**
+  (solution's one-off cost ÷ saving). Solution side: installation cost and
+  payback against each matched problem.
+- Every number is a **low–high range**: high = figures as stated, low = each
+  figure discounted by how well it is checked (100 / 90 / 70 / 50 %); a
+  derived number takes its weakest input. **Disputed figures are left out**
+  and the panel says so.
+- **Priority: Hot / Warm / Not yet / Not enough data**, with the reasons.
+  Points: value at stake 0–2, half the figures checked 1, checklist complete 1,
+  strong or promising match 1. Hot needs 4 points and some value.
+- **No currency conversion** and **no AI** — plain arithmetic, same inputs
+  give the same answer. Only the default currency is ranked by value.
+- **Economics settings page** (admins): trust shares, thresholds, default
+  currency (EUR), kWh price. Each save is a new version (migration 0021) and
+  audited; the panel names the version it used.
+- A percentage target with a baseline ("scrap ≤ 2 % from 8 %") is treated as
+  an absolute rate and not used as an improvement, rather than guessed at.
+
 ### 9. Matching without Claude
 - Claude is no longer used. Default engine: rules → verified figures →
   meaning similarity from **Cloudflare Workers AI** (`@cf/baai/bge-m3`, free
@@ -114,7 +138,7 @@ pass. Every migration runs in an isolated test database.
 - Meaning-vectors are stored (migration 0019) and recomputed only when a
   record's text changes.
 
-**Test status:** 247 automated HTTP checks + 7 unit suites pass.
+**Test status:** 278 automated HTTP checks + 8 unit suites pass.
 
 ---
 
@@ -179,10 +203,12 @@ pass. Every migration runs in an isolated test database.
 - [ ] No email when staff ask a clarification question.
 - [ ] No automatic invitation email.
 - [ ] Participant screens not yet tested in a browser.
+- [ ] Phase 8 starting values (EUR, Hot ≥ 100,000, Warm ≥ 20,000, trust
+  100/90/70/50 %) are placeholders; set real ones on the Economics page.
+- [ ] Payback only works when the solution states a one-off cost in the same
+  currency as the problem's yearly cost.
 
 ### Next phases
-- **8. Automatic admin assessments** — private to admins, economics computed
-  by fixed, configurable rules from verified figures.
 - **10. Controlled disclosure and engagement.**
 - **11. Voice, documents, discovery, pilots.**
 - **12. Enterprise, scale, visual redesign.**
