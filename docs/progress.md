@@ -183,7 +183,7 @@ pass. Every migration runs in an isolated test database.
 - Meaning-vectors are stored (migration 0019) and recomputed only when a
   record's text changes.
 
-**Test status:** 374 automated HTTP checks + 8 unit suites pass.
+**Test status:** 375 automated HTTP checks + 8 unit suites pass.
 
 ---
 
@@ -255,8 +255,10 @@ pass. Every migration runs in an isolated test database.
 - [ ] Phase 10 sends no email when an opportunity is shared; the side sees
   it next time they open their account page.
 - [ ] Only admins run engagement sharing (mediators write and propose briefs).
-- [ ] Voice and document reading were tested with a stand-in AI; check them
-  once on staging with a real recording and a real PDF.
+- [ ] Voice and document reading: both real Workers AI models were checked
+  on 17 Nov 2026 (Whisper answered; toMarkdown kept "175 °C" and
+  "2,400,000 kWh/year" intact). Not yet tried end to end with a real voice
+  and a real PDF through the site; do that once while signed in.
 - [ ] Discovery sends no email to providers when a problem is listed, or to
   InThinks when interest arrives; check the Discovery page.
 - [ ] Documents that are scanned images may read poorly (no text layer).

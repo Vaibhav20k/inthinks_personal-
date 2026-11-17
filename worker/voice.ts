@@ -58,7 +58,8 @@ export async function voiceRoutes(request: Request, env: Env, user: Participant,
     try {
       const out = await env.AI.run(VOICE_MODEL, { audio: base64(bytes), task: 'transcribe' }) as { text?: unknown }
       const text = typeof out?.text === 'string' ? out.text.trim() : ''
-      if (!text) return reply({ error: 'Nothing could be heard in the recording. Please try again closer to the microphone.' }, 422)
+      // Whisper answers silence or noise with punctuation such as "."; that is not speech.
+      if (!/[\p{L}\p{N}]/u.test(text)) return reply({ error: 'Nothing could be heard in the recording. Please try again closer to the microphone.' }, 422)
       return reply({ text: text.slice(0, 6000) })
     } catch (cause) {
       console.warn(JSON.stringify({ event: 'inthinks.voice', error: cause instanceof Error ? cause.message.slice(0, 120) : 'unknown' }))

@@ -80,6 +80,7 @@ export async function testPhase11({ mf, db, call, check, challenge, innovation, 
   check('voice needs a signed-in participant', (await audio('hello', { 'x-test-ai': '1' })).status, 401)
   check('only audio is accepted', (await raw('/api/participant/voice', 'hi', { ...ai, 'content-type': 'text/plain' })).status, 415)
   check('silence is reported, not saved', (await audio('SILENCE')).status, 422)
+  check('a lone full stop is not speech', (await audio(' . ')).status, 422)
   const day = `AI-VOICE:${new Date().toISOString().slice(0, 10)}`
   await db.prepare('INSERT INTO counters(name,value) VALUES (?,30) ON CONFLICT(name) DO UPDATE SET value=30').bind(day).run()
   check('voice stops at the daily limit', (await audio('one more')).status, 429)

@@ -58,9 +58,9 @@ and runs the build. There is no CD yet.
   the submitter's own names, contacts, site location and well-known company
   or institution names, but cannot know every brand, asset or person. The
   admin's tick-box read before approval is the second check; do not skip it.
-- ⚠️ **Voice and document reading are untested against the real AI.** The
-  automated tests use a stand-in; try one real recording and one real PDF on
-  staging before relying on them. Scanned PDFs without a text layer may read
+- ⚠️ **Voice and document reading are not yet tried end to end.** Both real
+  models answered correctly in a direct check; try one real recording and
+  one real PDF through the site while signed in before relying on them. Scanned PDFs without a text layer may read
   poorly.
 - ⚠️ **Discovery and pilots send no emails.** Check *Admin → Discovery* for
   new interest; participants see updates on their account page.
@@ -819,7 +819,7 @@ the portfolio's identity guard, slug rules and public serialiser — the last of
 these asserting that an innovator's name, email, institution and raw submission
 payload do not survive the trip to the public shape. It also covers the
 intake checklists and the phase 8 economics rules. Then an HTTP suite
-(`tests/http.test.mjs`, 374 checks) runs the real Worker against a local D1,
+(`tests/http.test.mjs`, 375 checks) runs the real Worker against a local D1,
 covering ownership, workflow, email quota, matching, adaptive intake,
 assessments, disclosure, pilots, discovery, voice and documents, including that participants and reviewers never
 receive economics and that neither side of an engagement sees the other's
