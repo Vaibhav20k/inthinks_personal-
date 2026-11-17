@@ -137,6 +137,7 @@ function present(row: Record<string, unknown>, side: QualificationActor['side'])
     period: row.period, attributionPct: row.attribution_pct, targetDate: row.target_date, sourceKind: row.source_kind,
     sourceDetail: row.source_detail, evidenceId: row.evidence_id, observedOn: row.observed_on, verification: row.verification,
     createdRole: row.created_role, createdAt: row.created_at, updatedAt: row.updated_at, retiredAt: row.retired_at,
+    internalOnly: row.internal_only === 1,
   }
   if (side === 'staff') Object.assign(item, { createdBy: row.created_by, verificationNote: row.verification_note, verifiedBy: row.verified_by, verifiedAt: row.verified_at })
   return item
@@ -160,7 +161,7 @@ export function completeness(items: { category: unknown; observed_on: unknown; v
  * The caller has already proved the actor may access `reference`.
  */
 export async function qualificationRoutes(request: Request, db: D1Database, reference: string, actor: QualificationActor, rest: string) {
-  const route = rest.match(/^(?:\/(\d{1,12})(?:\/(verification|retire))?)?$/)
+  const route = rest.match(/^(?:\/(\d{1,12})(?:\/(verification|retire|internal))?)?$/)
   if (!route) return reply({ error: 'Not found.' }, 404)
   const id = route[1] ? Number(route[1]) : null
   const now = new Date().toISOString()
@@ -197,6 +198,12 @@ export async function qualificationRoutes(request: Request, db: D1Database, refe
 
   if (route[2] === 'retire' && request.method === 'POST') {
     await db.prepare('UPDATE qualification_items SET retired_at=?,updated_at=? WHERE id=?').bind(now, now, id).run()
+    return reply({ ok: true })
+  }
+  if (route[2] === 'internal' && request.method === 'POST') {
+    // D11: a figure kept between the submitter and InThinks never reaches a brief.
+    if (typeof body!.internalOnly !== 'boolean') return reply({ error: 'Say whether the figure is InThinks only.' }, 422)
+    await db.prepare('UPDATE qualification_items SET internal_only=?,updated_at=? WHERE id=?').bind(body!.internalOnly ? 1 : 0, now, id).run()
     return reply({ ok: true })
   }
   if (route[2] === 'verification' && request.method === 'POST') {

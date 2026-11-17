@@ -24,12 +24,12 @@ npm run deploy:staging   # build + all tests, then deploy to the staging Worker
 > detail lives in [`docs/progress.md`](docs/progress.md); this is the short
 > list of what is done and what is still open.
 
-**Done:** phases 1–9 of the upgrade roadmap: reliable intake, participant
+**Done:** phases 1–10 of the upgrade roadmap: reliable intake, participant
 accounts and ownership, operational safeguards, case workflow, structured
 qualification, adaptive intake, **private assessments and economics
-(phase 8)**, and matching without Claude. Still to do: phase 10 (controlled
-disclosure and engagement), 11 (voice, documents, discovery, pilots) and 12
-(enterprise, scale, visual redesign).
+(phase 8)**, matching without Claude, and **controlled disclosure and
+engagement (phase 10)**. Still to do: phase 11 (voice, documents, discovery,
+pilots) and 12 (enterprise, scale, visual redesign).
 
 **Staging:** https://inthinks-staging.inthinks.workers.dev, uptime-monitored
 on `/api/health`. Pushes go to `origin` (`Vaibhav20k/inthinks_personal-`),
@@ -52,6 +52,12 @@ and runs the build. There is no CD yet.
 - ⚠️ **Assessment ranges are wide until figures are checked.** Nearly every
   figure arrives *unverified* and counts at 50 % on the low end; the range
   narrows only as staff verify figures.
+- ⚠️ **Phase 10 sends no email when an opportunity is shared.** The side
+  sees it the next time it opens its account page.
+- ⚠️ **The brief identity check is automatic but not complete.** It blocks
+  the submitter's own names, contacts, site location and well-known company
+  or institution names, but cannot know every brand, asset or person. The
+  admin's tick-box read before approval is the second check; do not skip it.
 - ⚠️ **Staging admin uses a test password.** Change it, or turn on Cloudflare
   Access, before any real data goes onto staging.
 - ⚠️ **No file storage on staging yet.** R2 needs a card on the Cloudflare
@@ -365,6 +371,7 @@ applied:
 | 0017–0018 | Structured qualification items, email quota |
 | 0019–0020 | Match embeddings cache, adaptive-intake suggestions |
 | 0021 | Versioned economics settings (phase 8) |
+| 0022 | Disclosure briefs, InThinks-only figures, engagement sides (phase 10) |
 
 `/api/admin/health` reports any migration the running Worker expects but the
 database lacks.
@@ -472,6 +479,20 @@ Each case page (administrators, and the mediator assigned to it) carries:
   currencies are never converted, and no AI is involved, so the same figures
   always give the same answer. Each assessment names the settings version
   that produced it. See the flags above for the limits.
+- **Anonymised brief (phase 10)**: the only thing the other side of an
+  engagement ever sees. Staff write it, the assigned mediator proposes, an
+  administrator approves after reading it for names. An automatic identity
+  check runs on save, approval and every display. Costs and figures marked
+  *InThinks only* are never included.
+
+### Engagement (phase 10)
+
+On each opportunity, InThinks deals with the problem side and the solution
+side separately (firm rule D10: they never learn each other's identity). An
+administrator shares the other side's approved brief with each side, pinned to
+that version, sets a next step the side can see, and can revoke. Participants
+see *Opportunities shared with you* on their account page and answer InThinks
+only.
 
 ### Evidence files
 
@@ -776,10 +797,11 @@ the portfolio's identity guard, slug rules and public serialiser — the last of
 these asserting that an innovator's name, email, institution and raw submission
 payload do not survive the trip to the public shape. It also covers the
 intake checklists and the phase 8 economics rules. Then an HTTP suite
-(`tests/http.test.mjs`, 278 checks) runs the real Worker against a local D1,
-covering ownership, workflow, email quota, matching, adaptive intake and
-assessments, including that participants and reviewers never receive
-economics. It runs as part of `npm run build`, so a regression fails the
+(`tests/http.test.mjs`, 330 checks) runs the real Worker against a local D1,
+covering ownership, workflow, email quota, matching, adaptive intake,
+assessments and disclosure, including that participants and reviewers never
+receive economics and that neither side of an engagement sees the other's
+identity. It runs as part of `npm run build`, so a regression fails the
 deploy.
 
 ## Deployment

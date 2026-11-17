@@ -5,6 +5,7 @@ import { audit } from './audit'
 import { signEvidence } from './evidence'
 import { caseWorkflowRoutes } from './case-workflow'
 import { economicsRoutes } from './assessment'
+import { engagementStaffRoutes } from './engagement'
 
 export const isPlatformAdmin = (ctx: AuthContext) => ctx.actor.role === 'admin' || ctx.actor.role === 'super-admin'
 export async function assigned(ctx: AuthContext, reference: string) {
@@ -90,6 +91,8 @@ export async function staffAccess(request: Request, env: Env, ctx: AuthContext, 
   }
   const economics = await economicsRoutes(request, ctx, path, ip)
   if (economics) return economics
+  const engagement = await engagementStaffRoutes(request, ctx, path, ip)
+  if (engagement) return engagement
   const workflow = await caseWorkflowRoutes(request, ctx, path, ip)
   if (workflow) return workflow
   // Prevent staff notes being attached to arbitrary or nonexistent references.

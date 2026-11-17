@@ -5,6 +5,7 @@ import { assigned, isPlatformAdmin } from './staff-access'
 import { qualificationRoutes } from './qualification'
 import { followUps } from './intake-checklist'
 import { assessCase } from './assessment'
+import { briefRoutes } from './disclosure'
 
 /**
  * Staff side of the case workflow (step 5) and qualification (step 6).
@@ -70,6 +71,7 @@ export async function caseWorkflowRoutes(request: Request, ctx: AuthContext, pat
     const state = await followUps(db, reference)
     return state ? reply(state) : reply({ error: 'Not found.' }, 404)
   }
+  if (rest === '/briefs' || rest.startsWith('/briefs/')) return briefRoutes(request, ctx, reference, rest.slice('/briefs'.length), ip)
   if (rest === '/assessment') {
     // Admin-only commercial view (C4): administrators and the assigned mediator only.
     if (request.method !== 'GET') return reply({ error: 'Method not allowed.' }, 405)

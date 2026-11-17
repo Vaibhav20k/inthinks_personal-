@@ -23,7 +23,7 @@ push or merge to `main`. Last updated: 13 November 2026.
 | 7 | Adaptive text intake | ✅ Done |
 | 8 | Private automatic admin assessments + deterministic economics | ✅ Done |
 | 9 | Matching without Claude | ✅ Done |
-| 10 | Controlled disclosure and engagement workflow | ⬜ To do |
+| 10 | Controlled disclosure and engagement workflow | ✅ Done |
 | 11 | Voice, documents, discovery, pilots | ⬜ To do |
 | 12 | Enterprise, scale, visual redesign | ⬜ To do |
 
@@ -117,6 +117,29 @@ pass. Every migration runs in an isolated test database.
 - A percentage target with a baseline ("scrap ≤ 2 % from 8 %") is treated as
   an absolute rate and not used as an improvement, rather than guessed at.
 
+### 10. Controlled disclosure and engagement
+- **Anonymised briefs** on every case (migration 0022): staff write a title,
+  summary and chosen figures; the assigned mediator proposes; only an admin
+  approves, after ticking that they read it for site, brand and people names.
+  Approved versions are never edited; a new version supersedes the old one.
+- **Automatic identity check** on save, on approval and again every time a
+  brief is shown: the submitter's company, organization, people, email,
+  phone, website, site location, IP owner, patent number and co-inventors,
+  plus email/phone/profile-link/web-address shapes and named companies or
+  institutions. A brief that fails at show time is withheld, not shown.
+- **Costs never go in a brief**, nor do figures the submitter marks
+  **"InThinks only"** (new tick box on each figure, both sides).
+- **Engagement on each opportunity**: type (scouting, development,
+  licensing, pilot) and two sides handled separately. An admin shares the
+  other side's approved brief with each side, pinned to that version, sets
+  a next step the side can see, and can revoke. Sharing a newer version asks
+  the side for a fresh answer.
+- **Participants** see *Opportunities shared with you* on their account
+  page: the anonymous brief and figures, stage, type and next step, and
+  answer InThinks with *Interested*, *I need more information* (with a
+  question) or *Not interested*. They never see the other side's identity,
+  reference, or any commercial figure (tested).
+
 ### 9. Matching without Claude
 - Claude is no longer used. Default engine: rules → verified figures →
   meaning similarity from **Cloudflare Workers AI** (`@cf/baai/bge-m3`, free
@@ -138,7 +161,7 @@ pass. Every migration runs in an isolated test database.
 - Meaning-vectors are stored (migration 0019) and recomputed only when a
   record's text changes.
 
-**Test status:** 278 automated HTTP checks + 8 unit suites pass.
+**Test status:** 330 automated HTTP checks + 8 unit suites pass.
 
 ---
 
@@ -207,9 +230,13 @@ pass. Every migration runs in an isolated test database.
   100/90/70/50 %) are placeholders; set real ones on the Economics page.
 - [ ] Payback only works when the solution states a one-off cost in the same
   currency as the problem's yearly cost.
+- [ ] Phase 10 sends no email when an opportunity is shared; the side sees
+  it next time they open their account page.
+- [ ] Only admins run engagement sharing (mediators write and propose briefs).
+- [ ] The identity check cannot know every site, brand or person name; the
+  admin's manual read before approval is the second check.
 
 ### Next phases
-- **10. Controlled disclosure and engagement.**
 - **11. Voice, documents, discovery, pilots.**
 - **12. Enterprise, scale, visual redesign.**
 

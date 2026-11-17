@@ -4,6 +4,7 @@ import { requestJson } from '../lib/http'
 import QualificationEditor from '../components/qualification/QualificationEditor'
 import MissingFigures from './MissingFigures'
 import Assessment from './Assessment'
+import Briefs from './Briefs'
 
 interface Clarification {
   id: number; question: string; askedBy: string; askedAt: string; dueAt: string | null; status: string
@@ -74,6 +75,7 @@ export default function CaseWorkflow({ reference }: { reference: string }) {
       </div>
     </Panel>
     <Assessment key={figures} reference={reference} />
+    <Briefs key={`b${figures}`} reference={reference} canApprove={data.canChooseOwner} />
     <MissingFigures key={`m${figures}`} reference={reference} onAsked={() => void load()} />
     <Panel title="Qualification"><QualificationEditor base={`${base}/qualification`} side="staff" onChange={() => setFigures((n) => n + 1)} /></Panel>
   </>

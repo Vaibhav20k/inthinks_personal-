@@ -4,6 +4,7 @@ import PageMeta from '../components/layout/PageMeta'
 import { activeOrganization, chooseOrganization, participantApi as api } from '../lib/participant'
 import type { Organization } from '../lib/participant'
 import { CaseFigures, Clarifications, Drafts } from '../components/account/CaseWork'
+import Engagements from '../components/account/Engagements'
 
 interface RecordItem {reference:string;title:string;kind:string;reviewStatus:string;organization_id:string}
 interface RecordDetail extends RecordItem {answers:Record<string,unknown>;evidence:{id:number;name:string;url:string|null;status:string}[]}
@@ -76,6 +77,7 @@ export default function Account() {
         </div>}
       </>}
       <div className="grid gap-3"><h2 className="text-xl">Your records</h2>{records.filter(r=>r.organization_id===selected).map(r=><button key={r.reference} className="border p-4 text-left" onClick={()=>void action(async()=>setDetail(await api<RecordDetail>(`/records/${r.reference}`)))}><strong>{r.title}</strong><br/>{r.reference} · {r.reviewStatus.replaceAll('_',' ')}</button>)}{!records.some(r=>r.organization_id===selected)&&<p>No submissions available for this organization yet.</p>}</div>
+      <Engagements/>
       <Drafts/>
       {detail && <article className="border p-5 grid gap-4"><h2 className="text-xl">{detail.title}</h2><a className="underline" href={`/api/participant/records/${detail.reference}/export`}>Download submission</a>
         <dl className="grid gap-3">{Object.entries(detail.answers).filter(([,v])=>v!==''&&v!==null).map(([k,v])=><div key={k}><dt className="font-semibold">{k.replaceAll('_',' ')}</dt><dd className="whitespace-pre-wrap break-words">{Array.isArray(v)?v.join(', '):String(v)}</dd></div>)}</dl>

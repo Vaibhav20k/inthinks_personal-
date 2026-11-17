@@ -4,6 +4,7 @@ import { participant, participantAuth } from './participant-auth'
 import { organizationRoutes } from './participant-organizations'
 import { recordRoutes } from './participant-records'
 import { participantWorkflowRoutes } from './participant-workflow'
+import { engagementParticipantRoutes } from './engagement'
 import { audit } from './audit'
 import { ipTag } from './ratelimit'
 
@@ -17,6 +18,7 @@ export async function handleParticipant(request: Request, env: Env) {
   if (path === '/me' && request.method === 'GET') return reply(user)
   const response = await organizationRoutes(request,env.DB!,user,path)
     ?? await participantWorkflowRoutes(request,env,user,path)
+    ?? await engagementParticipantRoutes(request,env.DB!,user,path)
     ?? await recordRoutes(request,env,user,path)
     ?? reply({error:'Not found.'},404)
   if (response.ok) await audit(env.DB!,{email:user.email,role:'participant'},`participant.${request.method.toLowerCase()}`,path,undefined,

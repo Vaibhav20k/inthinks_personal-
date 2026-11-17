@@ -24,6 +24,8 @@ const REQUIRED_SCHEMA: [table: string, column: string, migration: string][] = [
   ['match_embeddings', 'vector', '0019_match_embeddings'],
   ['intake_suggestions', 'quote', '0020_intake_suggestions'],
   ['economics_settings', 'settings', '0021_economics_settings'],
+  ['disclosure_briefs', 'figure_ids', '0022_disclosure_engagement'],
+  ['qualification_items', 'internal_only', '0022_disclosure_engagement'],
 ]
 
 export async function liveness(env: Env) {

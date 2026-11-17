@@ -12,7 +12,7 @@ interface Item {
   id: number; category: string; label: string; comparator: string | null; value: number | null; valueMax: number | null
   baseline: number | null; unit: string | null; currency: string | null; period: string | null; attributionPct: number | null
   targetDate: string | null; sourceKind: string; sourceDetail: string | null; observedOn: string | null; verification: string
-  createdRole: string; retiredAt: string | null; verificationNote?: string | null; verifiedBy?: string | null
+  createdRole: string; retiredAt: string | null; internalOnly?: boolean; verificationNote?: string | null; verifiedBy?: string | null
 }
 interface Data { units: Record<string, string>; items: Item[]; completeness?: { ready: boolean; missing: string[]; items: number; verified: number } }
 
@@ -76,6 +76,11 @@ export default function QualificationEditor({ base, side, onChange }: { base: st
               void run(() => requestJson(`${base}/${i.id}/verification`, { verification: state, note }))
             }}>{Object.entries(VERIFICATION).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>}
           {(side === 'staff' || i.createdRole === 'participant') && <button className="underline" disabled={busy} onClick={() => void run(() => requestJson(`${base}/${i.id}/retire`, {}))}>Retire</button>}
+          {i.category !== 'cost' && (side === 'staff' || i.createdRole === 'participant') && <label className="flex items-center gap-2">
+            <input type="checkbox" disabled={busy} checked={Boolean(i.internalOnly)}
+              onChange={(e) => void run(() => requestJson(`${base}/${i.id}/internal`, { internalOnly: e.target.checked }))} />
+            InThinks only <span style={{ color: 'var(--color-muted)' }}>(never shared with the other side)</span></label>}
+          {i.category === 'cost' && <span style={{ color: 'var(--color-muted)' }}>Costs are never shared with the other side.</span>}
         </div>}
       </li>)}
     </ul>
