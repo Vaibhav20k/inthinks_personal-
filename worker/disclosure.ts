@@ -96,7 +96,7 @@ async function validateBrief(db: D1Database, reference: string, body: Record<str
   const terms = await identityTerms(db, reference)
   for (const [key, text] of [['title', title], ['summary', summary]] as const) {
     const leak = text ? briefLeak(text, terms) : null
-    if (leak) fields[key] = `This names ${leak}. Rewrite it so the submitter cannot be identified.`
+    if (leak) fields[key] = `It contains ${leak}. Rewrite it so the submitter cannot be identified.`
   }
   if (ids?.length) {
     const allowed = new Set((await shareableFigures(db, reference)).map((f) => f.id))
