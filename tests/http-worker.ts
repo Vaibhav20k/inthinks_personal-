@@ -9,6 +9,11 @@ let aiCalls = 0
 const fakeAi = {
   async run(model: string, input: unknown) {
     aiCalls++
+    if (model.includes('whisper')) {
+      // Voice: the "audio" is base64 text; silence is an empty clip.
+      const said = new TextDecoder().decode(Uint8Array.from(atob((input as { audio: string }).audio), (c) => c.charCodeAt(0)))
+      return { text: said.startsWith('SILENCE') ? '' : said }
+    }
     if (!model.includes('bge')) {
       // Figure reader: finds "<n> °C" in the record, and also invents a value
       // that is not in the text, which the grounding check must reject.
@@ -34,6 +39,11 @@ const fakeAi = {
       return v.map((x) => x / n)
     }) }
   },
+}
+;(fakeAi as Record<string, unknown>).toMarkdown = async (file: { name: string; blob: Blob }) => {
+  aiCalls++
+  // Documents: the "document" bytes are plain text.
+  return { id: '1', name: file.name, mimeType: file.blob.type, format: 'markdown', tokens: 1, data: await file.blob.text() }
 }
 const failingAi = { async run() { aiCalls++; throw new Error('daily allowance used') } }
 

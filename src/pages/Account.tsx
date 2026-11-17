@@ -5,9 +5,10 @@ import { activeOrganization, chooseOrganization, participantApi as api } from '.
 import type { Organization } from '../lib/participant'
 import { CaseFigures, Clarifications, Drafts } from '../components/account/CaseWork'
 import Engagements from '../components/account/Engagements'
+import { DiscoveryConsent, DiscoveryList } from '../components/account/Phase11'
 
 interface RecordItem {reference:string;title:string;kind:string;reviewStatus:string;organization_id:string}
-interface RecordDetail extends RecordItem {answers:Record<string,unknown>;evidence:{id:number;name:string;url:string|null;status:string}[]}
+interface RecordDetail extends RecordItem {kind:'challenge'|'innovation';discoveryConsent:boolean;answers:Record<string,unknown>;evidence:{id:number;name:string;url:string|null;status:string}[]}
 export default function Account() {
   const [identity,setIdentity] = useState<string|null>(null)
   const [loading,setLoading] = useState(true)
@@ -78,11 +79,13 @@ export default function Account() {
       </>}
       <div className="grid gap-3"><h2 className="text-xl">Your records</h2>{records.filter(r=>r.organization_id===selected).map(r=><button key={r.reference} className="border p-4 text-left" onClick={()=>void action(async()=>setDetail(await api<RecordDetail>(`/records/${r.reference}`)))}><strong>{r.title}</strong><br/>{r.reference} · {r.reviewStatus.replaceAll('_',' ')}</button>)}{!records.some(r=>r.organization_id===selected)&&<p>No submissions available for this organization yet.</p>}</div>
       <Engagements/>
+      <DiscoveryList/>
       <Drafts/>
       {detail && <article className="border p-5 grid gap-4"><h2 className="text-xl">{detail.title}</h2><a className="underline" href={`/api/participant/records/${detail.reference}/export`}>Download submission</a>
         <dl className="grid gap-3">{Object.entries(detail.answers).filter(([,v])=>v!==''&&v!==null).map(([k,v])=><div key={k}><dt className="font-semibold">{k.replaceAll('_',' ')}</dt><dd className="whitespace-pre-wrap break-words">{Array.isArray(v)?v.join(', '):String(v)}</dd></div>)}</dl>
         {detail.evidence.map(f=>f.url?<a className="underline" key={f.id} href={f.url}>{f.name}</a>:<span key={f.id}>{f.name} — {f.status==='rejected'?'not accepted after inspection':'awaiting safety inspection'}</span>)}
         <Clarifications reference={detail.reference}/>
+        {owner && detail.kind==='challenge' && <DiscoveryConsent key={detail.reference} reference={detail.reference} initial={detail.discoveryConsent}/>}
         <CaseFigures reference={detail.reference}/>
         {owner && <form className="flex flex-wrap items-end gap-3" onSubmit={e=>{e.preventDefault();void action(async()=>{await api(`/records/${detail.reference}/grants`,{email:shareEmail});setNotice('Record shared with the selected member.')})}}><label>Share with active contributor<input className="field-input mt-2" required type="email" value={shareEmail} onChange={e=>setShareEmail(e.target.value)}/></label><button className={button} disabled={busy}>Grant access</button><button type="button" className={button} disabled={busy||!shareEmail} onClick={()=>void action(async()=>{await api(`/records/${detail.reference}/grants`,{email:shareEmail,revoke:true});setNotice('Explicit access revoked.')})}>Revoke access</button></form>}
       </article>}

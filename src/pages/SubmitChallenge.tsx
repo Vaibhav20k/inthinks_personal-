@@ -1,3 +1,4 @@
+import { VoiceInput } from '../components/account/Phase11'
 import SubmissionAccount from '../components/forms/SubmissionAccount'
 import { discardServerDraft } from '../lib/server-draft'
 import { useEffect, useState } from 'react'
@@ -148,6 +149,7 @@ export default function SubmitChallenge() {
         <>
           <TextField label="Challenge title" required value={value.title} error={err('title')} onChange={(v) => update({ title: v })} placeholder="A short name for the problem" />
           <TextArea label="Detailed problem statement" required rows={6} value={value.statement} error={err('statement')} onChange={(v) => update({ statement: v })} hint="What is going wrong, where, and under what conditions." />
+          {verifiedEmail && <VoiceInput onText={(text) => update({ statement: value.statement.trim() ? `${value.statement.trim()}\n\n${text}` : text })} />}
           <TextArea label="What currently happens?" value={value.currently} onChange={(v) => update({ currently: v })} />
           <TextArea label="What solution do you currently use?" value={value.currentSolution} onChange={(v) => update({ currentSolution: v })} />
           <TextArea label="What is inadequate about the current solution?" value={value.inadequate} onChange={(v) => update({ inadequate: v })} />

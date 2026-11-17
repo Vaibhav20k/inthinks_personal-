@@ -4,6 +4,7 @@ import * as api from './api'
 import { Chip, Empty, Field, Panel, Withheld, shortDateTime } from './ui'
 import type { Me } from './api'
 import Engagement from './Engagement'
+import Pilot from './Pilot'
 
 const READINESS_TONE: Record<string, 'active' | 'neutral' | 'quiet'> = {
   Ready: 'active', Qualified: 'active', Developing: 'neutral', Early: 'quiet',
@@ -151,6 +152,7 @@ export default function Opportunity({ me }: { me: Me }) {
           </Panel>
 
           {(me.role === 'admin' || me.role === 'super-admin') && <Engagement reference={data.reference} />}
+          {(me.role === 'admin' || me.role === 'super-admin') && <Pilot reference={data.reference} />}
 
           <Panel title="Transfer readiness">
             {data.readiness.length === 0 ? (

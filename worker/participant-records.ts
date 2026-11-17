@@ -3,7 +3,7 @@ import type { Participant } from './participant-auth'
 import { bodyObject, emailValue, reply, textValue } from './access-http'
 import { membership } from './participant-organizations'
 
-export interface OwnedCase { reference:string;kind:'challenge'|'innovation';organization_id:string;created_by:string }
+export interface OwnedCase { reference:string;kind:'challenge'|'innovation';organization_id:string;created_by:string;discovery_consent?:number }
 export async function accessibleCase(db: D1Database, reference: string, email: string) {
   return db.prepare(`SELECT c.* FROM case_records c JOIN memberships m ON m.organization_id=c.organization_id
     WHERE c.reference=? AND m.email=? AND m.active=1 AND (m.role='owner' OR c.created_by=? OR EXISTS
@@ -66,7 +66,7 @@ export async function recordRoutes(request: Request, env: Env, user: Participant
   const row = await db.prepare(`SELECT reference,title,created_at,review_status,payload FROM ${table} WHERE reference=?`).bind(record.reference).first<Record<string,unknown>>()
   if (!row) return reply({error:'Not found.'},404)
   const files = await db.prepare('SELECT id,file_name,size_bytes,scan_status FROM evidence WHERE reference=?').bind(record.reference).all<{id:number;file_name:string;size_bytes:number;scan_status:string}>()
-  return reply({reference:row.reference,kind:record.kind,title:row.title,createdAt:row.created_at,reviewStatus:row.review_status,
+  return reply({reference:row.reference,kind:record.kind,discoveryConsent:record.discovery_consent === 1,title:row.title,createdAt:row.created_at,reviewStatus:row.review_status,
     answers:JSON.parse(String(row.payload)),evidence:files.results.map(f=>({id:f.id,name:f.file_name,size:f.size_bytes,status:f.scan_status,url:f.scan_status === 'released' ? `/api/participant/evidence/${f.id}` : null}))},200,
     match[2] === 'export' ? {'content-disposition':`attachment; filename="${record.reference}.json"`} : {})
 }

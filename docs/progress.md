@@ -24,7 +24,7 @@ push or merge to `main`. Last updated: 13 November 2026.
 | 8 | Private automatic admin assessments + deterministic economics | ✅ Done |
 | 9 | Matching without Claude | ✅ Done |
 | 10 | Controlled disclosure and engagement workflow | ✅ Done |
-| 11 | Voice, documents, discovery, pilots | ⬜ To do |
+| 11 | Voice, documents, discovery, pilots | ✅ Done |
 | 12 | Enterprise, scale, visual redesign | ⬜ To do |
 
 ---
@@ -117,6 +117,28 @@ pass. Every migration runs in an isolated test database.
 - A percentage target with a baseline ("scrap ≤ 2 % from 8 %") is treated as
   an absolute rate and not used as an improvement, rather than guessed at.
 
+### 11. Voice, documents, discovery, pilots
+- **Pilots** (migration 0023): on each opportunity, admins add dated steps
+  and record measurements against the **problem owner's own success
+  criteria**; met / not met follows from the comparator. The problem side
+  sees the steps and "2 of 3 criteria met", never the raw values or sources.
+- **Discovery** (decision D9): admins verify organizations as solution
+  providers and list problems that have an approved anonymised brief. A
+  problem shows only when **listed by an admin and agreed by its submitter**
+  (new tick box on their account page). Providers read the brief and send
+  "We could solve this" to InThinks; neither side learns who the other is.
+  New admin page: *Discovery*.
+- **Voice**: signed-in submitters can describe a problem by voice (up to two
+  minutes). Workers AI Whisper turns it into text they edit before
+  submitting; the recording is not kept. 30 per day
+  (`AI_VOICE_DAILY_LIMIT`). The site's Permissions-Policy now allows the
+  microphone on its own pages only.
+- **Documents**: on a case, the submitter can upload a PDF, Word, Excel, CSV
+  or text file; Workers AI turns it into text, emails/phones/links are
+  blanked, and the figure reader offers the numbers it finds for them to
+  confirm. The file is not stored, so this works without R2. Counts against
+  the figure reader's 40 runs a day.
+
 ### 10. Controlled disclosure and engagement
 - **Anonymised briefs** on every case (migration 0022): staff write a title,
   summary and chosen figures; the assigned mediator proposes; only an admin
@@ -161,7 +183,7 @@ pass. Every migration runs in an isolated test database.
 - Meaning-vectors are stored (migration 0019) and recomputed only when a
   record's text changes.
 
-**Test status:** 330 automated HTTP checks + 8 unit suites pass.
+**Test status:** 374 automated HTTP checks + 8 unit suites pass.
 
 ---
 
@@ -233,11 +255,15 @@ pass. Every migration runs in an isolated test database.
 - [ ] Phase 10 sends no email when an opportunity is shared; the side sees
   it next time they open their account page.
 - [ ] Only admins run engagement sharing (mediators write and propose briefs).
+- [ ] Voice and document reading were tested with a stand-in AI; check them
+  once on staging with a real recording and a real PDF.
+- [ ] Discovery sends no email to providers when a problem is listed, or to
+  InThinks when interest arrives; check the Discovery page.
+- [ ] Documents that are scanned images may read poorly (no text layer).
 - [ ] The identity check cannot know every site, brand or person name; the
   admin's manual read before approval is the second check.
 
 ### Next phases
-- **11. Voice, documents, discovery, pilots.**
 - **12. Enterprise, scale, visual redesign.**
 
 ---

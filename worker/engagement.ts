@@ -5,6 +5,7 @@ import { audit } from './audit'
 import { isPlatformAdmin } from './staff-access'
 import { dueDate } from './case-workflow'
 import { briefLeak, identityTerms, presentFigure, shareableFigures } from './disclosure'
+import { participantPilot } from './pilots'
 
 /**
  * Phase 10: the engagement workflow around an opportunity.
@@ -128,6 +129,8 @@ async function present(db: D1Database, row: Record<string, unknown>) {
       figures } : null,
     response: row.response, responseNote: row.response_note, respondedAt: row.responded_at,
     nextAction: row.next_action, nextActionDue: row.next_action_due,
+    pilot: row.engagement_type === 'pilot'
+      ? await participantPilot(db, { reference: String(row.reference), challenge_ref: String(row.challenge_ref), stage: String(row.stage) }) : null,
   }
 }
 

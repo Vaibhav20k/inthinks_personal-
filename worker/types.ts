@@ -50,8 +50,10 @@ export interface Env {
   AUTO_EXTRACT?: string
   /** AI figure-reading runs allowed per UTC day. Default 40. */
   AI_EXTRACT_DAILY_LIMIT?: string
+  /** Voice recordings transcribed per day (default 30). */
+  AI_VOICE_DAILY_LIMIT?: string
   /** Cloudflare Workers AI, for meaning-based match similarity. Optional. */
-  AI?: { run(model: string, input: unknown): Promise<unknown> }
+  AI?: { run(model: string, input: unknown): Promise<unknown>; toMarkdown?(file: { name: string; blob: Blob }): Promise<unknown> }
 
   ASSETS: Fetcher
 }

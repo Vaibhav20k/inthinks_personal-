@@ -24,12 +24,12 @@ npm run deploy:staging   # build + all tests, then deploy to the staging Worker
 > detail lives in [`docs/progress.md`](docs/progress.md); this is the short
 > list of what is done and what is still open.
 
-**Done:** phases 1–10 of the upgrade roadmap: reliable intake, participant
+**Done:** phases 1–11 of the upgrade roadmap: reliable intake, participant
 accounts and ownership, operational safeguards, case workflow, structured
 qualification, adaptive intake, **private assessments and economics
-(phase 8)**, matching without Claude, and **controlled disclosure and
-engagement (phase 10)**. Still to do: phase 11 (voice, documents, discovery,
-pilots) and 12 (enterprise, scale, visual redesign).
+(phase 8)**, matching without Claude, **controlled disclosure and engagement
+(phase 10)**, and **voice, documents, discovery and pilots (phase 11)**.
+Still to do: phase 12 (enterprise, scale, visual redesign).
 
 **Staging:** https://inthinks-staging.inthinks.workers.dev, uptime-monitored
 on `/api/health`. Pushes go to `origin` (`Vaibhav20k/inthinks_personal-`),
@@ -58,6 +58,12 @@ and runs the build. There is no CD yet.
   the submitter's own names, contacts, site location and well-known company
   or institution names, but cannot know every brand, asset or person. The
   admin's tick-box read before approval is the second check; do not skip it.
+- ⚠️ **Voice and document reading are untested against the real AI.** The
+  automated tests use a stand-in; try one real recording and one real PDF on
+  staging before relying on them. Scanned PDFs without a text layer may read
+  poorly.
+- ⚠️ **Discovery and pilots send no emails.** Check *Admin → Discovery* for
+  new interest; participants see updates on their account page.
 - ⚠️ **Staging admin uses a test password.** Change it, or turn on Cloudflare
   Access, before any real data goes onto staging.
 - ⚠️ **No file storage on staging yet.** R2 needs a card on the Cloudflare
@@ -372,6 +378,7 @@ applied:
 | 0019–0020 | Match embeddings cache, adaptive-intake suggestions |
 | 0021 | Versioned economics settings (phase 8) |
 | 0022 | Disclosure briefs, InThinks-only figures, engagement sides (phase 10) |
+| 0023 | Pilot steps and results, provider verification, discovery listing and interest (phase 11) |
 
 `/api/admin/health` reports any migration the running Worker expects but the
 database lacks.
@@ -493,6 +500,20 @@ administrator shares the other side's approved brief with each side, pinned to
 that version, sets a next step the side can see, and can revoke. Participants
 see *Opportunities shared with you* on their account page and answer InThinks
 only.
+
+### Pilots, discovery, voice and documents (phase 11)
+
+- **Pilots**: dated steps and measurements on an opportunity, judged against
+  the problem owner's own success criteria. The problem side sees progress,
+  not raw values.
+- **Discovery**: verified solution providers read approved anonymised
+  problem briefs that an admin listed and the submitter agreed to, and tell
+  InThinks "we could solve this". Managed on *Admin → Discovery*.
+- **Voice**: signed-in submitters can dictate the problem statement
+  (Workers AI Whisper, up to two minutes, not stored, 30 a day).
+- **Documents**: submitters can upload a report or data sheet to a case; its
+  numbers are offered as figures to confirm. Not stored; identity shapes are
+  blanked before reading.
 
 ### Evidence files
 
@@ -782,7 +803,8 @@ key is required. Optional variables:
 |---|---|
 | `AUTO_MATCH=off` | Stop matching new records on submit |
 | `AUTO_EXTRACT=off` | Stop reading figures from submission text |
-| `AI_EXTRACT_DAILY_LIMIT` | Figure-reader runs per day (default 40) |
+| `AI_EXTRACT_DAILY_LIMIT` | Figure-reader runs per day, including documents (default 40) |
+| `AI_VOICE_DAILY_LIMIT` | Voice recordings transcribed per day (default 30) |
 | `MATCH_ENGINE=claude` + `ANTHROPIC_API_KEY` | Use the older Claude engine instead (paid; off by default) |
 
 Economics settings are not variables: they live in the database and are
@@ -797,9 +819,9 @@ the portfolio's identity guard, slug rules and public serialiser — the last of
 these asserting that an innovator's name, email, institution and raw submission
 payload do not survive the trip to the public shape. It also covers the
 intake checklists and the phase 8 economics rules. Then an HTTP suite
-(`tests/http.test.mjs`, 330 checks) runs the real Worker against a local D1,
+(`tests/http.test.mjs`, 374 checks) runs the real Worker against a local D1,
 covering ownership, workflow, email quota, matching, adaptive intake,
-assessments and disclosure, including that participants and reviewers never
+assessments, disclosure, pilots, discovery, voice and documents, including that participants and reviewers never
 receive economics and that neither side of an engagement sees the other's
 identity. It runs as part of `npm run build`, so a regression fails the
 deploy.

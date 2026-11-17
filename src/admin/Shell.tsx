@@ -28,7 +28,7 @@ export default function Shell({ me, onSignedOut, children }: { me: Me; onSignedO
     ...(me.can.viewCommercialTerms
       ? [{ to: '/admin/deals', label: 'Deals' }, { to: '/admin/royalties', label: 'Royalties' }]
       : []),
-    ...(me.can.viewAudit ? [{ to: '/admin/audit', label: 'Audit log' }, { to: '/admin/operations', label: 'Operations' }, { to: '/admin/economics', label: 'Economics' }] : []),
+    ...(me.can.viewAudit ? [{ to: '/admin/audit', label: 'Audit log' }, { to: '/admin/operations', label: 'Operations' }, { to: '/admin/economics', label: 'Economics' }, { to: '/admin/discovery', label: 'Discovery' }] : []),
     ...(me.can.manageUsers ? [{ to: '/admin/users', label: 'Users' }] : []),
   ]
 

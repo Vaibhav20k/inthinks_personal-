@@ -110,6 +110,8 @@ try {
   await testEconomics({ ...state, mf, db, call, check, challenge, innovation, admin })
   const { testDisclosure } = await import('./disclosure.test.mjs')
   await testDisclosure({ ...state, mf, db, call, check, challenge, innovation, admin })
+  const { testPhase11 } = await import('./phase11.test.mjs')
+  await testPhase11({ ...state, mf, db, call, check, challenge, innovation, admin })
   check('database foreign-key integrity',(await db.prepare('PRAGMA foreign_key_check').all()).results,[])
   console.log(`${checks} HTTP integration checks passed.`)
 } finally { await mf.dispose() }

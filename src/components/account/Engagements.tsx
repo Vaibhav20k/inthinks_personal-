@@ -7,6 +7,7 @@ interface Engagement {
   counterpart: { kind: 'problem' | 'solution'; version: number; title: string; summary: string; figures: Figure[] } | null
   response: 'pending' | 'interested' | 'more_info' | 'declined'; responseNote: string | null; respondedAt: string | null
   nextAction: string | null; nextActionDue: string | null
+  pilot: { steps: { title: string; dueOn: string | null; status: string }[]; criteriaMet: number; criteriaMeasured: number; criteriaTotal: number } | null
 }
 const COMPARATOR: Record<string, string> = { lt: 'below ', lte: 'at most ', gt: 'above ', gte: 'at least ' }
 const RESPONSE: Record<string, string> = { pending: 'You have not answered yet', interested: 'You said you are interested', more_info: 'You asked for more information', declined: 'You said you are not interested' }
@@ -29,6 +30,10 @@ function Card({ e, onChange }: { e: Engagement; onChange: () => void }) {
       <p className="whitespace-pre-wrap">{e.counterpart.summary}</p>
       {e.counterpart.figures.length > 0 && <ul className="list-disc pl-5 text-sm">{e.counterpart.figures.map((f) => <li key={figure(f)}>{figure(f)}</li>)}</ul>}
     </> : <p>InThinks is revising this description. It will appear here again shortly.</p>}
+    {e.pilot && <div className="grid gap-1 text-sm">
+      <strong>Pilot progress: {e.pilot.criteriaMet} of {e.pilot.criteriaTotal} success criteria met{e.pilot.criteriaMeasured < e.pilot.criteriaTotal ? ` (${e.pilot.criteriaTotal - e.pilot.criteriaMeasured} not measured yet)` : ''}</strong>
+      {e.pilot.steps.length > 0 && <ul className="list-disc pl-5">{e.pilot.steps.map((s) => <li key={s.title}>{s.title}{s.dueOn ? ` · by ${s.dueOn}` : ''} · {s.status}</li>)}</ul>}
+    </div>}
     {e.nextAction && <p className="text-sm"><strong>Next step from InThinks:</strong> {e.nextAction}{e.nextActionDue ? ` (by ${e.nextActionDue})` : ''}</p>}
     <p className="text-sm">{RESPONSE[e.response]}{e.responseNote ? `: “${e.responseNote}”` : ''}</p>
     {!closed && <div className="grid gap-2">

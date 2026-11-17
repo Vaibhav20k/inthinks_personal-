@@ -81,14 +81,35 @@ ${body.slice(0, 6000)}
 
 /** Background step after a submission is saved. Never throws. */
 export async function extractSuggestions(env: Env, reference: string) {
+  if (!env.DB) return 0
+  const source = await caseText(env.DB, reference).catch(() => null)
+  if (!source) return 0
+  try { assertNoIdentity(source.body) } catch { return 0 } // identity never leaves; participant fills the form by hand
+  return readFigures(env, reference, source.kind, source.sector, source.body)
+}
+
+/**
+ * Blanks the shapes identity takes (emails, phone numbers, profile links,
+ * web addresses) so a document's letterhead never reaches the model. Used for
+ * uploaded documents, where refusing the whole file would make the feature
+ * useless; the quotes are grounded against this same blanked text.
+ */
+export function blankIdentity(text: string) {
+  return text.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[removed]')
+    .replace(/(?:\+\d[\d\s-]{7,}\d|\b\d{10}\b)/g, '[removed]')
+    .replace(/\S*(?:linkedin|orcid|researchgate|scholar\.google)\S*/gi, '[removed]')
+    .replace(/https?:\/\/\S+|www\.\S+/gi, '[removed]')
+}
+
+/** Reads checklist figures from text into suggestions. Never throws. */
+export async function readFigures(env: Env, reference: string, kind: 'challenge' | 'innovation', sector: string, body: string) {
   if (!env.DB || !env.AI || env.AUTO_EXTRACT === 'off') return 0
   const db = env.DB
   try {
-    const source = await caseText(db, reference)
-    if (!source || !source.body.trim()) return 0
-    const items = checklistFor(source.kind, source.sector).items.filter((i) => i.category !== 'cost')
+    const source = { body }
+    if (!source.body.trim()) return 0
+    const items = checklistFor(kind, sector).items.filter((i) => i.category !== 'cost')
     if (!items.length) return 0
-    try { assertNoIdentity(source.body) } catch { return 0 } // identity never leaves; participant fills the form by hand
     if (!await reserveRun(db, env)) return 0
     const out = await env.AI.run(EXTRACT_MODEL, {
       messages: [{ role: 'system', content: 'You extract stated figures from documents and reply with JSON only.' },
