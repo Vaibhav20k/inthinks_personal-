@@ -194,7 +194,8 @@ pass. Every migration runs in an isolated test database.
   (13 Nov 2026: backup + restore drill passed first; live at
   https://inthinks-staging.inthinks.workers.dev, `/api/health` ok).
 - [x] Email sender on staging (`RESEND_API_KEY` secret, `ACK_FROM` =
-  Resend test sender). Live code sent to vkpal2006@gmail.com.
+  Resend test sender). Live code sent to the Resend sign-up address. From 18 Nov 2026
+  that must be info@grafillium.com (see the email note below).
 - [x] **Resend usage cap** at half the free tier: 50/day, 1,500/month
   (migration 0018, `worker/email-quota.ts`). Codes keep 10/day in reserve;
   receipts over the cap wait until the next UTC day. Shown on Operations.
@@ -305,9 +306,18 @@ pass. Every migration runs in an isolated test database.
 > uses them. Never edit an applied migration; add a new one.
 
 > [!WARNING]
-> **Staging admin uses a test password.** `vkpal2006@gmail.com` is a staging
-> super-admin with the test password chosen on 14 Nov 2026. Change it, or turn
-> on Cloudflare Access, before any real data goes on staging.
+> **Staging admin uses a test password.** `info@grafillium.com` is the staging
+> super-admin (since 18 Nov 2026), with the test password chosen on 14 Nov 2026.
+> The old `vkpal2006@gmail.com` admin and participant accounts are disabled.
+> Change the password, or turn on Cloudflare Access, before any real data goes
+> on staging.
+
+> [!IMPORTANT]
+> **One email everywhere: info@grafillium.com (18 Nov 2026).** It replaces
+> vkpal2006@gmail.com for the Cloudflare login, Resend, UptimeRobot alerts and
+> the staging admin. Resend's test sender delivers only to the Resend account's
+> own email, so the Resend account must be on info@grafillium.com (or a new
+> Resend API key from an account on that email) or sign-in codes stop arriving.
 
 > [!NOTE]
 > **Password hashing is capped at 100,000 PBKDF2 rounds.** Live Cloudflare
